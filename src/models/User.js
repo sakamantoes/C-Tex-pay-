@@ -14,8 +14,15 @@ const User = sequelize.define(
       type: DataTypes.STRING(100),
       allowNull: false,
       field: "first_name",
+
       validate: {
-        notEmpty: true,
+        notEmpty: {
+          msg: "First name is required",
+        },
+        len: {
+          args: [2, 100],
+          msg: "First name must be between 2 and 100 characters",
+        },
       },
     },
 
@@ -23,8 +30,15 @@ const User = sequelize.define(
       type: DataTypes.STRING(100),
       allowNull: false,
       field: "last_name",
+
       validate: {
-        notEmpty: true,
+        notEmpty: {
+          msg: "Last name is required",
+        },
+        len: {
+          args: [2, 100],
+          msg: "Last name must be between 2 and 100 characters",
+        },
       },
     },
 
@@ -32,8 +46,21 @@ const User = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: false,
       unique: true,
+
+      set(value) {
+        this.setDataValue(
+          "email",
+          value ? value.trim().toLowerCase() : value
+        );
+      },
+
       validate: {
-        isEmail: true,
+        notEmpty: {
+          msg: "Email is required",
+        },
+        isEmail: {
+          msg: "Please provide a valid email address",
+        },
       },
     },
 
@@ -41,11 +68,24 @@ const User = sequelize.define(
       type: DataTypes.STRING(30),
       allowNull: true,
       unique: true,
+
+      set(value) {
+        this.setDataValue(
+          "phone",
+          value ? value.trim() : value
+        );
+      },
     },
 
     password: {
       type: DataTypes.STRING(255),
       allowNull: false,
+
+      validate: {
+        notEmpty: {
+          msg: "Password is required",
+        },
+      },
     },
 
     role: {
@@ -55,6 +95,7 @@ const User = sequelize.define(
         "ADMIN",
         "SUPER_ADMIN"
       ),
+
       allowNull: false,
       defaultValue: "USER",
     },
@@ -66,6 +107,7 @@ const User = sequelize.define(
         "SUSPENDED",
         "PENDING"
       ),
+
       allowNull: false,
       defaultValue: "PENDING",
     },
@@ -129,28 +171,39 @@ const User = sequelize.define(
       field: "deleted_at",
     },
   },
+
   {
     tableName: "users",
+
     timestamps: true,
+
     paranoid: true,
+
     indexes: [
       {
         unique: true,
+        name: "users_email_unique",
         fields: ["email"],
       },
+
       {
         unique: true,
+        name: "users_phone_unique",
         fields: ["phone"],
       },
+
       {
+        name: "users_status_index",
         fields: ["status"],
       },
+
       {
+        name: "users_role_index",
         fields: ["role"],
       },
     ],
   }
 );
 
-module.exports = User;
+export default User;
 
