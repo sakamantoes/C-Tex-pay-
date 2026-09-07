@@ -11,13 +11,7 @@ import PasswordResetToken from "../models/PasswordResetToken.js";
 import { sendMail } from "../service/mail.service.js";
 import env from "../config/constant.js";
 
-
-/*
-|--------------------------------------------------------------------------
-| Helper Functions
-|--------------------------------------------------------------------------
-*/
-
+//helper functions
 
 const generateAccessToken = (user) => {
   return jwt.sign(
@@ -28,23 +22,17 @@ const generateAccessToken = (user) => {
     env.JWT_ACCESS_SECRET,
     {
       expiresIn: env.JWT_ACCESS_EXPIRES_IN || "15m",
-    }
+    },
   );
 };
-
 
 const generateRefreshToken = () => {
   return crypto.randomBytes(64).toString("hex");
 };
 
-
 const hashToken = (token) => {
-  return crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
+  return crypto.createHash("sha256").update(token).digest("hex");
 };
-
 
 const sanitizeUser = (user) => {
   const userData = user.toJSON();
@@ -54,62 +42,28 @@ const sanitizeUser = (user) => {
   return userData;
 };
 
-
-/*
-|--------------------------------------------------------------------------
-| REGISTER
-|--------------------------------------------------------------------------
-| POST /api/v1/auth/register
-|--------------------------------------------------------------------------
-*/
-
-
+// register
 export const register = async (req, res) => {
   try {
-    const {
-      firstName,
-      lastName,
-      email,
-      phone,
-      password,
-    } = req.body;
+    const { firstName, lastName, email, phone, password } = req.body;
 
+    //validate required fields
 
-    /*
-    |--------------------------------------------------------------------------
-    | Validate required fields
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !password
-    ) {
+    if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({
         success: false,
-        message:
-          "First name, last name, email and password are required",
+        message: "First name, last name, email and password are required",
       });
     }
 
-
     const normalizedEmail = email.trim().toLowerCase();
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check existing email
-    |--------------------------------------------------------------------------
-    */
-
+    //check if email already exists
     const existingEmail = await User.findOne({
       where: {
         email: normalizedEmail,
       },
     });
-
 
     if (existingEmail) {
       return res.status(409).json({
@@ -118,13 +72,7 @@ export const register = async (req, res) => {
       });
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check phone
-    |--------------------------------------------------------------------------
-    */
-
+    //check phone number
     if (phone) {
       const existingPhone = await User.findOne({
         where: {
@@ -140,20 +88,13 @@ export const register = async (req, res) => {
       }
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Password validation
-    |--------------------------------------------------------------------------
-    */
-
+    //validate password length
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
         message: "Password must be at least 8 characters long",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -162,7 +103,6 @@ export const register = async (req, res) => {
     */
 
     const hashedPassword = await bcrypt.hash(password, 12);
-
 
     /*
     |--------------------------------------------------------------------------
@@ -182,7 +122,6 @@ export const register = async (req, res) => {
       phoneVerified: false,
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Generate email verification token
@@ -196,11 +135,8 @@ export const register = async (req, res) => {
     await EmailVerificationToken.create({
       userId: user.id,
       token: hashedVerificationToken,
-      expiresAt: new Date(
-        Date.now() + 30 * 60 * 1000
-      ),
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -208,9 +144,7 @@ export const register = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const verificationUrl =
-      `${env.FRONTEND_URL}/verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
-
+    const verificationUrl = `${env.FRONTEND_URL}/verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
 
     /*
     |--------------------------------------------------------------------------
@@ -260,16 +194,13 @@ export const register = async (req, res) => {
       `,
     });
 
-
     return res.status(201).json({
       success: true,
-      message:
-        "Account created successfully. Please verify your email.",
+      message: "Account created successfully. Please verify your email.",
       data: {
         user: sanitizeUser(user),
       },
     });
-
   } catch (error) {
     console.error("Register Error:", error);
 
@@ -280,7 +211,6 @@ export const register = async (req, res) => {
   }
 };
 
-
 /*
 |--------------------------------------------------------------------------
 | LOGIN
@@ -289,14 +219,9 @@ export const register = async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-
 export const login = async (req, res) => {
   try {
-    const {
-      email,
-      password,
-    } = req.body;
-
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -305,9 +230,7 @@ export const login = async (req, res) => {
       });
     }
 
-
     const normalizedEmail = email.trim().toLowerCase();
-
 
     /*
     |--------------------------------------------------------------------------
@@ -321,7 +244,6 @@ export const login = async (req, res) => {
       },
     });
 
-
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -329,24 +251,18 @@ export const login = async (req, res) => {
       });
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Check account lock
     |--------------------------------------------------------------------------
     */
 
-    if (
-      user.lockedUntil &&
-      new Date(user.lockedUntil) > new Date()
-    ) {
+    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
       return res.status(423).json({
         success: false,
-        message:
-          "Account temporarily locked. Please try again later.",
+        message: "Account temporarily locked. Please try again later.",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -361,7 +277,6 @@ export const login = async (req, res) => {
       });
     }
 
-
     if (user.status === "INACTIVE") {
       return res.status(403).json({
         success: false,
@@ -369,37 +284,27 @@ export const login = async (req, res) => {
       });
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Verify password
     |--------------------------------------------------------------------------
     */
 
-    const passwordMatch = await bcrypt.compare(
-      password,
-      user.password
-    );
-
+    const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
-
-      const attempts =
-        (user.failedLoginAttempts || 0) + 1;
+      const attempts = (user.failedLoginAttempts || 0) + 1;
 
       const updates = {
         failedLoginAttempts: attempts,
       };
-
 
       /*
       | Lock account after 5 failed attempts
       */
 
       if (attempts >= 5) {
-        updates.lockedUntil = new Date(
-          Date.now() + 15 * 60 * 1000
-        );
+        updates.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
       }
 
       await user.update(updates);
@@ -409,7 +314,6 @@ export const login = async (req, res) => {
         message: "Invalid email or password",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -423,7 +327,6 @@ export const login = async (req, res) => {
       lastLoginAt: new Date(),
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Generate tokens
@@ -434,9 +337,7 @@ export const login = async (req, res) => {
 
     const rawRefreshToken = generateRefreshToken();
 
-    const hashedRefreshToken =
-      hashToken(rawRefreshToken);
-
+    const hashedRefreshToken = hashToken(rawRefreshToken);
 
     /*
     |--------------------------------------------------------------------------
@@ -447,11 +348,8 @@ export const login = async (req, res) => {
     await RefreshToken.create({
       userId: user.id,
       token: hashedRefreshToken,
-      expiresAt: new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -462,16 +360,10 @@ export const login = async (req, res) => {
     await UserSession.create({
       userId: user.id,
       refreshToken: hashedRefreshToken,
-      ipAddress:
-        req.ip ||
-        req.headers["x-forwarded-for"] ||
-        null,
+      ipAddress: req.ip || req.headers["x-forwarded-for"] || null,
       userAgent: req.headers["user-agent"] || null,
-      expiresAt: new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
-
 
     return res.status(200).json({
       success: true,
@@ -484,11 +376,9 @@ export const login = async (req, res) => {
 
         refreshToken: rawRefreshToken,
 
-        expiresIn:
-          env.JWT_ACCESS_EXPIRES_IN || "15m",
+        expiresIn: env.JWT_ACCESS_EXPIRES_IN || "15m",
       },
     });
-
   } catch (error) {
     console.error("Login Error:", error);
 
@@ -499,7 +389,6 @@ export const login = async (req, res) => {
   }
 };
 
-
 /*
 |--------------------------------------------------------------------------
 | REFRESH TOKEN
@@ -508,12 +397,9 @@ export const login = async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-
 export const refreshToken = async (req, res) => {
   try {
-
     const { refreshToken } = req.body;
-
 
     if (!refreshToken) {
       return res.status(400).json({
@@ -522,18 +408,13 @@ export const refreshToken = async (req, res) => {
       });
     }
 
+    const hashedToken = hashToken(refreshToken);
 
-    const hashedToken =
-      hashToken(refreshToken);
-
-
-    const storedToken =
-      await RefreshToken.findOne({
-        where: {
-          token: hashedToken,
-        },
-      });
-
+    const storedToken = await RefreshToken.findOne({
+      where: {
+        token: hashedToken,
+      },
+    });
 
     if (!storedToken) {
       return res.status(401).json({
@@ -542,17 +423,13 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Check expiration
     |--------------------------------------------------------------------------
     */
 
-    if (
-      new Date(storedToken.expiresAt) < new Date()
-    ) {
-
+    if (new Date(storedToken.expiresAt) < new Date()) {
       await storedToken.destroy();
 
       return res.status(401).json({
@@ -561,17 +438,13 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Get user
     |--------------------------------------------------------------------------
     */
 
-    const user = await User.findByPk(
-      storedToken.userId
-    );
-
+    const user = await User.findByPk(storedToken.userId);
 
     if (!user) {
       return res.status(401).json({
@@ -580,7 +453,6 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-
     if (user.status !== "ACTIVE") {
       return res.status(403).json({
         success: false,
@@ -588,16 +460,13 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Generate new access token
     |--------------------------------------------------------------------------
     */
 
-    const accessToken =
-      generateAccessToken(user);
-
+    const accessToken = generateAccessToken(user);
 
     return res.status(200).json({
       success: true,
@@ -605,7 +474,6 @@ export const refreshToken = async (req, res) => {
         accessToken,
       },
     });
-
   } catch (error) {
     console.error("Refresh Token Error:", error);
 
@@ -616,7 +484,6 @@ export const refreshToken = async (req, res) => {
   }
 };
 
-
 /*
 |--------------------------------------------------------------------------
 | LOGOUT
@@ -625,25 +492,18 @@ export const refreshToken = async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-
 export const logout = async (req, res) => {
   try {
-
     const { refreshToken } = req.body;
 
-
     if (refreshToken) {
-
-      const hashedToken =
-        hashToken(refreshToken);
-
+      const hashedToken = hashToken(refreshToken);
 
       await RefreshToken.destroy({
         where: {
           token: hashedToken,
         },
       });
-
 
       await UserSession.destroy({
         where: {
@@ -652,12 +512,10 @@ export const logout = async (req, res) => {
       });
     }
 
-
     return res.status(200).json({
       success: true,
       message: "Logged out successfully",
     });
-
   } catch (error) {
     console.error("Logout Error:", error);
 
@@ -667,7 +525,6 @@ export const logout = async (req, res) => {
     });
   }
 };
-
 
 /*
 |--------------------------------------------------------------------------
@@ -679,14 +536,9 @@ export const logout = async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-
 export const getMe = async (req, res) => {
   try {
-
-    const user = await User.findByPk(
-      req.user.id
-    );
-
+    const user = await User.findByPk(req.user.id);
 
     if (!user) {
       return res.status(404).json({
@@ -695,14 +547,12 @@ export const getMe = async (req, res) => {
       });
     }
 
-
     return res.status(200).json({
       success: true,
       data: {
         user: sanitizeUser(user),
       },
     });
-
   } catch (error) {
     console.error("Get Me Error:", error);
 
@@ -713,7 +563,6 @@ export const getMe = async (req, res) => {
   }
 };
 
-
 /*
 |--------------------------------------------------------------------------
 | VERIFY EMAIL
@@ -722,12 +571,9 @@ export const getMe = async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-
 export const verifyEmail = async (req, res) => {
   try {
-
     const { token } = req.body;
-
 
     if (!token) {
       return res.status(400).json({
@@ -736,27 +582,20 @@ export const verifyEmail = async (req, res) => {
       });
     }
 
+    const hashedToken = hashToken(token);
 
-    const hashedToken =
-      hashToken(token);
-
-
-    const verificationToken =
-      await EmailVerificationToken.findOne({
-        where: {
-          token: hashedToken,
-        },
-      });
-
+    const verificationToken = await EmailVerificationToken.findOne({
+      where: {
+        token: hashedToken,
+      },
+    });
 
     if (!verificationToken) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid or expired verification token",
+        message: "Invalid or expired verification token",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -764,25 +603,16 @@ export const verifyEmail = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    if (
-      new Date(verificationToken.expiresAt) <
-      new Date()
-    ) {
-
+    if (new Date(verificationToken.expiresAt) < new Date()) {
       await verificationToken.destroy();
 
       return res.status(400).json({
         success: false,
-        message:
-          "Verification token has expired",
+        message: "Verification token has expired",
       });
     }
 
-
-    const user = await User.findByPk(
-      verificationToken.userId
-    );
-
+    const user = await User.findByPk(verificationToken.userId);
 
     if (!user) {
       return res.status(404).json({
@@ -790,7 +620,6 @@ export const verifyEmail = async (req, res) => {
         message: "User not found",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -803,7 +632,6 @@ export const verifyEmail = async (req, res) => {
       status: "ACTIVE",
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Delete used token
@@ -812,13 +640,10 @@ export const verifyEmail = async (req, res) => {
 
     await verificationToken.destroy();
 
-
     return res.status(200).json({
       success: true,
-      message:
-        "Email verified successfully. Your account is now active.",
+      message: "Email verified successfully. Your account is now active.",
     });
-
   } catch (error) {
     console.error("Verify Email Error:", error);
 
@@ -829,7 +654,6 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
-
 /*
 |--------------------------------------------------------------------------
 | FORGOT PASSWORD
@@ -838,12 +662,9 @@ export const verifyEmail = async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-
 export const forgotPassword = async (req, res) => {
   try {
-
     const { email } = req.body;
-
 
     if (!email) {
       return res.status(400).json({
@@ -852,17 +673,13 @@ export const forgotPassword = async (req, res) => {
       });
     }
 
-
-    const normalizedEmail =
-      email.trim().toLowerCase();
-
+    const normalizedEmail = email.trim().toLowerCase();
 
     const user = await User.findOne({
       where: {
         email: normalizedEmail,
       },
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -879,7 +696,6 @@ export const forgotPassword = async (req, res) => {
       });
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Delete previous reset tokens
@@ -892,29 +708,21 @@ export const forgotPassword = async (req, res) => {
       },
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Generate reset token
     |--------------------------------------------------------------------------
     */
 
-    const rawToken =
-      crypto.randomBytes(32).toString("hex");
+    const rawToken = crypto.randomBytes(32).toString("hex");
 
-
-    const hashedToken =
-      hashToken(rawToken);
-
+    const hashedToken = hashToken(rawToken);
 
     await PasswordResetToken.create({
       userId: user.id,
       token: hashedToken,
-      expiresAt: new Date(
-        Date.now() + 15 * 60 * 1000
-      ),
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -922,9 +730,7 @@ export const forgotPassword = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const resetUrl =
-      `${env.FRONTEND_URL}/reset-password?token=${rawToken}`;
-
+    const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${rawToken}`;
 
     /*
     |--------------------------------------------------------------------------
@@ -976,13 +782,11 @@ export const forgotPassword = async (req, res) => {
       `,
     });
 
-
     return res.status(200).json({
       success: true,
       message:
         "If an account exists with this email, a password reset link has been sent.",
     });
-
   } catch (error) {
     console.error("Forgot Password Error:", error);
 
@@ -1000,7 +804,6 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-
 /*
 |--------------------------------------------------------------------------
 | RESET PASSWORD
@@ -1009,29 +812,16 @@ export const forgotPassword = async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-
 export const resetPassword = async (req, res) => {
   try {
+    const { token, password, confirmPassword } = req.body;
 
-    const {
-      token,
-      password,
-      confirmPassword,
-    } = req.body;
-
-
-    if (
-      !token ||
-      !password ||
-      !confirmPassword
-    ) {
+    if (!token || !password || !confirmPassword) {
       return res.status(400).json({
         success: false,
-        message:
-          "Token, password and confirm password are required",
+        message: "Token, password and confirm password are required",
       });
     }
-
 
     if (password !== confirmPassword) {
       return res.status(400).json({
@@ -1040,15 +830,12 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
-        message:
-          "Password must be at least 8 characters long",
+        message: "Password must be at least 8 characters long",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -1056,26 +843,20 @@ export const resetPassword = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const hashedToken =
-      hashToken(token);
+    const hashedToken = hashToken(token);
 
-
-    const resetToken =
-      await PasswordResetToken.findOne({
-        where: {
-          token: hashedToken,
-        },
-      });
-
+    const resetToken = await PasswordResetToken.findOne({
+      where: {
+        token: hashedToken,
+      },
+    });
 
     if (!resetToken) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid or expired password reset token",
+        message: "Invalid or expired password reset token",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -1083,25 +864,16 @@ export const resetPassword = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    if (
-      new Date(resetToken.expiresAt) <
-      new Date()
-    ) {
-
+    if (new Date(resetToken.expiresAt) < new Date()) {
       await resetToken.destroy();
 
       return res.status(400).json({
         success: false,
-        message:
-          "Password reset token has expired",
+        message: "Password reset token has expired",
       });
     }
 
-
-    const user = await User.findByPk(
-      resetToken.userId
-    );
-
+    const user = await User.findByPk(resetToken.userId);
 
     if (!user) {
       return res.status(404).json({
@@ -1110,16 +882,13 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Hash new password
     |--------------------------------------------------------------------------
     */
 
-    const hashedPassword =
-      await bcrypt.hash(password, 12);
-
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     /*
     |--------------------------------------------------------------------------
@@ -1134,7 +903,6 @@ export const resetPassword = async (req, res) => {
       lockedUntil: null,
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Delete reset token
@@ -1142,7 +910,6 @@ export const resetPassword = async (req, res) => {
     */
 
     await resetToken.destroy();
-
 
     /*
     |--------------------------------------------------------------------------
@@ -1156,20 +923,16 @@ export const resetPassword = async (req, res) => {
       },
     });
 
-
     await RefreshToken.destroy({
       where: {
         userId: user.id,
       },
     });
 
-
     return res.status(200).json({
       success: true,
-      message:
-        "Password reset successfully. Please login again.",
+      message: "Password reset successfully. Please login again.",
     });
-
   } catch (error) {
     console.error("Reset Password Error:", error);
 
@@ -1179,7 +942,6 @@ export const resetPassword = async (req, res) => {
     });
   }
 };
-
 
 /*
 |--------------------------------------------------------------------------
@@ -1191,22 +953,11 @@ export const resetPassword = async (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-
 export const changePassword = async (req, res) => {
   try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
 
-    const {
-      currentPassword,
-      newPassword,
-      confirmPassword,
-    } = req.body;
-
-
-    if (
-      !currentPassword ||
-      !newPassword ||
-      !confirmPassword
-    ) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       return res.status(400).json({
         success: false,
         message:
@@ -1214,24 +965,19 @@ export const changePassword = async (req, res) => {
       });
     }
 
-
     if (newPassword !== confirmPassword) {
       return res.status(400).json({
         success: false,
-        message:
-          "New passwords do not match",
+        message: "New passwords do not match",
       });
     }
-
 
     if (newPassword.length < 8) {
       return res.status(400).json({
         success: false,
-        message:
-          "Password must be at least 8 characters long",
+        message: "Password must be at least 8 characters long",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -1239,10 +985,7 @@ export const changePassword = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const user = await User.findByPk(
-      req.user.id
-    );
-
+    const user = await User.findByPk(req.user.id);
 
     if (!user) {
       return res.status(404).json({
@@ -1251,28 +994,20 @@ export const changePassword = async (req, res) => {
       });
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | Verify current password
     |--------------------------------------------------------------------------
     */
 
-    const passwordMatch =
-      await bcrypt.compare(
-        currentPassword,
-        user.password
-      );
-
+    const passwordMatch = await bcrypt.compare(currentPassword, user.password);
 
     if (!passwordMatch) {
       return res.status(401).json({
         success: false,
-        message:
-          "Current password is incorrect",
+        message: "Current password is incorrect",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -1280,21 +1015,14 @@ export const changePassword = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const samePassword =
-      await bcrypt.compare(
-        newPassword,
-        user.password
-      );
-
+    const samePassword = await bcrypt.compare(newPassword, user.password);
 
     if (samePassword) {
       return res.status(400).json({
         success: false,
-        message:
-          "New password must be different from your current password",
+        message: "New password must be different from your current password",
       });
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -1302,9 +1030,7 @@ export const changePassword = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const hashedPassword =
-      await bcrypt.hash(newPassword, 12);
-
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     /*
     |--------------------------------------------------------------------------
@@ -1316,7 +1042,6 @@ export const changePassword = async (req, res) => {
       password: hashedPassword,
       passwordChangedAt: new Date(),
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -1330,20 +1055,16 @@ export const changePassword = async (req, res) => {
       },
     });
 
-
     await RefreshToken.destroy({
       where: {
         userId: user.id,
       },
     });
 
-
     return res.status(200).json({
       success: true,
-      message:
-        "Password changed successfully. Please login again.",
+      message: "Password changed successfully. Please login again.",
     });
-
   } catch (error) {
     console.error("Change Password Error:", error);
 
@@ -1353,4 +1074,3 @@ export const changePassword = async (req, res) => {
     });
   }
 };
-
