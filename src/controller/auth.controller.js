@@ -11,7 +11,11 @@ import PasswordResetToken from "../models/PasswordResetToken.js";
 import { sendMail } from "../service/mail.service.js";
 import env from "../config/constant.js";
 
-//helper functions
+/*
+|--------------------------------------------------------------------------
+| Helper Functions
+|--------------------------------------------------------------------------
+*/
 
 const generateAccessToken = (user) => {
   return jwt.sign(
@@ -42,12 +46,23 @@ const sanitizeUser = (user) => {
   return userData;
 };
 
-// register
+/*
+|--------------------------------------------------------------------------
+| REGISTER
+|--------------------------------------------------------------------------
+| POST /api/v1/auth/register
+|--------------------------------------------------------------------------
+*/
+
 export const register = async (req, res) => {
   try {
     const { firstName, lastName, email, phone, password } = req.body;
 
-    //validate required fields
+    /*
+    |--------------------------------------------------------------------------
+    | Validate required fields
+    |--------------------------------------------------------------------------
+    */
 
     if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({
@@ -58,7 +73,12 @@ export const register = async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    //check if email already exists
+    /*
+    |--------------------------------------------------------------------------
+    | Check existing email
+    |--------------------------------------------------------------------------
+    */
+
     const existingEmail = await User.findOne({
       where: {
         email: normalizedEmail,
@@ -72,7 +92,12 @@ export const register = async (req, res) => {
       });
     }
 
-    //check phone number
+    /*
+    |--------------------------------------------------------------------------
+    | Check phone
+    |--------------------------------------------------------------------------
+    */
+
     if (phone) {
       const existingPhone = await User.findOne({
         where: {
@@ -88,7 +113,12 @@ export const register = async (req, res) => {
       }
     }
 
-    //validate password length
+    /*
+    |--------------------------------------------------------------------------
+    | Password validation
+    |--------------------------------------------------------------------------
+    */
+
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
