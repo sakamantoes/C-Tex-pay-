@@ -1,5 +1,6 @@
-export const validate = (schema) => (req, res, next) => {
-  const result = schema.safeParse(req.body ?? {});
+export const validate = (schema, source = "body") => (req, res, next) => {
+  const data = req[source] ?? {};
+  const result = schema.safeParse(data);
 
   if (!result.success) {
     const fields = Object.fromEntries(
@@ -16,6 +17,6 @@ export const validate = (schema) => (req, res, next) => {
     });
   }
 
-  req.body = result.data;
+  req[source] = result.data;
   next();
 };
