@@ -10,6 +10,9 @@ import Role from "./Role.js";
 import Permission from "./Permission.js";
 import RolePermission from "./RolePermission.js";
 import MerchantMemberRole from "./MerchantMemberRole.js";
+import ApiKey from "./ApiKey.js";
+import ApiKeyPermission from "./ApiKeyPermission.js";
+import ApiKeyUsage from "./ApiKeyUsage.js";
 
 // user has many refresh tokens
 
@@ -175,6 +178,50 @@ MerchantMemberRole.belongsTo(Role, {
   as: "role",
 });
 
+// API Key Associations
+Merchant.hasMany(ApiKey, {
+  foreignKey: "merchantId",
+  as: "apiKeys",
+});
+ApiKey.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+// API Key ↔ Permission (through ApiKeyPermission)
+ApiKey.belongsToMany(Permission, {
+  through: ApiKeyPermission,
+  foreignKey: "apiKeyId",
+  otherKey: "permissionId",
+  as: "permissions",
+});
+Permission.belongsToMany(ApiKey, {
+  through: ApiKeyPermission,
+  foreignKey: "permissionId",
+  otherKey: "apiKeyId",
+  as: "apiKeys",
+});
+
+// API Key → Usage
+ApiKey.hasMany(ApiKeyUsage, {
+  foreignKey: "apiKeyId",
+  as: "usage",
+});
+ApiKeyUsage.belongsTo(ApiKey, {
+  foreignKey: "apiKeyId",
+  as: "apiKey",
+});
+
+// Merchant → Usage (for easy querying)
+Merchant.hasMany(ApiKeyUsage, {
+  foreignKey: "merchantId",
+  as: "apiKeyUsage",
+});
+ApiKeyUsage.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
 export {
   User,
   RefreshToken,
@@ -188,4 +235,7 @@ export {
   Permission,
   RolePermission,
   MerchantMemberRole,
+  ApiKey,
+  ApiKeyPermission,
+  ApiKeyUsage,
 };

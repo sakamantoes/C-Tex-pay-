@@ -45,6 +45,16 @@ const permissions = [
   // Settings
   { key: "settings.read", name: "View Settings", resource: "settings", action: "read" },
   { key: "settings.update", name: "Update Settings", resource: "settings", action: "update" },
+
+    // API Keys
+  { key: "api_keys.read", name: "View API Keys", resource: "api_keys", action: "read" },
+  { key: "api_keys.create", name: "Create API Keys", resource: "api_keys", action: "create" },
+  { key: "api_keys.revoke", name: "Revoke API Keys", resource: "api_keys", action: "revoke" },
+  
+  // Transactions (for API testing)
+  { key: "transactions.read", name: "View Transactions", resource: "transactions", action: "read" },
+  { key: "transactions.create", name: "Create Transactions", resource: "transactions", action: "create" },
+
 ];
 
 export async function up(queryInterface, Sequelize) {
