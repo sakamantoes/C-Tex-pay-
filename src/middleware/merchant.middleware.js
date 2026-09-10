@@ -67,6 +67,42 @@ export const requireMerchant = async (req, res, next) => {
   }
 };
 
+export const requireMerchantOwner = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    const merchant = req.merchant;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    if (!merchant) {
+      return res.status(403).json({
+        success: false,
+        message: "Merchant context required",
+      });
+    }
+
+    if (merchant.ownerId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the merchant owner can perform this action",
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error("Merchant owner middleware error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Authorization failed",
+    });
+  }
+};
+
 export const requireMerchantParam = async (req, res, next) => {
   try {
     const userId = req.user?.id;

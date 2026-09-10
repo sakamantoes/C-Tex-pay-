@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { protect } from "../middleware/auth.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
-import { requireMerchant } from "../middleware/merchant.middleware.js";
-import { requirePermission } from "../middleware/permission.middleware.js";
+import {
+  requireMerchant,
+  requireMerchantOwner,
+} from "../middleware/merchant.middleware.js";
 import {
   createMerchant,
   getMyMerchant,
@@ -40,7 +42,7 @@ router.patch(
   "/me",
   protect,
   requireMerchant,
-  requirePermission("merchants.update"),
+  requireMerchantOwner,
   validate(updateMerchantSchema),
   updateMyMerchant
 );
@@ -58,7 +60,7 @@ router.patch(
   "/me/business",
   protect,
   requireMerchant,
-  requirePermission("merchants.update"),
+  requireMerchantOwner,
   validate(updateBusinessProfileSchema),
   updateBusinessProfile
 );

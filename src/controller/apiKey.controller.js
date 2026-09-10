@@ -9,37 +9,17 @@ import {
   createApiKeyWithPermissions,
   rotateApiKey as rotateApiKeyService,
   revokeApiKey as revokeApiKeyService,
+  serializeApiKey,
 } from "../service/apiKey.service.js";
 
 /**
  * Create a new API key
  */
 export const createApiKey = async (req, res) => {
-  const transaction = await sequelize.transaction();
-
   try {
     const merchantId = req.merchant.id;
     const { name, environment = "TEST", expiresAt = null, permissionKeys = [] } = req.body;
 
-    // Validate permission keys exist
-    if (permissionKeys.length > 0) {
-      const existingPermissions = await Permission.findAll({
-        where: {
-          key: permissionKeys,
-        },
-        transaction,
-      });
-
-      if (existingPermissions.length !== permissionKeys.length) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "One or more permission keys are invalid",
-        });
-      }
-    }
-
-    // Create API key
     const result = await createApiKeyWithPermissions({
       merchantId,
       name,
@@ -48,30 +28,30 @@ export const createApiKey = async (req, res) => {
       permissionKeys,
     });
 
-    await transaction.commit();
-
     return res.status(201).json({
       success: true,
       message: "API key created successfully",
       data: {
-        id: result.apiKey.id,
-        name: result.apiKey.name,
-        keyPrefix: result.apiKey.keyPrefix,
-        environment: result.apiKey.environment,
-        status: result.apiKey.status,
-        expiresAt: result.apiKey.expiresAt,
+        ...serializeApiKey(result.apiKey),
         key: result.rawKey,
         warning: "Store this API key securely. It will not be shown again.",
       },
     });
   } catch (error) {
-    await transaction.rollback();
     console.error("Create API key error:", error);
 
     if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         success: false,
         message: "API key conflict. Please try again.",
+      });
+    }
+
+    if (error.statusCode === 400 || error.message === "One or more permissions are invalid") {
+      return res.status(400).json({
+        success: false,
+        message: "One or more permissions are invalid",
+        invalidPermissions: error.invalidPermissions || [],
       });
     }
 
@@ -119,7 +99,10 @@ export const getApiKeys = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        apiKeys,
+        apiKeys: apiKeys.map((apiKey) => ({
+          ...serializeApiKey(apiKey),
+          permissions: apiKey.permissions || [],
+        })),
         count: apiKeys.length,
       },
     });
@@ -168,7 +151,10 @@ export const getApiKey = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        apiKey,
+        apiKey: {
+          ...serializeApiKey(apiKey),
+          permissions: apiKey.permissions || [],
+        },
       },
     });
   } catch (error) {
@@ -409,13 +395,7 @@ export const rotateApiKey = async (req, res) => {
       message: "API key rotated successfully",
       data: {
         oldKeyId: result.oldKeyId,
-        newApiKey: {
-          id: result.newApiKey.id,
-          name: result.newApiKey.name,
-          keyPrefix: result.newApiKey.keyPrefix,
-          environment: result.newApiKey.environment,
-          status: result.newApiKey.status,
-        },
+        newApiKey: serializeApiKey(result.newApiKey),
         key: result.rawKey,
         warning: "Store this new API key securely. Your old key has been revoked.",
       },

@@ -1,7 +1,29 @@
+const getApiKeyPermissions = (apiKey) => {
+  if (!apiKey || !Array.isArray(apiKey.permissions)) {
+    return [];
+  }
+
+  return apiKey.permissions;
+};
+
+const hasApiKeyPermission = (apiKeyPermissions, permissionKey) => {
+  if (!permissionKey) {
+    return false;
+  }
+
+  const exactMatch = apiKeyPermissions.some((permission) => permission?.key === permissionKey);
+  if (exactMatch) {
+    return true;
+  }
+
+  const resource = permissionKey.split(".")[0];
+  const wildcardKey = `${resource}.*`;
+  return apiKeyPermissions.some((permission) => permission?.key === wildcardKey);
+};
+
 export const requireApiKeyPermission = (permissionKey) => {
   return (req, res, next) => {
     try {
-      // Check if API authenticated
       if (!req.isApiAuthenticated) {
         return res.status(401).json({
           success: false,
@@ -10,7 +32,6 @@ export const requireApiKeyPermission = (permissionKey) => {
       }
 
       const apiKey = req.apiKey;
-
       if (!apiKey) {
         return res.status(401).json({
           success: false,
@@ -18,24 +39,23 @@ export const requireApiKeyPermission = (permissionKey) => {
         });
       }
 
-      // Check if API key has the permission
-      const hasPermission = apiKey.permissions.some((p) => p.key === permissionKey);
-
-      // Check for wildcard permission (resource.*)
-      if (!hasPermission) {
-        const resource = permissionKey.split(".")[0];
-        const wildcardKey = `${resource}.*`;
-        const hasWildcard = apiKey.permissions.some((p) => p.key === wildcardKey);
-
-        if (!hasWildcard) {
-          return res.status(403).json({
-            success: false,
-            message: `Permission denied: ${permissionKey}`,
-          });
-        }
+      const permissions = getApiKeyPermissions(apiKey);
+      if (permissions.length === 0) {
+        return res.status(403).json({
+          success: false,
+          message: `Permission denied: ${permissionKey}`,
+        });
       }
 
-      next();
+      const hasPermission = hasApiKeyPermission(permissions, permissionKey);
+      if (!hasPermission) {
+        return res.status(403).json({
+          success: false,
+          message: `Permission denied: ${permissionKey}`,
+        });
+      }
+
+      return next();
     } catch (error) {
       console.error("API Key permission error:", error);
       return res.status(500).json({
@@ -57,7 +77,6 @@ export const requireAnyApiKeyPermission = (permissionKeys) => {
       }
 
       const apiKey = req.apiKey;
-
       if (!apiKey) {
         return res.status(401).json({
           success: false,
@@ -65,9 +84,17 @@ export const requireAnyApiKeyPermission = (permissionKeys) => {
         });
       }
 
-      // Check if API key has any of the permissions
-      const hasPermission = apiKey.permissions.some((p) =>
-        permissionKeys.includes(p.key)
+      const permissions = getApiKeyPermissions(apiKey);
+      if (permissions.length === 0) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied",
+        });
+      }
+
+      const requiredPermissions = Array.isArray(permissionKeys) ? permissionKeys : [];
+      const hasPermission = requiredPermissions.some((permissionKey) =>
+        hasApiKeyPermission(permissions, permissionKey)
       );
 
       if (!hasPermission) {
@@ -77,7 +104,7 @@ export const requireAnyApiKeyPermission = (permissionKeys) => {
         });
       }
 
-      next();
+      return next();
     } catch (error) {
       console.error("API Key permission error:", error);
       return res.status(500).json({

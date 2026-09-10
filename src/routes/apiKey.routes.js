@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { protect } from "../middleware/auth.middleware.js";
-import { requireMerchant } from "../middleware/merchant.middleware.js";
-import { requirePermission } from "../middleware/permission.middleware.js";
+import {
+  requireMerchant,
+  requireMerchantOwner,
+} from "../middleware/merchant.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
   authenticateApiKey,
@@ -37,7 +39,7 @@ router.post(
   "/",
   protect,
   requireMerchant,
-  requirePermission("api_keys.create"),
+  requireMerchantOwner,
   validate(createApiKeySchema),
   createApiKey
 );
@@ -47,7 +49,6 @@ router.get(
   "/",
   protect,
   requireMerchant,
-  requirePermission("api_keys.read"),
   validate(getApiKeysQuerySchema, "query"),
   getApiKeys
 );
@@ -57,7 +58,6 @@ router.get(
   "/:id",
   protect,
   requireMerchant,
-  requirePermission("api_keys.read"),
   validate(apiKeyIdParamSchema, "params"),
   getApiKey
 );
@@ -67,7 +67,6 @@ router.get(
   "/:id/permissions",
   protect,
   requireMerchant,
-  requirePermission("api_keys.read"),
   validate(apiKeyIdParamSchema, "params"),
   getApiKeyPermissions
 );
@@ -77,7 +76,7 @@ router.post(
   "/:id/permissions/:permissionId",
   protect,
   requireMerchant,
-  requirePermission("api_keys.create"),
+  requireMerchantOwner,
   validate(apiKeyPermissionParamSchema, "params"),
   addApiKeyPermission
 );
@@ -87,7 +86,7 @@ router.delete(
   "/:id/permissions/:permissionId",
   protect,
   requireMerchant,
-  requirePermission("api_keys.revoke"),
+  requireMerchantOwner,
   validate(apiKeyPermissionParamSchema, "params"),
   removeApiKeyPermission
 );
@@ -97,7 +96,7 @@ router.post(
   "/:id/rotate",
   protect,
   requireMerchant,
-  requirePermission("api_keys.create"),
+  requireMerchantOwner,
   validate(apiKeyIdParamSchema, "params"),
   rotateApiKey
 );
@@ -107,7 +106,7 @@ router.post(
   "/:id/revoke",
   protect,
   requireMerchant,
-  requirePermission("api_keys.revoke"),
+  requireMerchantOwner,
   validate(apiKeyIdParamSchema, "params"),
   revokeApiKey
 );
@@ -117,7 +116,6 @@ router.get(
   "/:id/usage",
   protect,
   requireMerchant,
-  requirePermission("api_keys.read"),
   validate(apiKeyIdParamSchema, "params"),
   validate(usageQuerySchema, "query"),
   getApiKeyUsage
@@ -129,7 +127,7 @@ router.get(
 router.get(
   "/test/api-key",
   authenticateApiKey,
-  recordApiKeyUsage(Date.now()),
+  recordApiKeyUsage(),
   requireApiKeyPermission("transactions.read"),
   testApiKey
 );

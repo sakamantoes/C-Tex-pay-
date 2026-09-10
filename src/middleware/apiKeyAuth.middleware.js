@@ -62,20 +62,14 @@ export const authenticateApiKey = async (req, res, next) => {
 };
 
 // Middleware to record usage after request completes
-export const recordApiKeyUsage = (startTime) => {
+export const recordApiKeyUsage = () => {
   return async (req, res, next) => {
-    // Store start time
-    req._startTime = startTime || Date.now();
+    const startTime = Date.now();
+    req._startTime = startTime;
 
-    // Override res.json to capture response
-    const originalJson = res.json;
-    res.json = function (data) {
-      // Restore original json
-      res.json = originalJson;
-
-      // Record usage asynchronously (don't await to not block response)
+    res.on("finish", () => {
       if (req._apiKeyId && req._merchantId) {
-        const responseTime = Date.now() - req._startTime;
+        const responseTime = Date.now() - startTime;
 
         ApiKeyUsage.create({
           apiKeyId: req._apiKeyId,
@@ -84,16 +78,14 @@ export const recordApiKeyUsage = (startTime) => {
           method: req.method,
           endpoint: req.originalUrl || req.url,
           statusCode: res.statusCode,
-          ipAddress: req.ip || req.connection.remoteAddress,
+          ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
           userAgent: req.headers["user-agent"],
           responseTime,
         }).catch((err) => {
           console.error("Failed to record API usage:", err);
         });
       }
-
-      return originalJson.call(this, data);
-    };
+    });
 
     next();
   };

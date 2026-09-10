@@ -1,5 +1,10 @@
 import crypto from "crypto";
-import { ApiKey, ApiKeyPermission, Permission } from "../models/index.js";
+import {
+  ApiKey,
+  ApiKeyPermission,
+  Permission,
+  Merchant,
+} from "../models/index.js";
 import sequelize from "../config/database.js";
 
 /**
@@ -31,6 +36,22 @@ export function getApiKeyPrefix(apiKey) {
 }
 
 /**
+ * Serialize API key data for safe responses.
+ */
+export function serializeApiKey(apiKey = {}) {
+  return {
+    id: apiKey.id,
+    name: apiKey.name,
+    keyPrefix: apiKey.keyPrefix,
+    environment: apiKey.environment,
+    status: apiKey.status,
+    expiresAt: apiKey.expiresAt ?? null,
+    lastUsedAt: apiKey.lastUsedAt ?? null,
+    createdAt: apiKey.createdAt,
+  };
+}
+
+/**
  * Create a new API key with permissions
  */
 export async function createApiKeyWithPermissions({
@@ -43,12 +64,32 @@ export async function createApiKeyWithPermissions({
   const transaction = await sequelize.transaction();
 
   try {
-    // Generate key
+    const requestedPermissions = Array.isArray(permissionKeys) ? permissionKeys : [];
+    const normalizedPermissionKeys = [...new Set(requestedPermissions.filter(Boolean))];
+
+    const existingPermissions = await Permission.findAll({
+      where: {
+        key: normalizedPermissionKeys,
+      },
+      transaction,
+    });
+
+    const validPermissionKeys = new Set(existingPermissions.map((permission) => permission.key));
+    const invalidPermissions = normalizedPermissionKeys.filter(
+      (permissionKey) => !validPermissionKeys.has(permissionKey)
+    );
+
+    if (invalidPermissions.length > 0) {
+      const error = new Error("One or more permissions are invalid");
+      error.statusCode = 400;
+      error.invalidPermissions = invalidPermissions;
+      throw error;
+    }
+
     const rawKey = generateApiKey(environment);
     const keyHash = hashApiKey(rawKey);
     const keyPrefix = getApiKeyPrefix(rawKey);
 
-    // Create API key
     const apiKey = await ApiKey.create(
       {
         merchantId,
@@ -62,18 +103,8 @@ export async function createApiKeyWithPermissions({
       { transaction }
     );
 
-    // Assign permissions if provided
-    if (permissionKeys && permissionKeys.length > 0) {
-      const permissions = await Permission.findAll({
-        where: {
-          key: permissionKeys,
-        },
-        transaction,
-      });
-
-      if (permissions.length > 0) {
-        await apiKey.setPermissions(permissions, { transaction });
-      }
+    if (existingPermissions.length > 0) {
+      await apiKey.setPermissions(existingPermissions, { transaction });
     }
 
     await transaction.commit();
@@ -81,7 +112,7 @@ export async function createApiKeyWithPermissions({
     return {
       apiKey,
       rawKey,
-      permissions: permissionKeys,
+      permissions: normalizedPermissionKeys,
     };
   } catch (error) {
     await transaction.rollback();

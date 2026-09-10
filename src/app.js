@@ -20,6 +20,20 @@ app.use(
 
 app.use(requestId);
 
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+
+  res.json = (body) => {
+    console.log(`\n[${req.method}] ${req.originalUrl}`);
+    console.log(`Status: ${res.statusCode}`);
+    console.log("Response:");
+    console.log(JSON.stringify(body, null, 2));
+    return originalJson(body);
+  };
+
+  next();
+});
+
 //routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/merchants", merchantRoutes);
