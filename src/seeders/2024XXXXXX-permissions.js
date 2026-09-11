@@ -25,6 +25,7 @@ export const permissions = [
   { key: "customers.read", name: "View Customers", resource: "customers", action: "read" },
   { key: "customers.create", name: "Create Customers", resource: "customers", action: "create" },
   { key: "customers.update", name: "Update Customers", resource: "customers", action: "update" },
+  { key: "customers.delete", name: "Delete Customers", resource: "customers", action: "delete" },
 
   // Payouts
   { key: "payouts.read", name: "View Payouts", resource: "payouts", action: "read" },

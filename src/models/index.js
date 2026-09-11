@@ -13,6 +13,9 @@ import MerchantMemberRole from "./MerchantMemberRole.js";
 import ApiKey from "./ApiKey.js";
 import ApiKeyPermission from "./ApiKeyPermission.js";
 import ApiKeyUsage from "./ApiKeyUsage.js";
+import Customer from "./Customer.js";
+import CustomerMetadata from "./CustomerMetadata.js";
+import CustomerPaymentMethod from "./CustomerPaymentMethod.js";
 
 // user has many refresh tokens
 
@@ -222,6 +225,34 @@ ApiKeyUsage.belongsTo(Merchant, {
   as: "merchant",
 });
 
+// Customer associations
+Merchant.hasMany(Customer, {
+  foreignKey: "merchantId",
+  as: "customers",
+});
+Customer.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+Customer.hasOne(CustomerMetadata, {
+  foreignKey: "customerId",
+  as: "metadata",
+});
+CustomerMetadata.belongsTo(Customer, {
+  foreignKey: "customerId",
+  as: "customer",
+});
+
+Customer.hasMany(CustomerPaymentMethod, {
+  foreignKey: "customerId",
+  as: "paymentMethods",
+});
+CustomerPaymentMethod.belongsTo(Customer, {
+  foreignKey: "customerId",
+  as: "customer",
+});
+
 export {
   User,
   RefreshToken,
@@ -238,4 +269,7 @@ export {
   ApiKey,
   ApiKeyPermission,
   ApiKeyUsage,
+  Customer,
+  CustomerMetadata,
+  CustomerPaymentMethod,
 };

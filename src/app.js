@@ -5,6 +5,7 @@ import merchantRoutes from "./routes/merchant.routes.js";
 import roleRoutes from "./routes/role.routes.js";
 import merchantMemberRoutes from "./routes/merchantMember.routes.js";
 import apiKeyRoutes from "./routes/apiKey.routes.js";
+import customerRoutes from "./routes/customer.routes.js";
 import { requestId } from "./middleware/requestId.middleware.js";
 
 const app = express();
@@ -40,6 +41,7 @@ app.use("/api/v1/merchants", merchantRoutes);
 app.use("/api/v1/roles", roleRoutes);
 app.use("/api/v1/merchant-members", merchantMemberRoutes);
 app.use("/api/v1/api-keys", apiKeyRoutes);
+app.use("/api/v1/customers", customerRoutes);
 
 app.get("/", (req, res) => {
   res.json({
