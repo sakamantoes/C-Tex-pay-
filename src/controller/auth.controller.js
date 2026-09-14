@@ -174,7 +174,7 @@ export const register = async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const verificationUrl = `${env.FRONTEND_URL}/verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
+    const verificationUrl = `${env.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
 
     /*
     |--------------------------------------------------------------------------
@@ -1138,7 +1138,7 @@ export const resendVerification = async (req, res) => {
       expiresAt: new Date(Date.now() + 30 * 60 * 1000),
     });
 
-    const verificationUrl = `${env.FRONTEND_URL}/verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
+    const verificationUrl = `${env.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
 
     await sendMail({
       to: normalizedEmail,
