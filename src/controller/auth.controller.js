@@ -1104,3 +1104,70 @@ export const changePassword = async (req, res) => {
     });
   }
 };
+
+export const resendVerification = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ where: { email: normalizedEmail } });
+
+    // Don't reveal account existence
+    if (!user || user.emailVerified) {
+      return res.status(200).json({
+        success: true,
+        message: "If the account exists and is unverified, a new link has been sent.",
+      });
+    }
+
+    // Delete previous verification tokens
+    await EmailVerificationToken.destroy({ where: { userId: user.id } });
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = hashToken(rawToken);
+
+    await EmailVerificationToken.create({
+      userId: user.id,
+      token: hashedToken,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+    });
+
+    const verificationUrl = `${env.FRONTEND_URL}/verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
+
+    await sendMail({
+      to: normalizedEmail,
+      subject: "Verify your C-TEX PAY account",
+      message: `
+        <div style="font-family: Arial, sans-serif;">
+          <h2>Verify your email</h2>
+          <p>Hello ${user.firstName},</p>
+          <p>Click the button below to verify your C-TEX PAY account.</p>
+          <p>
+            <a href="${verificationUrl}"
+               style="display:inline-block;padding:12px 20px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">
+              Verify Email
+            </a>
+          </p>
+          <p>This link expires in 30 minutes.</p>
+        </div>
+      `,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Verification email sent.",
+    });
+  } catch (error) {
+    console.error("Resend verification error:", error);
+    return res.status(200).json({
+      success: true,
+      message: "If the account exists and is unverified, a new link has been sent.",
+    });
+  }
+};

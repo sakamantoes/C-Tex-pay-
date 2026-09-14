@@ -10,6 +10,7 @@ import {
   forgotPassword,
   resetPassword,
   changePassword,
+  resendVerification,
 } from "../controller/auth.controller.js";
 
 import { protect } from "../middleware/auth.middleware.js";
@@ -21,6 +22,7 @@ import {
   logoutSchema,
   refreshTokenSchema,
   registerSchema,
+  resendVerificationSchema,
   resetPasswordSchema,
   verifyEmailSchema,
 } from "../validation/auth.schemas.js";
@@ -48,6 +50,12 @@ router.post(
   protect,
   validate(changePasswordSchema),
   changePassword
+);
+
+router.post(
+  "/resend-verification",
+  validate(resendVerificationSchema),
+  resendVerification
 );
 
 export default router;

@@ -53,3 +53,7 @@ export const changePasswordSchema = z
     path: ["confirmPassword"],
     message: "New passwords do not match",
   });
+
+  export const resendVerificationSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Please provide a valid email address"),
+});
