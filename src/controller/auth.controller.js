@@ -7,6 +7,7 @@ import RefreshToken from "../models/RefreshToken.js";
 import UserSession from "../models/UserSession.js";
 import EmailVerificationToken from "../models/EmailVerificationToken.js";
 import PasswordResetToken from "../models/PasswordResetToken.js";
+import sequelize from "../config/database.js";
 
 import { sendMail } from "../service/mail.service.js";
 import env from "../config/constant.js";
@@ -26,7 +27,7 @@ const generateAccessToken = (user) => {
     env.JWT_ACCESS_SECRET,
     {
       expiresIn: env.JWT_ACCESS_EXPIRES_IN || "15m",
-    },
+    }
   );
 };
 
@@ -40,9 +41,7 @@ const hashToken = (token) => {
 
 const sanitizeUser = (user) => {
   const userData = user.toJSON();
-
   delete userData.password;
-
   return userData;
 };
 
@@ -51,6 +50,13 @@ const sanitizeUser = (user) => {
 | REGISTER
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/register
+|
+| Atomic unit of work:
+|   1. Create User
+|   2. Create EmailVerificationToken
+|   3. Send verification email
+|
+| If the email send fails, the User and Token MUST be rolled back.
 |--------------------------------------------------------------------------
 */
 
@@ -58,12 +64,7 @@ export const register = async (req, res) => {
   try {
     const { firstName, lastName, email, phone, password } = req.body;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Validate required fields
-    |--------------------------------------------------------------------------
-    */
-
+    /* Validate required fields */
     if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -73,16 +74,9 @@ export const register = async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    /*
-    |--------------------------------------------------------------------------
-    | Check existing email
-    |--------------------------------------------------------------------------
-    */
-
+    /* Check existing email (read-only) */
     const existingEmail = await User.findOne({
-      where: {
-        email: normalizedEmail,
-      },
+      where: { email: normalizedEmail },
     });
 
     if (existingEmail) {
@@ -92,19 +86,9 @@ export const register = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Check phone
-    |--------------------------------------------------------------------------
-    */
-
+    /* Check phone (read-only) */
     if (phone) {
-      const existingPhone = await User.findOne({
-        where: {
-          phone,
-        },
-      });
-
+      const existingPhone = await User.findOne({ where: { phone } });
       if (existingPhone) {
         return res.status(409).json({
           success: false,
@@ -113,12 +97,7 @@ export const register = async (req, res) => {
       }
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Password validation
-    |--------------------------------------------------------------------------
-    */
-
+    /* Password validation */
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
@@ -126,102 +105,86 @@ export const register = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Hash password
-    |--------------------------------------------------------------------------
-    */
-
+    /* Hash password BEFORE opening a transaction (bcrypt is CPU-bound, not DB) */
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Create user
-    |--------------------------------------------------------------------------
-    */
-
-    const user = await User.create({
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: normalizedEmail,
-      phone: phone || null,
-      password: hashedPassword,
-      role: "USER",
-      status: "PENDING",
-      emailVerified: false,
-      phoneVerified: false,
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Generate email verification token
-    |--------------------------------------------------------------------------
-    */
-
+    /* Prepare token + URL before the transaction so the callback only does DB + email */
     const rawToken = crypto.randomBytes(32).toString("hex");
-
     const hashedVerificationToken = hashToken(rawToken);
-
-    await EmailVerificationToken.create({
-      userId: user.id,
-      token: hashedVerificationToken,
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Verification URL
-    |--------------------------------------------------------------------------
-    */
 
     const verificationUrl = `${env.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
 
     /*
-    |--------------------------------------------------------------------------
-    | Send verification email
-    |--------------------------------------------------------------------------
+    | Managed transaction.
+    | If sendMail throws, Sequelize automatically rolls back User + Token.
     */
+    const user = await sequelize.transaction(async (t) => {
+      const createdUser = await User.create(
+        {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: normalizedEmail,
+          phone: phone || null,
+          password: hashedPassword,
+          role: "USER",
+          status: "PENDING",
+          emailVerified: false,
+          phoneVerified: false,
+        },
+        { transaction: t }
+      );
 
-    await sendMail({
-      to: normalizedEmail,
-      subject: "Verify your C-TEX PAY account",
-      message: `
-        <div style="font-family: Arial, sans-serif;">
-          <h2>Welcome to C-TEX PAY</h2>
+      await EmailVerificationToken.create(
+        {
+          userId: createdUser.id,
+          token: hashedVerificationToken,
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        },
+        { transaction: t }
+      );
 
-          <p>Hello ${user.firstName},</p>
+      /*
+      | Email send inside the transaction.
+      | If this throws, the transaction rolls back — no User, no Token.
+      | NOTE: If the provider already accepted the email before failing,
+      | the email will still have been sent. That's an accepted MVP tradeoff.
+      */
+      await sendMail({
+        to: normalizedEmail,
+        subject: "Verify your C-TEX PAY account",
+        message: `
+          <div style="font-family: Arial, sans-serif;">
+            <h2>Welcome to C-TEX PAY</h2>
+            <p>Hello ${createdUser.firstName},</p>
+            <p>
+              Thank you for creating your C-TEX PAY account.
+              Please verify your email address to continue.
+            </p>
+            <p>
+              <a
+                href="${verificationUrl}"
+                style="
+                  display:inline-block;
+                  padding:12px 20px;
+                  background:#000;
+                  color:#fff;
+                  text-decoration:none;
+                  border-radius:6px;
+                "
+              >
+                Verify Email
+              </a>
+            </p>
+            <p>This verification link expires in 30 minutes.</p>
+            <p>
+              If you did not create this account, you can safely ignore
+              this email.
+            </p>
+          </div>
+        `,
+      });
 
-          <p>
-            Thank you for creating your C-TEX PAY account.
-            Please verify your email address to continue.
-          </p>
-
-          <p>
-            <a
-              href="${verificationUrl}"
-              style="
-                display:inline-block;
-                padding:12px 20px;
-                background:#000;
-                color:#fff;
-                text-decoration:none;
-                border-radius:6px;
-              "
-            >
-              Verify Email
-            </a>
-          </p>
-
-          <p>
-            This verification link expires in 30 minutes.
-          </p>
-
-          <p>
-            If you did not create this account, you can safely ignore
-            this email.
-          </p>
-        </div>
-      `,
+      return createdUser;
     });
 
     return res.status(201).json({
@@ -246,6 +209,13 @@ export const register = async (req, res) => {
 | LOGIN
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/login
+|
+| Atomic unit of work (success path):
+|   1. Reset failed attempts + update last login
+|   2. Create RefreshToken
+|   3. Create UserSession
+|
+| Failure path is a single UPDATE — no transaction needed.
 |--------------------------------------------------------------------------
 */
 
@@ -262,16 +232,9 @@ export const login = async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    /*
-    |--------------------------------------------------------------------------
-    | Find user
-    |--------------------------------------------------------------------------
-    */
-
+    /* Read-only lookup */
     const user = await User.findOne({
-      where: {
-        email: normalizedEmail,
-      },
+      where: { email: normalizedEmail },
     });
 
     if (!user) {
@@ -281,12 +244,7 @@ export const login = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Check account lock
-    |--------------------------------------------------------------------------
-    */
-
+    /* Account lock check (read-only) */
     if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
       return res.status(423).json({
         success: false,
@@ -294,12 +252,7 @@ export const login = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Check account status
-    |--------------------------------------------------------------------------
-    */
-
+    /* Status checks (read-only) */
     if (user.status === "SUSPENDED") {
       return res.status(403).json({
         success: false,
@@ -314,24 +267,16 @@ export const login = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Verify password
-    |--------------------------------------------------------------------------
-    */
-
+    /* Verify password */
     const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
-      const attempts = (user.failedLoginAttempts || 0) + 1;
-
-      const updates = {
-        failedLoginAttempts: attempts,
-      };
-
       /*
-      | Lock account after 5 failed attempts
+      | Single write — no transaction required.
+      | Increment failed attempts and optionally lock.
       */
+      const attempts = (user.failedLoginAttempts || 0) + 1;
+      const updates = { failedLoginAttempts: attempts };
 
       if (attempts >= 5) {
         updates.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
@@ -346,66 +291,53 @@ export const login = async (req, res) => {
     }
 
     /*
-    |--------------------------------------------------------------------------
-    | Reset failed login attempts
-    |--------------------------------------------------------------------------
+    | Success path — three writes must all succeed together:
+    |   1. Reset failed attempts and set lastLoginAt
+    |   2. Create RefreshToken
+    |   3. Create UserSession
     */
-
-    await user.update({
-      failedLoginAttempts: 0,
-      lockedUntil: null,
-      lastLoginAt: new Date(),
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Generate tokens
-    |--------------------------------------------------------------------------
-    */
-
     const accessToken = generateAccessToken(user);
-
     const rawRefreshToken = generateRefreshToken();
-
     const hashedRefreshToken = hashToken(rawRefreshToken);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Create refresh token
-    |--------------------------------------------------------------------------
-    */
+    await sequelize.transaction(async (t) => {
+      await user.update(
+        {
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          lastLoginAt: new Date(),
+        },
+        { transaction: t }
+      );
 
-    await RefreshToken.create({
-      userId: user.id,
-      token: hashedRefreshToken,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    });
+      await RefreshToken.create(
+        {
+          userId: user.id,
+          token: hashedRefreshToken,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+        { transaction: t }
+      );
 
-    /*
-    |--------------------------------------------------------------------------
-    | Create session
-    |--------------------------------------------------------------------------
-    */
-
-    await UserSession.create({
-      userId: user.id,
-      refreshToken: hashedRefreshToken,
-      ipAddress: req.ip || req.headers["x-forwarded-for"] || null,
-      userAgent: req.headers["user-agent"] || null,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      await UserSession.create(
+        {
+          userId: user.id,
+          refreshToken: hashedRefreshToken,
+          ipAddress: req.ip || req.headers["x-forwarded-for"] || null,
+          userAgent: req.headers["user-agent"] || null,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+        { transaction: t }
+      );
     });
 
     return res.status(200).json({
       success: true,
       message: "Login successful",
-
       data: {
         user: sanitizeUser(user),
-
         accessToken,
-
         refreshToken: rawRefreshToken,
-
         expiresIn: env.JWT_ACCESS_EXPIRES_IN || "15m",
       },
     });
@@ -424,6 +356,9 @@ export const login = async (req, res) => {
 | REFRESH TOKEN
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/refresh
+|
+| The only write here is a single destroy() on an expired token.
+| No transaction needed — single-write operations are already atomic.
 |--------------------------------------------------------------------------
 */
 
@@ -441,9 +376,7 @@ export const refreshToken = async (req, res) => {
     const hashedToken = hashToken(refreshToken);
 
     const storedToken = await RefreshToken.findOne({
-      where: {
-        token: hashedToken,
-      },
+      where: { token: hashedToken },
     });
 
     if (!storedToken) {
@@ -453,12 +386,6 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Check expiration
-    |--------------------------------------------------------------------------
-    */
-
     if (new Date(storedToken.expiresAt) < new Date()) {
       await storedToken.destroy();
 
@@ -467,12 +394,6 @@ export const refreshToken = async (req, res) => {
         message: "Refresh token has expired",
       });
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Get user
-    |--------------------------------------------------------------------------
-    */
 
     const user = await User.findByPk(storedToken.userId);
 
@@ -490,19 +411,11 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Generate new access token
-    |--------------------------------------------------------------------------
-    */
-
     const accessToken = generateAccessToken(user);
 
     return res.status(200).json({
       success: true,
-      data: {
-        accessToken,
-      },
+      data: { accessToken },
     });
   } catch (error) {
     console.error("Refresh Token Error:", error);
@@ -519,6 +432,12 @@ export const refreshToken = async (req, res) => {
 | LOGOUT
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/logout
+|
+| Atomic unit of work:
+|   1. Destroy RefreshToken
+|   2. Destroy UserSession
+|
+| Two writes — must be atomic.
 |--------------------------------------------------------------------------
 */
 
@@ -529,16 +448,16 @@ export const logout = async (req, res) => {
     if (refreshToken) {
       const hashedToken = hashToken(refreshToken);
 
-      await RefreshToken.destroy({
-        where: {
-          token: hashedToken,
-        },
-      });
+      await sequelize.transaction(async (t) => {
+        await RefreshToken.destroy(
+          { where: { token: hashedToken } },
+          { transaction: t }
+        );
 
-      await UserSession.destroy({
-        where: {
-          refreshToken: hashedToken,
-        },
+        await UserSession.destroy(
+          { where: { refreshToken: hashedToken } },
+          { transaction: t }
+        );
       });
     }
 
@@ -561,8 +480,8 @@ export const logout = async (req, res) => {
 | GET CURRENT USER
 |--------------------------------------------------------------------------
 | GET /api/v1/auth/me
-|--------------------------------------------------------------------------
-| Requires auth middleware
+|
+| Read-only — no transaction needed.
 |--------------------------------------------------------------------------
 */
 
@@ -579,9 +498,7 @@ export const getMe = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: {
-        user: sanitizeUser(user),
-      },
+      data: { user: sanitizeUser(user) },
     });
   } catch (error) {
     console.error("Get Me Error:", error);
@@ -598,6 +515,12 @@ export const getMe = async (req, res) => {
 | VERIFY EMAIL
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/verify-email
+|
+| Atomic unit of work:
+|   1. Update User (emailVerified=true, status=ACTIVE)
+|   2. Destroy EmailVerificationToken
+|
+| Both must succeed or neither.
 |--------------------------------------------------------------------------
 */
 
@@ -615,9 +538,7 @@ export const verifyEmail = async (req, res) => {
     const hashedToken = hashToken(token);
 
     const verificationToken = await EmailVerificationToken.findOne({
-      where: {
-        token: hashedToken,
-      },
+      where: { token: hashedToken },
     });
 
     if (!verificationToken) {
@@ -626,12 +547,6 @@ export const verifyEmail = async (req, res) => {
         message: "Invalid or expired verification token",
       });
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check expiration
-    |--------------------------------------------------------------------------
-    */
 
     if (new Date(verificationToken.expiresAt) < new Date()) {
       await verificationToken.destroy();
@@ -651,24 +566,17 @@ export const verifyEmail = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Verify email
-    |--------------------------------------------------------------------------
-    */
+    await sequelize.transaction(async (t) => {
+      await user.update(
+        {
+          emailVerified: true,
+          status: "ACTIVE",
+        },
+        { transaction: t }
+      );
 
-    await user.update({
-      emailVerified: true,
-      status: "ACTIVE",
+      await verificationToken.destroy({ transaction: t });
     });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Delete used token
-    |--------------------------------------------------------------------------
-    */
-
-    await verificationToken.destroy();
 
     return res.status(200).json({
       success: true,
@@ -689,6 +597,16 @@ export const verifyEmail = async (req, res) => {
 | FORGOT PASSWORD
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/forgot-password
+|
+| Atomic unit of work:
+|   1. Destroy previous PasswordResetTokens for this user
+|   2. Create new PasswordResetToken
+|   3. Send reset email
+|
+| If email send fails, we roll back so the user isn't left with a token
+| they can't receive (or with their old token already deleted).
+|
+| Response shape is unchanged (always 200 to prevent email enumeration).
 |--------------------------------------------------------------------------
 */
 
@@ -705,19 +623,12 @@ export const forgotPassword = async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
+    /* Read-only lookup */
     const user = await User.findOne({
-      where: {
-        email: normalizedEmail,
-      },
+      where: { email: normalizedEmail },
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | IMPORTANT:
-    | Do not reveal whether the email exists.
-    |--------------------------------------------------------------------------
-    */
-
+    /* Don't reveal whether the email exists */
     if (!user) {
       return res.status(200).json({
         success: true,
@@ -726,90 +637,55 @@ export const forgotPassword = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Delete previous reset tokens
-    |--------------------------------------------------------------------------
-    */
-
-    await PasswordResetToken.destroy({
-      where: {
-        userId: user.id,
-      },
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Generate reset token
-    |--------------------------------------------------------------------------
-    */
-
     const rawToken = crypto.randomBytes(32).toString("hex");
-
     const hashedToken = hashToken(rawToken);
-
-    await PasswordResetToken.create({
-      userId: user.id,
-      token: hashedToken,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Reset URL
-    |--------------------------------------------------------------------------
-    */
-
     const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${rawToken}`;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Send email
-    |--------------------------------------------------------------------------
-    */
+    await sequelize.transaction(async (t) => {
+      await PasswordResetToken.destroy(
+        { where: { userId: user.id } },
+        { transaction: t }
+      );
 
-    await sendMail({
-      to: user.email,
-      subject: "Reset your C-TEX PAY password",
-      message: `
-        <div style="font-family: Arial, sans-serif;">
+      await PasswordResetToken.create(
+        {
+          userId: user.id,
+          token: hashedToken,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        },
+        { transaction: t }
+      );
 
-          <h2>Password Reset</h2>
-
-          <p>
-            Hello ${user.firstName},
-          </p>
-
-          <p>
-            We received a request to reset your C-TEX PAY password.
-          </p>
-
-          <p>
-            <a
-              href="${resetUrl}"
-              style="
-                display:inline-block;
-                padding:12px 20px;
-                background:#000;
-                color:#fff;
-                text-decoration:none;
-                border-radius:6px;
-              "
-            >
-              Reset Password
-            </a>
-          </p>
-
-          <p>
-            This link expires in 15 minutes.
-          </p>
-
-          <p>
-            If you did not request this, you can safely ignore this email.
-          </p>
-
-        </div>
-      `,
+      await sendMail({
+        to: user.email,
+        subject: "Reset your C-TEX PAY password",
+        message: `
+          <div style="font-family: Arial, sans-serif;">
+            <h2>Password Reset</h2>
+            <p>Hello ${user.firstName},</p>
+            <p>We received a request to reset your C-TEX PAY password.</p>
+            <p>
+              <a
+                href="${resetUrl}"
+                style="
+                  display:inline-block;
+                  padding:12px 20px;
+                  background:#000;
+                  color:#fff;
+                  text-decoration:none;
+                  border-radius:6px;
+                "
+              >
+                Reset Password
+              </a>
+            </p>
+            <p>This link expires in 15 minutes.</p>
+            <p>
+              If you did not request this, you can safely ignore this email.
+            </p>
+          </div>
+        `,
+      });
     });
 
     return res.status(200).json({
@@ -820,12 +696,7 @@ export const forgotPassword = async (req, res) => {
   } catch (error) {
     console.error("Forgot Password Error:", error);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Don't expose internal email/database errors
-    |--------------------------------------------------------------------------
-    */
-
+    /* Preserve response shape to prevent enumeration */
     return res.status(200).json({
       success: true,
       message:
@@ -839,6 +710,15 @@ export const forgotPassword = async (req, res) => {
 | RESET PASSWORD
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/reset-password
+|
+| Atomic unit of work:
+|   1. Update User (password + passwordChangedAt + reset counters)
+|   2. Destroy PasswordResetToken
+|   3. Destroy UserSessions
+|   4. Destroy RefreshTokens
+|
+| All four must succeed or none — otherwise the user could end up
+| with a changed password but still-active old sessions.
 |--------------------------------------------------------------------------
 */
 
@@ -867,18 +747,10 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Hash incoming reset token
-    |--------------------------------------------------------------------------
-    */
-
     const hashedToken = hashToken(token);
 
     const resetToken = await PasswordResetToken.findOne({
-      where: {
-        token: hashedToken,
-      },
+      where: { token: hashedToken },
     });
 
     if (!resetToken) {
@@ -887,12 +759,6 @@ export const resetPassword = async (req, res) => {
         message: "Invalid or expired password reset token",
       });
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check expiration
-    |--------------------------------------------------------------------------
-    */
 
     if (new Date(resetToken.expiresAt) < new Date()) {
       await resetToken.destroy();
@@ -912,51 +778,31 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Hash new password
-    |--------------------------------------------------------------------------
-    */
-
+    /* Hash password OUTSIDE the transaction (CPU-bound, not DB) */
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Update password
-    |--------------------------------------------------------------------------
-    */
+    await sequelize.transaction(async (t) => {
+      await user.update(
+        {
+          password: hashedPassword,
+          passwordChangedAt: new Date(),
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        },
+        { transaction: t }
+      );
 
-    await user.update({
-      password: hashedPassword,
-      passwordChangedAt: new Date(),
-      failedLoginAttempts: 0,
-      lockedUntil: null,
-    });
+      await resetToken.destroy({ transaction: t });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Delete reset token
-    |--------------------------------------------------------------------------
-    */
+      await UserSession.destroy(
+        { where: { userId: user.id } },
+        { transaction: t }
+      );
 
-    await resetToken.destroy();
-
-    /*
-    |--------------------------------------------------------------------------
-    | Revoke existing sessions
-    |--------------------------------------------------------------------------
-    */
-
-    await UserSession.destroy({
-      where: {
-        userId: user.id,
-      },
-    });
-
-    await RefreshToken.destroy({
-      where: {
-        userId: user.id,
-      },
+      await RefreshToken.destroy(
+        { where: { userId: user.id } },
+        { transaction: t }
+      );
     });
 
     return res.status(200).json({
@@ -978,8 +824,14 @@ export const resetPassword = async (req, res) => {
 | CHANGE PASSWORD
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/change-password
-|--------------------------------------------------------------------------
-| Requires auth middleware
+|
+| Atomic unit of work:
+|   1. Update User password
+|   2. Destroy UserSessions
+|   3. Destroy RefreshTokens
+|
+| If session revocation fails after password change, the user's old
+| sessions would remain valid — must be atomic.
 |--------------------------------------------------------------------------
 */
 
@@ -1009,12 +861,6 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Get authenticated user
-    |--------------------------------------------------------------------------
-    */
-
     const user = await User.findByPk(req.user.id);
 
     if (!user) {
@@ -1023,12 +869,6 @@ export const changePassword = async (req, res) => {
         message: "User not found",
       });
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Verify current password
-    |--------------------------------------------------------------------------
-    */
 
     const passwordMatch = await bcrypt.compare(currentPassword, user.password);
 
@@ -1039,12 +879,6 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Prevent same password
-    |--------------------------------------------------------------------------
-    */
-
     const samePassword = await bcrypt.compare(newPassword, user.password);
 
     if (samePassword) {
@@ -1054,41 +888,27 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Hash new password
-    |--------------------------------------------------------------------------
-    */
-
+    /* Hash OUTSIDE transaction */
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Update password
-    |--------------------------------------------------------------------------
-    */
+    await sequelize.transaction(async (t) => {
+      await user.update(
+        {
+          password: hashedPassword,
+          passwordChangedAt: new Date(),
+        },
+        { transaction: t }
+      );
 
-    await user.update({
-      password: hashedPassword,
-      passwordChangedAt: new Date(),
-    });
+      await UserSession.destroy(
+        { where: { userId: user.id } },
+        { transaction: t }
+      );
 
-    /*
-    |--------------------------------------------------------------------------
-    | Revoke sessions
-    |--------------------------------------------------------------------------
-    */
-
-    await UserSession.destroy({
-      where: {
-        userId: user.id,
-      },
-    });
-
-    await RefreshToken.destroy({
-      where: {
-        userId: user.id,
-      },
+      await RefreshToken.destroy(
+        { where: { userId: user.id } },
+        { transaction: t }
+      );
     });
 
     return res.status(200).json({
@@ -1105,9 +925,26 @@ export const changePassword = async (req, res) => {
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| RESEND VERIFICATION
+|--------------------------------------------------------------------------
+| POST /api/v1/auth/resend-verification
+|
+| Atomic unit of work:
+|   1. Destroy previous EmailVerificationTokens for this user
+|   2. Create new EmailVerificationToken
+|   3. Send verification email
+|
+| If email fails, roll back — otherwise the user loses their old token
+| AND doesn't receive a new one.
+|--------------------------------------------------------------------------
+*/
+
 export const resendVerification = async (req, res) => {
   try {
     const { email } = req.body;
+
     if (!email) {
       return res.status(400).json({
         success: false,
@@ -1118,45 +955,52 @@ export const resendVerification = async (req, res) => {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await User.findOne({ where: { email: normalizedEmail } });
 
-    // Don't reveal account existence
+    /* Don't reveal account existence */
     if (!user || user.emailVerified) {
       return res.status(200).json({
         success: true,
-        message: "If the account exists and is unverified, a new link has been sent.",
+        message:
+          "If the account exists and is unverified, a new link has been sent.",
       });
     }
 
-    // Delete previous verification tokens
-    await EmailVerificationToken.destroy({ where: { userId: user.id } });
-
     const rawToken = crypto.randomBytes(32).toString("hex");
     const hashedToken = hashToken(rawToken);
-
-    await EmailVerificationToken.create({
-      userId: user.id,
-      token: hashedToken,
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
-    });
-
     const verificationUrl = `${env.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
 
-    await sendMail({
-      to: normalizedEmail,
-      subject: "Verify your C-TEX PAY account",
-      message: `
-        <div style="font-family: Arial, sans-serif;">
-          <h2>Verify your email</h2>
-          <p>Hello ${user.firstName},</p>
-          <p>Click the button below to verify your C-TEX PAY account.</p>
-          <p>
-            <a href="${verificationUrl}"
-               style="display:inline-block;padding:12px 20px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">
-              Verify Email
-            </a>
-          </p>
-          <p>This link expires in 30 minutes.</p>
-        </div>
-      `,
+    await sequelize.transaction(async (t) => {
+      await EmailVerificationToken.destroy(
+        { where: { userId: user.id } },
+        { transaction: t }
+      );
+
+      await EmailVerificationToken.create(
+        {
+          userId: user.id,
+          token: hashedToken,
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        },
+        { transaction: t }
+      );
+
+      await sendMail({
+        to: normalizedEmail,
+        subject: "Verify your C-TEX PAY account",
+        message: `
+          <div style="font-family: Arial, sans-serif;">
+            <h2>Verify your email</h2>
+            <p>Hello ${user.firstName},</p>
+            <p>Click the button below to verify your C-TEX PAY account.</p>
+            <p>
+              <a href="${verificationUrl}"
+                 style="display:inline-block;padding:12px 20px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">
+                Verify Email
+              </a>
+            </p>
+            <p>This link expires in 30 minutes.</p>
+          </div>
+        `,
+      });
     });
 
     return res.status(200).json({
@@ -1165,9 +1009,12 @@ export const resendVerification = async (req, res) => {
     });
   } catch (error) {
     console.error("Resend verification error:", error);
+
+    /* Preserve response shape to prevent enumeration */
     return res.status(200).json({
       success: true,
-      message: "If the account exists and is unverified, a new link has been sent.",
+      message:
+        "If the account exists and is unverified, a new link has been sent.",
     });
   }
 };
