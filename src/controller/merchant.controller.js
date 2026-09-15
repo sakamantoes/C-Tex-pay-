@@ -56,6 +56,15 @@ export const createMerchant = async (req, res) => {
       { transaction }
     );
 
+    // Promote the account to merchant after successfully creating its merchant.
+    await User.update(
+      { role: "MERCHANT" },
+      {
+        where: { id: userId },
+        transaction,
+      }
+    );
+
     // 2. Create BusinessProfile
     const businessProfile = await BusinessProfile.create(
       {

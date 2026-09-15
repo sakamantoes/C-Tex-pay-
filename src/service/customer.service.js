@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { Op } from "sequelize";
-import { sequelize, Customer, CustomerMetadata, CustomerPaymentMethod } from "../models/index.js";
+import {  Customer, CustomerMetadata, CustomerPaymentMethod } from "../models/index.js";
+import sequelize from "../config/database.js";
 
 const generateCustomerCode = () => {
   const random = crypto.randomBytes(6).toString("hex").toUpperCase();
