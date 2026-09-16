@@ -17,6 +17,7 @@ import {
   updateRoleSchema,
   roleIdParamSchema,
   assignPermissionSchema,
+  assignPermissionParamSchema,
 } from "../validation/role.validation.js";
 
 const router = Router();
@@ -77,8 +78,18 @@ router.post(
   protect,
   requireMerchant,
   requirePermission("roles.manage"),
+  validate(assignPermissionParamSchema, "params"),
+  assignPermissionToRole
+);
+
+// Assign permission to role using permissionId in the request body
+router.post(
+  "/:id/permissions",
+  protect,
+  requireMerchant,
+  requirePermission("roles.manage"),
   validate(roleIdParamSchema, "params"),
-  validate(assignPermissionSchema, "params"),
+  validate(assignPermissionSchema),
   assignPermissionToRole
 );
 
@@ -88,8 +99,7 @@ router.delete(
   protect,
   requireMerchant,
   requirePermission("roles.manage"),
-  validate(roleIdParamSchema, "params"),
-  validate(assignPermissionSchema, "params"),
+  validate(assignPermissionParamSchema, "params"),
   removePermissionFromRole
 );
 

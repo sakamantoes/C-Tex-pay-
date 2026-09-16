@@ -3,7 +3,8 @@ import {
   Role,
   Permission,
   RolePermission,
-  Merchant
+  Merchant,
+  MerchantInvitation,
 } from "../models/index.js";
 import sequelize from "../config/database.js";
 
@@ -271,6 +272,12 @@ export const deleteRole = async (req, res) => {
       transaction,
     });
 
+    // Remove invitations that reference this role before deleting it.
+    await MerchantInvitation.destroy({
+      where: { roleId },
+      transaction,
+    });
+
     // Delete role
     await role.destroy({ transaction });
 
@@ -296,7 +303,7 @@ export const assignPermissionToRole = async (req, res) => {
   try {
     const merchantId = req.merchant.id;
     const roleId = req.params.id;
-    const permissionId = req.params.permissionId;
+    const permissionId = req.params.permissionId || req.body.permissionId;
 
     // Verify role belongs to merchant
     const role = await Role.findOne({

@@ -26,3 +26,10 @@ export const roleIdParamSchema = z.object({
 export const assignPermissionSchema = z.object({
   permissionId: z.string().uuid("Invalid permission ID format"),
 });
+
+export const assignPermissionBodySchema = assignPermissionSchema;
+
+export const assignPermissionParamSchema = z.object({
+  id: z.string().uuid("Invalid role ID format"),
+  permissionId: z.string().uuid("Invalid permission ID format"),
+});

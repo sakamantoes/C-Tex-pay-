@@ -10,12 +10,14 @@ import Role from "./Role.js";
 import Permission from "./Permission.js";
 import RolePermission from "./RolePermission.js";
 import MerchantMemberRole from "./MerchantMemberRole.js";
+import MerchantInvitation from "./MerchantInvitation.js";
 import ApiKey from "./ApiKey.js";
 import ApiKeyPermission from "./ApiKeyPermission.js";
 import ApiKeyUsage from "./ApiKeyUsage.js";
 import Customer from "./Customer.js";
 import CustomerMetadata from "./CustomerMetadata.js";
 import CustomerPaymentMethod from "./CustomerPaymentMethod.js";
+import Notification from "./Notification.js";
 
 // user has many refresh tokens
 
@@ -118,9 +120,37 @@ User.hasMany(MerchantMember, {
   foreignKey: "userId",
   as: "merchantMemberships",
 });
+
+User.hasMany(Notification, {
+  foreignKey: "userId",
+  as: "notifications",
+  onDelete: "CASCADE",
+});
+Notification.belongsTo(User, {
+  foreignKey: "userId",
+  as: "user",
+});
 MerchantMember.belongsTo(User, {
   foreignKey: "userId",
   as: "user",
+});
+
+Merchant.hasMany(MerchantInvitation, {
+  foreignKey: "merchantId",
+  as: "invitations",
+});
+MerchantInvitation.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+Role.hasMany(MerchantInvitation, {
+  foreignKey: "roleId",
+  as: "invitations",
+});
+MerchantInvitation.belongsTo(Role, {
+  foreignKey: "roleId",
+  as: "role",
 });
 
 // Merchant → Role
@@ -266,10 +296,12 @@ export {
   Permission,
   RolePermission,
   MerchantMemberRole,
+  MerchantInvitation,
   ApiKey,
   ApiKeyPermission,
   ApiKeyUsage,
   Customer,
   CustomerMetadata,
   CustomerPaymentMethod,
+  Notification,
 };

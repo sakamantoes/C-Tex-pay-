@@ -8,6 +8,7 @@ import UserSession from "../models/UserSession.js";
 import EmailVerificationToken from "../models/EmailVerificationToken.js";
 import PasswordResetToken from "../models/PasswordResetToken.js";
 import sequelize from "../config/database.js";
+import { MerchantInvitation, Notification } from "../models/index.js";
 
 import { sendMail } from "../service/mail.service.js";
 import env from "../config/constant.js";
@@ -142,6 +143,31 @@ export const register = async (req, res) => {
         },
         { transaction: t }
       );
+
+      const pendingInvitations = await MerchantInvitation.findAll({
+        where: {
+          email: normalizedEmail,
+          acceptedAt: null,
+        },
+        transaction: t,
+      });
+
+      for (const invitation of pendingInvitations) {
+        await Notification.create(
+          {
+            userId: createdUser.id,
+            type: "MERCHANT_INVITATION",
+            title: "Merchant invitation",
+            message: "You have a pending invitation to join a business.",
+            data: {
+              invitationId: invitation.id,
+              merchantId: invitation.merchantId,
+              roleId: invitation.roleId,
+            },
+          },
+          { transaction: t },
+        );
+      }
 
       /*
       | Email send inside the transaction.

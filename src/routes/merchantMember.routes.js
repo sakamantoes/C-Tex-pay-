@@ -9,13 +9,55 @@ import {
   assignRoleToMember,
   removeRoleFromMember,
   removeMember,
+  inviteMember,
+  acceptMemberInvitation,
+  getMyNotifications,
+  markNotificationRead,
 } from "../controller/merchantMember.controller.js";
 import {
   memberIdParamSchema,
   assignRoleToMemberSchema,
+  assignRoleToMemberParamSchema,
+  inviteMemberSchema,
+  acceptMemberInvitationSchema,
 } from "../validation/merchantMember.validation.js";
+import { z } from "zod";
 
 const router = Router();
+
+router.get("/notifications", protect, getMyNotifications);
+
+router.patch(
+  "/notifications/:id/read",
+  protect,
+  validate(z.object({ id: z.string().uuid("Invalid notification ID format") }), "params"),
+  markNotificationRead,
+);
+
+// Send an invitation to join the merchant
+router.post(
+  "/invite",
+  protect,
+  requireMerchant,
+  requirePermission("team.manage"),
+  validate(inviteMemberSchema),
+  inviteMember,
+);
+
+// Accept an invitation as the authenticated invited user
+router.post(
+  "/invitations/accept",
+  protect,
+  validate(acceptMemberInvitationSchema),
+  acceptMemberInvitation,
+);
+
+router.post(
+  "/invitations/:id/accept",
+  protect,
+  validate(z.object({ id: z.string().uuid("Invalid invitation ID format") }), "params"),
+  acceptMemberInvitation,
+);
 
 // Get all members
 router.get(
@@ -44,6 +86,16 @@ router.post(
   requirePermission("team.manage"),
   validate(memberIdParamSchema, "params"),
   validate(assignRoleToMemberSchema),
+  assignRoleToMember
+);
+
+// Assign role to member using roleId in the URL
+router.post(
+  "/:id/roles/:roleId",
+  protect,
+  requireMerchant,
+  requirePermission("team.manage"),
+  validate(assignRoleToMemberParamSchema, "params"),
   assignRoleToMember
 );
 
