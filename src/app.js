@@ -3,6 +3,7 @@ import cors from "cors";
 import authRoutes from "./routes/auth.routes.js";
 import merchantRoutes from "./routes/merchant.routes.js";
 import roleRoutes from "./routes/role.routes.js";
+import permissionRoutes from "./routes/permission.routes.js";
 import merchantMemberRoutes from "./routes/merchantMember.routes.js";
 import apiKeyRoutes from "./routes/apiKey.routes.js";
 import customerRoutes from "./routes/customer.routes.js";
@@ -39,6 +40,7 @@ app.use((req, res, next) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/merchants", merchantRoutes);
 app.use("/api/v1/roles", roleRoutes);
+app.use("/api/v1/permissions", permissionRoutes);
 app.use("/api/v1/merchant-members", merchantMemberRoutes);
 app.use("/api/v1/api-keys", apiKeyRoutes);
 app.use("/api/v1/customers", customerRoutes);
