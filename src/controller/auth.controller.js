@@ -639,7 +639,7 @@ export const forgotPassword = async (req, res) => {
 
     const rawToken = crypto.randomBytes(32).toString("hex");
     const hashedToken = hashToken(rawToken);
-    const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${rawToken}`;
+    const resetUrl = `${env.FRONTEND_URL}reset-password?token=${rawToken}`;
 
     await sequelize.transaction(async (t) => {
       await PasswordResetToken.destroy(

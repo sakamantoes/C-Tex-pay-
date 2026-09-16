@@ -143,6 +143,7 @@ export const updateCustomer = async ({ merchantId, customerId, payload }) => {
         id: customerId,
         merchantId,
       },
+      paranoid: false,
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
@@ -229,7 +230,21 @@ export const deleteCustomer = async ({ merchantId, customerId }) => {
       deleted: true,
     };
 
-    await customer.destroy({ transaction: t });
+    await CustomerMetadata.destroy({
+      where: { customerId },
+      transaction: t,
+      force: true,
+    });
+
+    await CustomerPaymentMethod.destroy({
+      where: { customerId },
+      transaction: t,
+    });
+
+    await customer.destroy({
+      transaction: t,
+      force: true,
+    });
 
     return snapshot;
   });

@@ -17,6 +17,11 @@ export const validate = (schema, source = "body") => (req, res, next) => {
     });
   }
 
-  req[source] = result.data;
+  if (source === "query") {
+    Object.keys(req.query).forEach((key) => delete req.query[key]);
+    Object.assign(req.query, result.data);
+  } else {
+    req[source] = result.data;
+  }
   next();
 };

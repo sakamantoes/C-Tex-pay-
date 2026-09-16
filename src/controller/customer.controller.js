@@ -22,10 +22,13 @@ export const createCustomerController = async (req, res) => {
       },
     });
   } catch (error) {
-    if (error.statusCode === 409) {
+    if (
+      error.statusCode === 409 ||
+      error.name === "SequelizeUniqueConstraintError"
+    ) {
       return res.status(409).json({
         success: false,
-        message: error.message,
+        message: "A customer with this email or phone already exists for this merchant",
       });
     }
 
