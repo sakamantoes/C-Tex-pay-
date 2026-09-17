@@ -14,6 +14,7 @@ import {
   createApiKey,
   getApiKeys,
   getApiKey,
+  revealApiKey,
   getApiKeyPermissions,
   addApiKeyPermission,
   removeApiKeyPermission,
@@ -27,6 +28,7 @@ import {
   apiKeyIdParamSchema,
   apiKeyPermissionParamSchema,
   getApiKeysQuerySchema,
+  revealApiKeySchema,
   usageQuerySchema,
 } from "../validation/apiKey.validation.js";
 
@@ -60,6 +62,17 @@ router.get(
   requireMerchant,
   validate(apiKeyIdParamSchema, "params"),
   getApiKey
+);
+
+// Reveal API key after password verification
+router.post(
+  "/:id/reveal",
+  protect,
+  requireMerchant,
+  requireMerchantOwner,
+  validate(apiKeyIdParamSchema, "params"),
+  validate(revealApiKeySchema),
+  revealApiKey
 );
 
 // Get API key permissions

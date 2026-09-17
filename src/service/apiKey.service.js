@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import env from "../config/constant.js";
 import {
   ApiKey,
   ApiKeyPermission,
@@ -22,6 +23,55 @@ export function generateApiKey(environment = "TEST") {
  */
 export function hashApiKey(apiKey) {
   return crypto.createHash("sha256").update(apiKey).digest("hex");
+}
+
+export function getApiKeyEncryptionKey() {
+  const secret = env.API_KEY_ENCRYPTION_KEY || env.JWT_ACCESS_SECRET || "change-me-in-production-please-use-a-strong-secret";
+  return crypto.createHash("sha256").update(secret).digest().subarray(0, 32);
+}
+
+export function encryptApiKeyValue(rawKey) {
+  if (!rawKey) return "";
+
+  const iv = crypto.randomBytes(12);
+  const key = getApiKeyEncryptionKey();
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(Buffer.from(rawKey, "utf8")),
+    cipher.final(),
+  ]);
+
+  return Buffer.concat([
+    iv,
+    cipher.getAuthTag(),
+    encrypted,
+  ]).toString("base64");
+}
+
+export function decryptApiKeyValue(encryptedKey) {
+  if (!encryptedKey) return null;
+
+  try {
+    const buffer = Buffer.from(encryptedKey, "base64");
+    if (buffer.length < 28) {
+      throw new Error("Invalid encrypted API key payload");
+    }
+
+    const iv = buffer.subarray(0, 12);
+    const tag = buffer.subarray(12, 28);
+    const ciphertext = buffer.subarray(28);
+    const key = getApiKeyEncryptionKey();
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+
+    return Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch (error) {
+    console.error("Decrypt API key error:", error);
+    throw new Error("Unable to decrypt API key");
+  }
 }
 
 /**
@@ -89,6 +139,7 @@ export async function createApiKeyWithPermissions({
     const rawKey = generateApiKey(environment);
     const keyHash = hashApiKey(rawKey);
     const keyPrefix = getApiKeyPrefix(rawKey);
+    const encryptedKey = encryptApiKeyValue(rawKey);
 
     const apiKey = await ApiKey.create(
       {
@@ -96,6 +147,7 @@ export async function createApiKeyWithPermissions({
         name,
         keyPrefix,
         keyHash,
+        keyEncrypted: encryptedKey,
         environment,
         status: "ACTIVE",
         expiresAt,

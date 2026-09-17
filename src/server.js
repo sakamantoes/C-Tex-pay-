@@ -13,7 +13,10 @@ const startServer = async () => {
 
     console.log("MySQL connected successfully");
 
-    await sequelize.sync();
+    await sequelize.sync({
+      alter: envConfig.NODE_ENV !== "production",
+      logging: false,
+    });
 
     console.log("Database synchronized");
 

@@ -12,7 +12,7 @@ const envConfig = {
     JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN,
     FRONTEND_URL: process.env.FRONTEND_URL,
     SOCKET_CORS_ORIGINS: process.env.SOCKET_CORS_ORIGINS,
-    SOCKET_CORS_ORIGINS: process.env.SOCKET_CORS_ORIGINS,
+    API_KEY_ENCRYPTION_KEY: process.env.API_KEY_ENCRYPTION_KEY || process.env.JWT_ACCESS_SECRET || "change-me-in-production-please-use-a-strong-secret",
 
     // mailing for development
     NODE_ENV: process.env.NODE_ENV || "development",

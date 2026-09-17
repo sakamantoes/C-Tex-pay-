@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import {
   ApiKey,
   ApiKeyPermission,
@@ -7,6 +8,7 @@ import {
 import sequelize from "../config/database.js";
 import {
   createApiKeyWithPermissions,
+  decryptApiKeyValue,
   rotateApiKey as rotateApiKeyService,
   revokeApiKey as revokeApiKeyService,
   serializeApiKey,
@@ -83,7 +85,7 @@ export const getApiKeys = async (req, res) => {
     const apiKeys = await ApiKey.findAll({
       where,
       attributes: {
-        exclude: ["keyHash"],
+        exclude: ["keyHash", "keyEncrypted"],
       },
       include: [
         {
@@ -129,7 +131,7 @@ export const getApiKey = async (req, res) => {
         merchantId,
       },
       attributes: {
-        exclude: ["keyHash"],
+        exclude: ["keyHash", "keyEncrypted"],
       },
       include: [
         {
@@ -154,6 +156,7 @@ export const getApiKey = async (req, res) => {
         apiKey: {
           ...serializeApiKey(apiKey),
           permissions: apiKey.permissions || [],
+          revealRequired: true,
         },
       },
     });
@@ -162,6 +165,85 @@ export const getApiKey = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to get API key",
+    });
+  }
+};
+
+export const revealApiKey = async (req, res) => {
+  try {
+    const merchantId = req.merchant.id;
+    const apiKeyId = req.params.id;
+    const { password } = req.body;
+
+    if (!password || typeof password !== "string" || password.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Password is required",
+      });
+    }
+
+    const passwordMatches = await bcrypt.compare(password, req.user.password);
+    if (!passwordMatches) {
+      return res.status(401).json({
+        success: false,
+        message: "Incorrect password",
+      });
+    }
+
+    const apiKey = await ApiKey.findOne({
+      where: {
+        id: apiKeyId,
+        merchantId,
+      },
+      attributes: ["id", "name", "keyEncrypted", "keyPrefix", "environment", "status", "expiresAt", "lastUsedAt", "createdAt"],
+    });
+
+    if (!apiKey) {
+      return res.status(404).json({
+        success: false,
+        message: "API key not found",
+      });
+    }
+
+    if (!apiKey.keyEncrypted) {
+      return res.status(400).json({
+        success: false,
+        message: "This API key cannot be revealed. Please create or rotate a new key.",
+      });
+    }
+
+    const rawKey = decryptApiKeyValue(apiKey.keyEncrypted);
+
+    return res.status(200).json({
+      success: true,
+      message: "API key revealed successfully",
+      data: {
+        apiKey: {
+          id: apiKey.id,
+          name: apiKey.name,
+          keyPrefix: apiKey.keyPrefix,
+          environment: apiKey.environment,
+          status: apiKey.status,
+          expiresAt: apiKey.expiresAt,
+          lastUsedAt: apiKey.lastUsedAt,
+          createdAt: apiKey.createdAt,
+          key: rawKey,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Reveal API key error:", error);
+
+    if (error.message === "Unable to decrypt API key") {
+      return res.status(500).json({
+        success: false,
+        message: "Unable to decrypt API key",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to reveal API key",
     });
   }
 };

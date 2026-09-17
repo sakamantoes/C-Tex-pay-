@@ -35,6 +35,10 @@ export const apiKeyIdParamSchema = z.object({
   id: z.string().uuid("Invalid API key ID format"),
 });
 
+export const revealApiKeySchema = z.object({
+  password: z.string().min(1, "Password is required"),
+});
+
 export const apiKeyPermissionParamSchema = z.object({
   id: z.string().uuid("Invalid API key ID format"),
   permissionId: z.string().uuid("Invalid permission ID format"),

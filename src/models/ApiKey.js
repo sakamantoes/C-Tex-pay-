@@ -34,6 +34,10 @@ const ApiKey = sequelize.define(
       allowNull: false,
       unique: true,
     },
+    keyEncrypted: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     environment: {
       type: DataTypes.ENUM("TEST", "LIVE"),
       allowNull: false,
