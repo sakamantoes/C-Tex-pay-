@@ -9,7 +9,15 @@ export const createApiKeySchema = z.object({
   environment: z.enum(["TEST", "LIVE"]).default("TEST"),
   expiresAt: z
     .string()
-    .datetime()
+    .refine((value) => {
+      if (!value || value === "") return true;
+
+      const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+      if (isDateOnly) return true;
+
+      const parsed = new Date(value);
+      return !Number.isNaN(parsed.getTime()) && !Number.isNaN(Date.parse(value));
+    }, "Invalid ISO date or datetime")
     .optional()
     .nullable()
     .or(z.literal("")),

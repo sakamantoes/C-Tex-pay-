@@ -11,6 +11,7 @@ import { Op } from "sequelize";
 import crypto from "crypto";
 import env from "../config/constant.js";
 import { sendMail } from "../service/mail.service.js";
+import { createNotification } from "../service/notification.service.js";
 
 const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
 
@@ -65,7 +66,7 @@ export const inviteMember = async (req, res) => {
     );
 
     if (invitedUser) {
-      await Notification.create(
+      await createNotification(
         {
           userId: invitedUser.id,
           type: "MERCHANT_INVITATION",
