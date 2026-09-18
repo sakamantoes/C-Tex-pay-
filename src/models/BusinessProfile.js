@@ -1,6 +1,23 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/database.js";
 
+/*
+|--------------------------------------------------------------------------
+| Accepts:  "https://example.com"
+|           "http://example.com"
+|           "www.example.com"    (auto-prefixed by frontend, but tolerate)
+|           null / ""            (allowed)
+| Rejects:  "not a url"
+|--------------------------------------------------------------------------
+*/
+const urlOrEmpty = (value) => {
+  if (value === null || value === undefined || value === "") return;
+  const v = String(value).trim();
+  if (!/^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(\/.*)?$/i.test(v)) {
+    throw new Error("Invalid URL");
+  }
+};
+
 const BusinessProfile = sequelize.define(
   "BusinessProfile",
   {
@@ -34,7 +51,12 @@ const BusinessProfile = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: true,
       validate: {
-        isEmail: true,
+        isEmailOrEmpty(value) {
+          if (!value) return;
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+            throw new Error("Invalid email");
+          }
+        },
       },
     },
     phone: {
@@ -45,7 +67,7 @@ const BusinessProfile = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: true,
       validate: {
-        isUrl: true,
+        urlOrEmpty: urlOrEmpty,
       },
     },
     country: {
@@ -68,7 +90,7 @@ const BusinessProfile = sequelize.define(
       type: DataTypes.STRING(500),
       allowNull: true,
       validate: {
-        isUrl: true,
+        urlOrEmpty: urlOrEmpty,
       },
     },
     description: {
