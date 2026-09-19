@@ -13,6 +13,8 @@ import {
   acceptMemberInvitation,
   getMyNotifications,
   markNotificationRead,
+   deleteNotification,  
+     deleteAllNotifications, 
 } from "../controller/merchantMember.controller.js";
 import {
   memberIdParamSchema,
@@ -43,6 +45,21 @@ router.post(
   validate(inviteMemberSchema),
   inviteMember,
 );
+
+
+// delete a single notification
+router.delete(
+  "/notifications/:id",
+  protect,
+  validate(
+    z.object({ id: z.string().uuid("Invalid notification ID format") }),
+    "params"
+  ),
+  deleteNotification
+)
+
+
+router.delete("/notifications", protect, deleteAllNotifications);
 
 // Accept an invitation as the authenticated invited user
 router.post(
