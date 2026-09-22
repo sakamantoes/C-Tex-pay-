@@ -14,7 +14,7 @@ import sequelize from "../config/database.js";
 export function generateApiKey(environment = "TEST") {
   const randomBytes = crypto.randomBytes(32);
   const key = randomBytes.toString("hex");
-  const prefix = environment === "LIVE" ? "ctex_live" : "ctex_test";
+  const prefix = environment === "LIVE" ? "ctex_live_saka" : "ctex_test_saka";
   return `${prefix}_${key}`;
 }
 
