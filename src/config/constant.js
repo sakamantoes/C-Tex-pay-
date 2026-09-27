@@ -24,6 +24,8 @@ const envConfig = {
 
     // mailing for production
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    PAYMENT_PENDING_TTL_MINUTES: process.env.PAYMENT_PENDING_TTL_MINUTES,
+    PAYMENT_REFERENCE_PREFIX: process.env.PAYMENT_REFERENCE_PREFIX
 }
 
 export default envConfig;

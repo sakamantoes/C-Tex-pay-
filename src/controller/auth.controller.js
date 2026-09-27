@@ -28,7 +28,7 @@ const generateAccessToken = (user) => {
     env.JWT_ACCESS_SECRET,
     {
       expiresIn: env.JWT_ACCESS_EXPIRES_IN || "15m",
-    }
+    },
   );
 };
 
@@ -48,6 +48,99 @@ const sanitizeUser = (user) => {
 
 /*
 |--------------------------------------------------------------------------
+| VERIFICATION EMAIL HELPERS
+|--------------------------------------------------------------------------
+| A single source of truth for building + sending the verification email.
+| Used by both `register` and `login` (unverified branch) so the two
+| flows can never drift apart.
+|--------------------------------------------------------------------------
+*/
+
+const VERIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const RESEND_COOLDOWN_MS = 5 * 60 * 1000;   // 5 minutes
+
+const buildVerificationUrl = (rawToken, email) =>
+  `${env.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(email)}`;
+
+const buildVerificationEmail = ({ firstName, verificationUrl }) => `
+  <div style="font-family: Arial, sans-serif;">
+    <h2>Verify your C-TEX PAY account</h2>
+    <p>Hello ${firstName},</p>
+    <p>
+      Please verify your email address to activate your C-TEX PAY account.
+    </p>
+    <p>
+      <a
+        href="${verificationUrl}"
+        style="
+          display:inline-block;
+          padding:12px 20px;
+          background:#000;
+          color:#fff;
+          text-decoration:none;
+          border-radius:6px;
+        "
+      >
+        Verify Email
+      </a>
+    </p>
+    <p>This verification link expires in 30 minutes.</p>
+    <p>
+      If you did not request this, you can safely ignore this email.
+    </p>
+  </div>
+`;
+
+/**
+ * Issue a fresh verification token for a user and email it.
+ *
+ * - Deletes any previous tokens for the user
+ * - Creates a new one
+ * - Sends the email
+ *
+ * @param {Object} options
+ * @param {Object} options.user       - Sequelize User instance
+ * @param {Object} [options.transaction] - optional Sequelize transaction
+ * @returns {Promise<string>} the raw token (for logging if needed)
+ */
+const issueAndSendVerificationEmail = async ({ user, transaction }) => {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = hashToken(rawToken);
+
+  const verificationUrl = buildVerificationUrl(rawToken, user.email);
+
+  // Token write can be transactional when called from register.
+  // When called standalone (from login), we run it inside its own tx
+  // by passing transaction = undefined (Sequelize manages it).
+  await EmailVerificationToken.destroy(
+    { where: { userId: user.id } },
+    transaction ? { transaction } : undefined,
+  );
+
+  await EmailVerificationToken.create(
+    {
+      userId: user.id,
+      token: hashedToken,
+      expiresAt: new Date(Date.now() + VERIFICATION_TTL_MS),
+    },
+    transaction ? { transaction } : undefined,
+  );
+
+  // Email is always outside the transaction — SMTP is not transactional.
+  await sendMail({
+    to: user.email,
+    subject: "Verify your C-TEX PAY account",
+    message: buildVerificationEmail({
+      firstName: user.firstName,
+      verificationUrl,
+    }),
+  });
+
+  return rawToken;
+};
+
+/*
+|--------------------------------------------------------------------------
 | REGISTER
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/register
@@ -55,9 +148,10 @@ const sanitizeUser = (user) => {
 | Atomic unit of work:
 |   1. Create User
 |   2. Create EmailVerificationToken
-|   3. Send verification email
+|   3. Create notifications for any pending invitations
+|   4. Send verification email
 |
-| If the email send fails, the User and Token MUST be rolled back.
+| If the email send fails, the transaction rolls back — no orphan user.
 |--------------------------------------------------------------------------
 */
 
@@ -109,12 +203,6 @@ export const register = async (req, res) => {
     /* Hash password BEFORE opening a transaction (bcrypt is CPU-bound, not DB) */
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    /* Prepare token + URL before the transaction so the callback only does DB + email */
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const hashedVerificationToken = hashToken(rawToken);
-
-    const verificationUrl = `${env.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
-
     /*
     | Managed transaction.
     | If sendMail throws, Sequelize automatically rolls back User + Token.
@@ -132,18 +220,22 @@ export const register = async (req, res) => {
           emailVerified: false,
           phoneVerified: false,
         },
-        { transaction: t }
+        { transaction: t },
       );
 
-      await EmailVerificationToken.create(
-        {
-          userId: createdUser.id,
-          token: hashedVerificationToken,
-          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
-        },
-        { transaction: t }
-      );
+      /*
+      | Issue + send verification email inside the transaction.
+      | `issueAndSendVerificationEmail` handles token create/destroy.
+      */
+      await issueAndSendVerificationEmail({
+        user: createdUser,
+        transaction: t,
+      });
 
+      /*
+      | Notify the new user about any pending invitations that match
+      | their email.
+      */
       const pendingInvitations = await MerchantInvitation.findAll({
         where: {
           email: normalizedEmail,
@@ -168,47 +260,6 @@ export const register = async (req, res) => {
           { transaction: t },
         );
       }
-
-      /*
-      | Email send inside the transaction.
-      | If this throws, the transaction rolls back — no User, no Token.
-      | NOTE: If the provider already accepted the email before failing,
-      | the email will still have been sent. That's an accepted MVP tradeoff.
-      */
-      await sendMail({
-        to: normalizedEmail,
-        subject: "Verify your C-TEX PAY account",
-        message: `
-          <div style="font-family: Arial, sans-serif;">
-            <h2>Welcome to C-TEX PAY</h2>
-            <p>Hello ${createdUser.firstName},</p>
-            <p>
-              Thank you for creating your C-TEX PAY account.
-              Please verify your email address to continue.
-            </p>
-            <p>
-              <a
-                href="${verificationUrl}"
-                style="
-                  display:inline-block;
-                  padding:12px 20px;
-                  background:#000;
-                  color:#fff;
-                  text-decoration:none;
-                  border-radius:6px;
-                "
-              >
-                Verify Email
-              </a>
-            </p>
-            <p>This verification link expires in 30 minutes.</p>
-            <p>
-              If you did not create this account, you can safely ignore
-              this email.
-            </p>
-          </div>
-        `,
-      });
 
       return createdUser;
     });
@@ -236,12 +287,14 @@ export const register = async (req, res) => {
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/login
 |
-| Atomic unit of work (success path):
+| Success path (atomic):
 |   1. Reset failed attempts + update last login
 |   2. Create RefreshToken
 |   3. Create UserSession
 |
-| Failure path is a single UPDATE — no transaction needed.
+| Unverified path:
+|   - Auto-resend verification email (with cooldown to prevent spam)
+|   - Return 403 with code EMAIL_NOT_VERIFIED
 |--------------------------------------------------------------------------
 */
 
@@ -293,6 +346,70 @@ export const login = async (req, res) => {
       });
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | UNVERIFIED EMAIL
+    |--------------------------------------------------------------------------
+    | Auto-send a fresh verification email (with cooldown).
+    | The user can then click the link from their inbox without having to
+    | press "Resend" manually.
+    |--------------------------------------------------------------------------
+    */
+    if (!user.emailVerified || user.status === "PENDING") {
+      let emailSent = false;
+      let withinCooldown = false;
+
+      try {
+        /*
+        |--------------------------------------------------------------------------
+        | Cooldown check
+        |--------------------------------------------------------------------------
+        | If a token was created in the last 5 minutes, don't send another.
+        | This protects SMTP quota when a user retries login repeatedly.
+        |--------------------------------------------------------------------------
+        */
+        const latestToken = await EmailVerificationToken.findOne({
+          where: { userId: user.id },
+          order: [["createdAt", "DESC"]],
+        });
+
+        if (latestToken) {
+          const ageMs =
+            Date.now() - new Date(latestToken.createdAt).getTime();
+          withinCooldown = ageMs < RESEND_COOLDOWN_MS;
+        }
+
+        if (!withinCooldown) {
+          await issueAndSendVerificationEmail({ user });
+          emailSent = true;
+        }
+      } catch (emailError) {
+        /*
+        | Email failure must NOT break the login response. The user still
+        | gets the 403 and can hit "Resend" on the verify-email-sent page.
+        */
+        console.error(
+          "Auto-resend verification email failed on login:",
+          emailError,
+        );
+      }
+
+      return res.status(403).json({
+        success: false,
+        code: "EMAIL_NOT_VERIFIED",
+        message: emailSent
+          ? "Please verify your email address before signing in. We've sent a fresh verification link to your inbox."
+          : withinCooldown
+          ? "Please verify your email address before signing in. Check your inbox for the link we already sent."
+          : "Please verify your email address before signing in. Check your inbox or request a new verification link.",
+        data: {
+          email: user.email,
+          emailSent,
+          withinCooldown,
+        },
+      });
+    }
+
     /* Verify password */
     const passwordMatch = await bcrypt.compare(password, user.password);
 
@@ -333,7 +450,7 @@ export const login = async (req, res) => {
           lockedUntil: null,
           lastLoginAt: new Date(),
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       await RefreshToken.create(
@@ -342,7 +459,7 @@ export const login = async (req, res) => {
           token: hashedRefreshToken,
           expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       await UserSession.create(
@@ -353,7 +470,7 @@ export const login = async (req, res) => {
           userAgent: req.headers["user-agent"] || null,
           expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
-        { transaction: t }
+        { transaction: t },
       );
     });
 
@@ -382,9 +499,6 @@ export const login = async (req, res) => {
 | REFRESH TOKEN
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/refresh
-|
-| The only write here is a single destroy() on an expired token.
-| No transaction needed — single-write operations are already atomic.
 |--------------------------------------------------------------------------
 */
 
@@ -458,12 +572,6 @@ export const refreshToken = async (req, res) => {
 | LOGOUT
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/logout
-|
-| Atomic unit of work:
-|   1. Destroy RefreshToken
-|   2. Destroy UserSession
-|
-| Two writes — must be atomic.
 |--------------------------------------------------------------------------
 */
 
@@ -477,12 +585,12 @@ export const logout = async (req, res) => {
       await sequelize.transaction(async (t) => {
         await RefreshToken.destroy(
           { where: { token: hashedToken } },
-          { transaction: t }
+          { transaction: t },
         );
 
         await UserSession.destroy(
           { where: { refreshToken: hashedToken } },
-          { transaction: t }
+          { transaction: t },
         );
       });
     }
@@ -506,8 +614,6 @@ export const logout = async (req, res) => {
 | GET CURRENT USER
 |--------------------------------------------------------------------------
 | GET /api/v1/auth/me
-|
-| Read-only — no transaction needed.
 |--------------------------------------------------------------------------
 */
 
@@ -541,12 +647,6 @@ export const getMe = async (req, res) => {
 | VERIFY EMAIL
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/verify-email
-|
-| Atomic unit of work:
-|   1. Update User (emailVerified=true, status=ACTIVE)
-|   2. Destroy EmailVerificationToken
-|
-| Both must succeed or neither.
 |--------------------------------------------------------------------------
 */
 
@@ -598,7 +698,7 @@ export const verifyEmail = async (req, res) => {
           emailVerified: true,
           status: "ACTIVE",
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       await verificationToken.destroy({ transaction: t });
@@ -623,16 +723,6 @@ export const verifyEmail = async (req, res) => {
 | FORGOT PASSWORD
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/forgot-password
-|
-| Atomic unit of work:
-|   1. Destroy previous PasswordResetTokens for this user
-|   2. Create new PasswordResetToken
-|   3. Send reset email
-|
-| If email send fails, we roll back so the user isn't left with a token
-| they can't receive (or with their old token already deleted).
-|
-| Response shape is unchanged (always 200 to prevent email enumeration).
 |--------------------------------------------------------------------------
 */
 
@@ -670,7 +760,7 @@ export const forgotPassword = async (req, res) => {
     await sequelize.transaction(async (t) => {
       await PasswordResetToken.destroy(
         { where: { userId: user.id } },
-        { transaction: t }
+        { transaction: t },
       );
 
       await PasswordResetToken.create(
@@ -679,7 +769,7 @@ export const forgotPassword = async (req, res) => {
           token: hashedToken,
           expiresAt: new Date(Date.now() + 15 * 60 * 1000),
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       await sendMail({
@@ -736,15 +826,6 @@ export const forgotPassword = async (req, res) => {
 | RESET PASSWORD
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/reset-password
-|
-| Atomic unit of work:
-|   1. Update User (password + passwordChangedAt + reset counters)
-|   2. Destroy PasswordResetToken
-|   3. Destroy UserSessions
-|   4. Destroy RefreshTokens
-|
-| All four must succeed or none — otherwise the user could end up
-| with a changed password but still-active old sessions.
 |--------------------------------------------------------------------------
 */
 
@@ -815,19 +896,19 @@ export const resetPassword = async (req, res) => {
           failedLoginAttempts: 0,
           lockedUntil: null,
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       await resetToken.destroy({ transaction: t });
 
       await UserSession.destroy(
         { where: { userId: user.id } },
-        { transaction: t }
+        { transaction: t },
       );
 
       await RefreshToken.destroy(
         { where: { userId: user.id } },
-        { transaction: t }
+        { transaction: t },
       );
     });
 
@@ -850,14 +931,6 @@ export const resetPassword = async (req, res) => {
 | CHANGE PASSWORD
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/change-password
-|
-| Atomic unit of work:
-|   1. Update User password
-|   2. Destroy UserSessions
-|   3. Destroy RefreshTokens
-|
-| If session revocation fails after password change, the user's old
-| sessions would remain valid — must be atomic.
 |--------------------------------------------------------------------------
 */
 
@@ -923,17 +996,17 @@ export const changePassword = async (req, res) => {
           password: hashedPassword,
           passwordChangedAt: new Date(),
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       await UserSession.destroy(
         { where: { userId: user.id } },
-        { transaction: t }
+        { transaction: t },
       );
 
       await RefreshToken.destroy(
         { where: { userId: user.id } },
-        { transaction: t }
+        { transaction: t },
       );
     });
 
@@ -957,13 +1030,9 @@ export const changePassword = async (req, res) => {
 |--------------------------------------------------------------------------
 | POST /api/v1/auth/resend-verification
 |
-| Atomic unit of work:
-|   1. Destroy previous EmailVerificationTokens for this user
-|   2. Create new EmailVerificationToken
-|   3. Send verification email
-|
-| If email fails, roll back — otherwise the user loses their old token
-| AND doesn't receive a new one.
+| Manual resend from the /verify-email-sent page.
+| Same helper as login's auto-resend. No cooldown enforcement here — the
+| user explicitly asked for it, so we honour the request.
 |--------------------------------------------------------------------------
 */
 
@@ -990,44 +1059,7 @@ export const resendVerification = async (req, res) => {
       });
     }
 
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = hashToken(rawToken);
-    const verificationUrl = `${env.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
-
-    await sequelize.transaction(async (t) => {
-      await EmailVerificationToken.destroy(
-        { where: { userId: user.id } },
-        { transaction: t }
-      );
-
-      await EmailVerificationToken.create(
-        {
-          userId: user.id,
-          token: hashedToken,
-          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
-        },
-        { transaction: t }
-      );
-
-      await sendMail({
-        to: normalizedEmail,
-        subject: "Verify your C-TEX PAY account",
-        message: `
-          <div style="font-family: Arial, sans-serif;">
-            <h2>Verify your email</h2>
-            <p>Hello ${user.firstName},</p>
-            <p>Click the button below to verify your C-TEX PAY account.</p>
-            <p>
-              <a href="${verificationUrl}"
-                 style="display:inline-block;padding:12px 20px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">
-                Verify Email
-              </a>
-            </p>
-            <p>This link expires in 30 minutes.</p>
-          </div>
-        `,
-      });
-    });
+    await issueAndSendVerificationEmail({ user });
 
     return res.status(200).json({
       success: true,

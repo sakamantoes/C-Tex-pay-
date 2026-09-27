@@ -18,6 +18,8 @@ import Customer from "./Customer.js";
 import CustomerMetadata from "./CustomerMetadata.js";
 import CustomerPaymentMethod from "./CustomerPaymentMethod.js";
 import Notification from "./Notification.js";
+import Payment from "./Payment.js";
+import PaymentStatusHistory from "./PaymentStatusHistory.js";
 
 // user has many refresh tokens
 
@@ -282,6 +284,36 @@ CustomerPaymentMethod.belongsTo(Customer, {
   foreignKey: "customerId",
   as: "customer",
 });
+// ============= PAYMENT ASSOCIATIONS =============
+// Merchant → Payment
+Merchant.hasMany(Payment, {
+  foreignKey: "merchantId",
+  as: "payments",
+});
+Payment.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+// Customer → Payment (optional)
+Customer.hasMany(Payment, {
+  foreignKey: "customerId",
+  as: "payments",
+});
+Payment.belongsTo(Customer, {
+  foreignKey: "customerId",
+  as: "customer",
+});
+
+// Payment → PaymentStatusHistory
+Payment.hasMany(PaymentStatusHistory, {
+  foreignKey: "paymentId",
+  as: "statusHistory",
+});
+PaymentStatusHistory.belongsTo(Payment, {
+  foreignKey: "paymentId",
+  as: "payment",
+});
 
 export {
   User,
@@ -304,4 +336,6 @@ export {
   CustomerMetadata,
   CustomerPaymentMethod,
   Notification,
+  Payment,
+  PaymentStatusHistory
 };
