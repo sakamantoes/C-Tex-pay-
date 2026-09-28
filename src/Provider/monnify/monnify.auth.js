@@ -1,13 +1,13 @@
-import env from "../../config/constant.js";
+import envConfig from "../../config/constant.js";
 
 /**
  * Monnify Authentication & Token Management
- * 
+ *
  * Monnify uses OAuth 2.0:
  *   1. POST /api/v1/auth/login with Basic auth (apiKey:secretKey base64)
  *   2. Response contains accessToken with expiresIn
  *   3. Subsequent requests use Bearer token
- * 
+ *
  * Token is cached in-memory and reused until near-expiry.
  * Concurrent refresh races are prevented with a shared promise.
  */
@@ -36,17 +36,17 @@ export async function getAccessToken() {
   refreshPromise = (async () => {
     try {
       const basicAuth = Buffer.from(
-        `${env.MONNIFY_API_KEY}:${env.MONNIFY_SECRET_KEY}`
+        `${envConfig.MONNIFY_API_KEY}:${envConfig.MONNIFY_SECRET_KEY}`,
       ).toString("base64");
 
       const controller = new AbortController();
       const timeoutId = setTimeout(
         () => controller.abort(),
-        env.MONNIFY_TIMEOUT_MS
+        envConfig.MONNIFY_TIMEOUT_MS,
       );
 
       const response = await fetch(
-        `${env.MONNIFY_BASE_URL}/api/v1/auth/login`,
+        `${envConfig.MONNIFY_BASE_URL}/api/v1/auth/login`,
         {
           method: "POST",
           headers: {
@@ -54,7 +54,7 @@ export async function getAccessToken() {
             "Content-Type": "application/json",
           },
           signal: controller.signal,
-        }
+        },
       );
 
       clearTimeout(timeoutId);
@@ -75,10 +75,12 @@ export async function getAccessToken() {
       }
 
       cachedToken = body.responseBody.accessToken;
-      const expiresInMs =
-        (body.responseBody.expiresIn || 3600) * 1000;
+      const expiresInMs = (body.responseBody.expiresIn || 3600) * 1000;
       tokenExpiresAt = now + expiresInMs;
-
+      console.log(
+        "Monnify auth success, token expires in:",
+        body.responseBody.expiresIn,
+      );
       return cachedToken;
     } finally {
       refreshPromise = null;

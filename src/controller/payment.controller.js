@@ -9,14 +9,11 @@ import {
 |--------------------------------------------------------------------------
 | Status mapping helper
 |--------------------------------------------------------------------------
-| Keeps the catch block small and makes the contract obvious in one place.
-| Returns null if the error has no mapped status, letting the caller
-| fall through to the generic 500 handler.
 */
 
 function mapErrorToResponse(error) {
   switch (error.code) {
-    // -------- 409 Conflict --------
+    // -------- 409 --------
     case "IDEMPOTENCY_CONFLICT":
       return {
         status: 409,
@@ -24,17 +21,17 @@ function mapErrorToResponse(error) {
           "Idempotency-Key was reused with a different request payload",
       };
 
-    // -------- 404 Not Found --------
+    // -------- 404 --------
     case "CUSTOMER_NOT_FOUND":
       return { status: 404, message: "Customer not found" };
     case "MERCHANT_NOT_FOUND":
       return { status: 404, message: "Merchant not found" };
 
-    // -------- 403 Forbidden --------
+    // -------- 403 --------
     case "MERCHANT_INACTIVE":
       return { status: 403, message: "Merchant account is not active" };
 
-    // -------- 400 Bad Request --------
+    // -------- 400 --------
     case "UNSUPPORTED_CURRENCY":
       return { status: 400, message: "Unsupported currency" };
     case "UNSUPPORTED_METHOD":
@@ -78,6 +75,46 @@ function mapErrorToResponse(error) {
     // -------- 500 (sanitized) --------
     case "SEQUELIZE_DATABASE_ERROR":
       return { status: 500, message: "Unable to initialize payment" };
+
+    // -------- Provider errors --------
+    case "PROVIDER_TIMEOUT":
+      return {
+        status: 504,
+        message: "Payment provider timed out. Please retry.",
+      };
+    case "PROVIDER_NETWORK_ERROR":
+      return {
+        status: 503,
+        message: "Payment provider temporarily unavailable. Please retry.",
+      };
+    case "PROVIDER_REJECTED":
+      return {
+        status: 502,
+        message: "Payment could not be initialized with the provider.",
+      };
+    case "PROVIDER_AUTH_FAILED":
+      return {
+        status: 502,
+        message: "Payment service temporarily unavailable.",
+      };
+    case "PROVIDER_RESPONSE_MALFORMED":
+      return {
+        status: 502,
+        message: "Payment service encountered an unexpected response.",
+      };
+    case "PROVIDER_ERROR":
+      return {
+        status: 502,
+        message: "Payment could not be initialized. Please try again.",
+      };
+
+    // -------- Bank transfer init failure --------
+    case "ACCOUNT_TRANSFER_INIT_FAILED":
+      return {
+        status: 502,
+        message:
+          "Payment initialized but transfer account could not be generated. Please retry with a new Idempotency-Key.",
+      };
 
     default:
       return null;
@@ -147,7 +184,7 @@ export const createPayment = async (req, res) => {
       data: toPublicPayment(payment),
     });
   } catch (error) {
-    // 1) Try the domain-aware mapping first.
+    // 1) Domain-aware mapping
     const mapped = mapErrorToResponse(error);
     if (mapped) {
       if (mapped.status === 409) {
@@ -155,16 +192,12 @@ export const createPayment = async (req, res) => {
           merchantId: req.merchant?.id,
         });
       }
-      const body = {
-        success: false,
-        message: mapped.message,
-      };
+      const body = { success: false, message: mapped.message };
       if (mapped.errors) body.errors = mapped.errors;
       return res.status(mapped.status).json(body);
     }
 
-    // 2) Safety net: direct Sequelize validation error (in case the
-    //    service-level wrapper was bypassed somewhere).
+    // 2) Safety net: direct Sequelize validation error
     if (error.name === "SequelizeValidationError") {
       return res.status(400).json({
         success: false,
@@ -176,7 +209,7 @@ export const createPayment = async (req, res) => {
       });
     }
 
-    // 3) Fallthrough — unexpected server error.
+    // 3) Fallthrough — unexpected server error
     console.error("Payment initialization failed", {
       merchantId: req.merchant?.id,
       error: error.message,
@@ -262,7 +295,6 @@ export const listPayments = async (req, res) => {
       },
     });
   } catch (error) {
-    // Reuse the same mapping so filter validation errors return 400, not 500.
     const mapped = mapErrorToResponse(error);
     if (mapped) {
       const body = { success: false, message: mapped.message };

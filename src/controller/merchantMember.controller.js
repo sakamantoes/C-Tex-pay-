@@ -9,10 +9,10 @@ import {
 
 import sequelize from "../config/database.js";
 import crypto from "crypto";
-import env from "../config/constant.js";
 
 import { sendMail } from "../service/mail.service.js";
 import { createNotification } from "../service/notification.service.js";
+import envConfig from "../config/constant.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -357,7 +357,7 @@ export const inviteMember = async (req, res) => {
       */
 
       const baseUrl = (
-        env.FRONTEND_URL ||
+        envConfig.FRONTEND_URL ||
         "http://localhost:5173"
       ).replace(/\/$/, "");
 

@@ -11,7 +11,7 @@ import sequelize from "../config/database.js";
 import { MerchantInvitation, Notification } from "../models/index.js";
 
 import { sendMail } from "../service/mail.service.js";
-import env from "../config/constant.js";
+import envConfig from "../config/constant.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -25,9 +25,9 @@ const generateAccessToken = (user) => {
       sub: user.id,
       role: user.role,
     },
-    env.JWT_ACCESS_SECRET,
+    envConfig.JWT_ACCESS_SECRET,
     {
-      expiresIn: env.JWT_ACCESS_EXPIRES_IN || "15m",
+      expiresIn: envConfig.JWT_ACCESS_EXPIRES_IN || "15m",
     },
   );
 };
@@ -60,7 +60,7 @@ const VERIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const RESEND_COOLDOWN_MS = 5 * 60 * 1000;   // 5 minutes
 
 const buildVerificationUrl = (rawToken, email) =>
-  `${env.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(email)}`;
+  `${envConfig.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(email)}`;
 
 const buildVerificationEmail = ({ firstName, verificationUrl }) => `
   <div style="font-family: Arial, sans-serif;">
@@ -481,7 +481,7 @@ export const login = async (req, res) => {
         user: sanitizeUser(user),
         accessToken,
         refreshToken: rawRefreshToken,
-        expiresIn: env.JWT_ACCESS_EXPIRES_IN || "15m",
+        expiresIn: envConfig.JWT_ACCESS_EXPIRES_IN || "15m",
       },
     });
   } catch (error) {
@@ -755,7 +755,7 @@ export const forgotPassword = async (req, res) => {
 
     const rawToken = crypto.randomBytes(32).toString("hex");
     const hashedToken = hashToken(rawToken);
-    const resetUrl = `${env.FRONTEND_URL}reset-password?token=${rawToken}`;
+    const resetUrl = `${envConfig.FRONTEND_URL}reset-password?token=${rawToken}`;
 
     await sequelize.transaction(async (t) => {
       await PasswordResetToken.destroy(

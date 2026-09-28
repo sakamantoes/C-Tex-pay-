@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
-import env from "../config/constant.js";
+import envConfig from "../config/constant.js";
 
 export const protect = async (req, res, next) => {
   try {
@@ -22,7 +22,7 @@ export const protect = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
+    const decoded = jwt.verify(token, envConfig.JWT_ACCESS_SECRET);
 
     const user = await User.findByPk(decoded.sub);
 

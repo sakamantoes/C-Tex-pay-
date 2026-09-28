@@ -1,10 +1,10 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
-import env from "../config/constant.js";
+import envConfig from "../config/constant.js";
 import User from "../models/User.js";
 
 let io;
-const origins = () => env.SOCKET_CORS_ORIGINS?.split(",").map((value) => value.trim()).filter(Boolean) || ["http://localhost:5173", "https://ctexpay.vercel.app"];
+const origins = () =>envConfig.SOCKET_CORS_ORIGINS?.split(",").map((value) => value.trim()).filter(Boolean) || ["http://localhost:5173", "https://ctexpay.vercel.app"];
 
 export const initializeSocketServer = (httpServer) => {
   io = new Server(httpServer, {
@@ -24,7 +24,7 @@ export const initializeSocketServer = (httpServer) => {
         return next(new Error("Authentication required"));
       }
 
-      const { sub } = jwt.verify(token, env.JWT_ACCESS_SECRET);
+      const { sub } = jwt.verify(token,envConfig.JWT_ACCESS_SECRET);
       const user = await User.findByPk(sub, { attributes: ["id", "status"] });
 
       if (!user || user.status !== "ACTIVE") {

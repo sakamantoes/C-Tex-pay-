@@ -34,4 +34,15 @@ email: godswilltrade2004@gmail.com
 
 
 
-  
+  SELECT
+  paymentReference,
+  merchantReference,
+  amount,
+  currency,
+  status,
+  paymentMethod,
+  provider,
+  providerReference,
+  providerStatus
+FROM payments
+WHERE providerReference = 'CTX_pay_saka__...';

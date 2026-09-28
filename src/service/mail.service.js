@@ -1,9 +1,9 @@
 
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
-import env from "../config/constant.js";
+import envConfig from "../config/constant.js";
 
-const isProduction = env.NODE_ENV === "production";
+const isProduction =envConfig.NODE_ENV === "production";
 
 /*
 |--------------------------------------------------------------------------
@@ -13,12 +13,12 @@ const isProduction = env.NODE_ENV === "production";
 
 const transporter = !isProduction
   ? nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: Number(env.SMTP_PORT),
-      secure: Number(env.SMTP_PORT) === 465,
+      host:envConfig.SMTP_HOST,
+      port: Number(envConfig.SMTP_PORT),
+      secure: Number(envConfig.SMTP_PORT) === 465,
       auth: {
-        user: env.SMTP_USER,
-        pass: env.SMTP_PASSWORD,
+        user:envConfig.SMTP_USER,
+        pass:envConfig.SMTP_PASSWORD,
       },
     })
   : null;
@@ -31,7 +31,7 @@ const transporter = !isProduction
 */
 
 const resend = isProduction
-  ? new Resend(env.RESEND_API_KEY)
+  ? new Resend(envConfig.RESEND_API_KEY)
   : null;
 
 
@@ -57,7 +57,7 @@ export const sendMail = async ({ to, subject, message }) => {
       console.log("📧 Sending email using Nodemailer (development)");
 
       const info = await transporter.sendMail({
-        from: env.MAIL_FROM,
+        from:envConfig.MAIL_FROM,
         to,
         subject,
         html: message,
@@ -81,7 +81,7 @@ export const sendMail = async ({ to, subject, message }) => {
     console.log("📧 Sending email using Resend (production)");
 
     const { data, error } = await resend.emails.send({
-      from: env.MAIL_FROM,
+      from:envConfig.MAIL_FROM,
       to: [to],
       subject,
       html: message,

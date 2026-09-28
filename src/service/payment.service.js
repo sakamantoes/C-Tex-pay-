@@ -8,29 +8,31 @@ import {
   Merchant,
 } from "../models/index.js";
 import envConfig from "../config/constant.js";
+import { getPaymentProvider } from "../Provider/provider.factory.js";
 
 const SUPPORTED_CURRENCIES = ["NGN"];
-const SUPPORTED_METHODS = ["BANK_TRANSFER"];
+const SUPPORTED_METHODS = ["ACCOUNT_TRANSFER"];
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 20;
-const MAX_PAGE = 10_000; // bounds OFFSET so nobody can force a full table scan
+const MAX_PAGE = 10_000;
 
 const ALLOWED_SORT_FIELDS = ["createdAt", "amount", "status", "updatedAt"];
 const ALLOWED_SORT_DIRECTIONS = ["ASC", "DESC"];
 
-// --- Business limits — tune to your actual ledger precision / risk appetite ---
+// Business limits
 const MIN_AMOUNT = 50; // ₦50
 const MAX_AMOUNT = 10_000_000; // ₦10,000,000 per transaction
 const MAX_DESCRIPTION_LENGTH = 500;
-const MAX_METADATA_BYTES = 10 * 1024; // 10KB
+const MAX_METADATA_BYTES = 10 * 1024;
 const MAX_MERCHANT_REFERENCE_LENGTH = 100;
 const MAX_SEARCH_LENGTH = 100;
 const MIN_IDEMPOTENCY_KEY_LENGTH = 8;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 255;
 const PENDING_PAYMENT_TTL_MINUTES = 30;
 
-const PAYMENT_REFERENCE_PREFIX = envConfig.PAYMENT_REFERENCE_PREFIX || "CTX_PAY_sake";
+const PAYMENT_REFERENCE_PREFIX =
+  envConfig.PAYMENT_REFERENCE_PREFIX || "CTEXPAY";
 
 /*
 |--------------------------------------------------------------------------
@@ -63,10 +65,6 @@ async function generateUniquePaymentReference(transaction) {
 |--------------------------------------------------------------------------
 | Input validation
 |--------------------------------------------------------------------------
-| All untrusted, caller-supplied fields are validated here, before anything
-| touches the DB or the idempotency hash. Throwing early with a stable
-| `.code` lets the controller map straight to an HTTP status without
-| re-deriving what went wrong.
 */
 
 function throwErr(message, code) {
@@ -80,9 +78,6 @@ function assertValidAmount(amount) {
   if (typeof n !== "number" || !Number.isFinite(n)) {
     throwErr("Amount must be a valid number", "INVALID_AMOUNT");
   }
-  // Reject sub-kobo precision so the same logical amount can never produce
-  // two different serializations (which would otherwise cause spurious
-  // idempotency conflicts and rounding drift in the ledger).
   const cents = Math.round(n * 100);
   if (Math.abs(cents - n * 100) > 1e-6) {
     throwErr(
@@ -96,8 +91,6 @@ function assertValidAmount(amount) {
       "AMOUNT_OUT_OF_RANGE"
     );
   }
-  // Normalize to a fixed 2-decimal string — this is what gets hashed and
-  // stored, so "100", "100.0" and "100.00" are always the same request.
   return (cents / 100).toFixed(2);
 }
 
@@ -115,8 +108,6 @@ function assertValidIdempotencyKey(key) {
       "INVALID_IDEMPOTENCY_KEY"
     );
   }
-  // Restrict charset — this value ends up in a DB index and often in logs,
-  // so keep it boring and predictable.
   if (!/^[A-Za-z0-9_\-:.]+$/.test(key)) {
     throwErr(
       "Idempotency-Key contains invalid characters",
@@ -177,9 +168,6 @@ function parseDateOrNull(value, fieldName) {
   return d;
 }
 
-// Escapes LIKE metacharacters so search input can't widen its own match
-// (e.g. a customer searching "%" shouldn't match every reference in the DB).
-// MySQL's default LIKE escape char is backslash, so no ESCAPE clause needed.
 function escapeLikeTerm(term) {
   return term.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
@@ -188,11 +176,6 @@ function escapeLikeTerm(term) {
 |--------------------------------------------------------------------------
 | Idempotency request hash
 |--------------------------------------------------------------------------
-| Canonicalizes the request fields that must match on replay, with
-| deterministic (recursively sorted) key ordering — plain JSON.stringify
-| does NOT guarantee key order is stable across equivalent objects, which
-| would otherwise let the same logical request hash differently and trip
-| false IDEMPOTENCY_CONFLICTs.
 */
 
 function stableStringify(value) {
@@ -219,7 +202,7 @@ function computeRequestHash({
   paymentMethod,
 }) {
   const canonical = stableStringify({
-    amount, // caller passes the already-normalized fixed-point string
+    amount,
     currency: currency || null,
     customerId: customerId || null,
     merchantReference: merchantReference || null,
@@ -230,9 +213,6 @@ function computeRequestHash({
   return crypto.createHash("sha256").update(canonical).digest("hex");
 }
 
-// Constant-time hash comparison. Not strictly required for correctness here
-// (hashes aren't secret), but it costs nothing and removes any timing
-// side-channel on the idempotency-conflict check.
 function hashesMatch(a, b) {
   const bufA = Buffer.from(a || "", "hex");
   const bufB = Buffer.from(b || "", "hex");
@@ -250,7 +230,6 @@ export function toPublicPayment(payment) {
   if (!payment) return null;
   const data = payment.toJSON ? payment.toJSON() : payment;
 
-  // Merchant-safe view — no provider fields, no requestHash, no idempotency internals.
   return {
     id: data.id,
     paymentReference: data.paymentReference,
@@ -263,21 +242,15 @@ export function toPublicPayment(payment) {
     description: data.description,
     metadata: data.metadata,
     expiresAt: data.expiresAt,
+    paymentInstructions: data.paymentInstructions || null,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
 }
 
-/*
-|--------------------------------------------------------------------------
-| Admin serializers
-|--------------------------------------------------------------------------
-*/
-
 export function toAdminPayment(payment) {
   if (!payment) return null;
   const data = payment.toJSON ? payment.toJSON() : payment;
-  // Same as public but provider fields included for internal investigation.
   return {
     ...toPublicPayment(payment),
     merchantId: data.merchantId,
@@ -285,7 +258,6 @@ export function toAdminPayment(payment) {
     provider: data.provider,
     providerReference: data.providerReference,
     providerStatus: data.providerStatus,
-    // providerMetadata intentionally omitted from default list responses
   };
 }
 
@@ -339,9 +311,6 @@ async function validateCustomerBelongsToMerchant({
   return customer;
 }
 
-// Confirms the merchant exists and is allowed to take payments right now.
-// Without this check a suspended/disabled merchant could keep creating
-// payments as long as they still had a valid API key.
 async function assertMerchantActive(merchantId, transaction) {
   const merchant = await Merchant.findByPk(merchantId, { transaction });
   if (!merchant) {
@@ -357,14 +326,6 @@ async function assertMerchantActive(merchantId, transaction) {
 |--------------------------------------------------------------------------
 | Unique-violation detection (cross-dialect)
 |--------------------------------------------------------------------------
-| Sequelize reports unique-constraint violations differently depending on
-| the driver. We accept any of these signals so the concurrent-idempotency
-| race is reliably detected:
-|
-|   - error.name === "SequelizeUniqueConstraintError"
-|   - error.parent.code === "ER_DUP_ENTRY"        (MySQL / MariaDB)
-|   - error.parent.code === "SQLITE_CONSTRAINT_UNIQUE" (SQLite)
-|   - error.errors[].path or .message mentioning "idempotency"
 */
 
 function isUniqueViolation(error) {
@@ -384,11 +345,33 @@ function isUniqueViolation(error) {
 
 /*
 |--------------------------------------------------------------------------
-| Create payment (idempotent)
+| Provider error normalization
 |--------------------------------------------------------------------------
-| Race-safe via unique index (merchantId, idempotencyKey).
-| If two concurrent requests with the same key race, one wins the INSERT
-| and the other gets SequelizeUniqueConstraintError — we then re-fetch.
+*/
+
+function normalizeProviderError(providerError, context) {
+  const code = providerError?.code || "PROVIDER_ERROR";
+  const httpStatus = providerError?.httpStatus || null;
+
+  console.error("Payment provider call failed", {
+    paymentReference: context.paymentReference,
+    merchantId: context.merchantId,
+    provider: "MONNIFY",
+    errorCode: code,
+    providerHttpStatus: httpStatus,
+    message: providerError?.message,
+  });
+
+  const e = new Error("Provider initialization failed");
+  e.code = code;
+  e.httpStatus = httpStatus;
+  return e;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Create payment (idempotent, provider-aware, bank-transfer aware)
+|--------------------------------------------------------------------------
 */
 
 export async function createPayment({
@@ -406,7 +389,7 @@ export async function createPayment({
     throwErr("merchantId is required", "MERCHANT_ID_REQUIRED");
   }
 
-  const method = paymentMethod || "BANK_TRANSFER";
+  const method = paymentMethod || "ACCOUNT_TRANSFER";
   const curr = currency || "NGN";
 
   if (!SUPPORTED_CURRENCIES.includes(curr)) {
@@ -416,8 +399,6 @@ export async function createPayment({
     throwErr(`Unsupported payment method: ${method}`, "UNSUPPORTED_METHOD");
   }
 
-  // Validate + normalize every untrusted field before it reaches the DB
-  // or the idempotency hash.
   const normalizedAmount = assertValidAmount(amount);
   assertValidIdempotencyKey(idempotencyKey);
   assertValidMetadata(metadata);
@@ -436,12 +417,8 @@ export async function createPayment({
 
   /*
   |----------------------------------------------------------------------
-  | Customer scope check — runs BEFORE idempotency fast path
+  | Customer scope check — before idempotency fast path
   |----------------------------------------------------------------------
-  | If customerId is supplied but belongs to another merchant, we want a
-  | consistent 404 regardless of whether this is a fresh request or an
-  | idempotent replay. Doing this first also means the idempotency cache
-  | never returns a payment for a mismatched customer.
   */
   if (customerId) {
     await validateCustomerBelongsToMerchant({
@@ -453,7 +430,7 @@ export async function createPayment({
 
   /*
   |----------------------------------------------------------------------
-  | Idempotency fast path (read-only pre-check)
+  | Idempotency fast path
   |----------------------------------------------------------------------
   */
   if (idempotencyKey) {
@@ -474,12 +451,12 @@ export async function createPayment({
 
   /*
   |----------------------------------------------------------------------
-  | Create inside a transaction
+  | Step 1: Create C-TEX PAY payment record (PENDING) — atomic
   |----------------------------------------------------------------------
   */
+  let payment;
   try {
-    const payment = await sequelize.transaction(async (t) => {
-      // Merchant must exist and be active before we write anything.
+    payment = await sequelize.transaction(async (t) => {
       await assertMerchantActive(merchantId, t);
 
       const paymentReference = await generateUniquePaymentReference(t);
@@ -506,7 +483,6 @@ export async function createPayment({
         { transaction: t }
       );
 
-      // Append-only status history seed
       await PaymentStatusHistory.create(
         {
           paymentId: created.id,
@@ -520,16 +496,11 @@ export async function createPayment({
 
       return created;
     });
-
-    return { payment, replayed: false };
   } catch (error) {
     /*
     |----------------------------------------------------------------------
     | Concurrent idempotency race
     |----------------------------------------------------------------------
-    | Two requests with the same (merchantId, idempotencyKey) both passed
-    | the fast path. The DB unique index only allows one INSERT. The loser
-    | gets a unique-violation. We re-fetch and either replay or conflict.
     */
     if (isUniqueViolation(error) && idempotencyKey) {
       const existing = await Payment.findOne({
@@ -549,10 +520,8 @@ export async function createPayment({
 
     /*
     |----------------------------------------------------------------------
-    | Sequelize model-level validation error (e.g. amount < min)
+    | Sequelize validation error (e.g. amount below model min)
     |----------------------------------------------------------------------
-    | Normally Zod catches these, but the model still enforces its own
-    | constraints and we must not surface them as 500s.
     */
     if (error.name === "SequelizeValidationError") {
       const mapped = new Error("Validation failed");
@@ -566,7 +535,7 @@ export async function createPayment({
 
     /*
     |----------------------------------------------------------------------
-    | Raw database error — wrap so nothing internal leaks to the client
+    | Raw DB error — wrap so nothing internal leaks to the client
     |----------------------------------------------------------------------
     */
     if (error.name === "SequelizeDatabaseError") {
@@ -577,6 +546,114 @@ export async function createPayment({
 
     throw error;
   }
+
+  /*
+  |----------------------------------------------------------------------
+  | Step 2: Call provider (outside transaction — external call)
+  |----------------------------------------------------------------------
+  */
+  let customer = null;
+  if (customerId) {
+    customer = await Customer.findByPk(customerId);
+  }
+
+  const provider = getPaymentProvider();
+
+  let providerResult;
+  try {
+    providerResult = await provider.initializePayment({
+      paymentReference: payment.paymentReference,
+      merchantReference: payment.merchantReference,
+      amount: Number(payment.amount),
+      currency: payment.currency,
+      customer: {
+        email: customer?.email || "noreply@ctexpay.com",
+        name: customer
+          ? `${customer.firstName} ${customer.lastName}`
+          : "Customer",
+        phone: customer?.phone || null,
+      },
+      description: payment.description,
+      metadata: payment.metadata,
+    });
+  } catch (providerError) {
+    throw normalizeProviderError(providerError, {
+      paymentReference: payment.paymentReference,
+      merchantId,
+    });
+  }
+
+  await payment.update({
+    provider: "MONNIFY",
+    providerReference: providerResult.providerReference,
+    providerStatus: providerResult.providerStatus || "PENDING",
+    providerMetadata: {
+      checkoutUrl: providerResult.checkoutUrl || null,
+    },
+  });
+
+  console.log("Payment provider initialized", {
+    merchantId,
+    paymentReference: payment.paymentReference,
+    provider: "MONNIFY",
+    providerReference: providerResult.providerReference,
+  });
+
+  /*
+  |----------------------------------------------------------------------
+  | Step 3: If bank transfer, obtain dynamic virtual account
+  |----------------------------------------------------------------------
+  | The Monnify transaction is already created at this point.
+  | If this step fails, we DO NOT delete the payment — the merchant
+  | can retry with a new Idempotency-Key and re-use the same
+  | transactionReference (Monnify permits multiple init calls).
+  */
+  if (method === "ACCOUNT_TRANSFER") {
+    try {
+      const bankTransferResult = await provider.initializeBankTransfer({
+        transactionReference: providerResult.providerReference,
+        bankCode: envConfig.MONNIFY_TRANSFER_BANK_CODE || null,
+      });
+
+      const paymentInstructions = {
+        type: "ACCOUNT_TRANSFER",
+        accountNumber: bankTransferResult.accountNumber,
+        accountName: bankTransferResult.accountName,
+        bankName: bankTransferResult.bankName,
+        bankCode: bankTransferResult.bankCode || null,
+        expiresAt: bankTransferResult.expiresAt || null,
+        ussdPayment: bankTransferResult.ussdPayment || null,
+      };
+
+      await payment.update({ paymentInstructions });
+
+      console.log("Bank transfer instructions generated", {
+        paymentReference: payment.paymentReference,
+        bankName: bankTransferResult.bankName,
+      });
+    } catch (bankError) {
+      console.error("Bank transfer initialization failed", {
+        paymentReference: payment.paymentReference,
+        errorCode: bankError.code,
+        providerHttpStatus: bankError.httpStatus,
+        message: bankError.message,
+      });
+
+      const e = new Error("Failed to generate transfer account");
+      e.code = "ACCOUNT_TRANSFER_INIT_FAILED";
+      e.httpStatus = bankError.httpStatus || null;
+      throw e;
+    }
+  }
+
+  /*
+  |----------------------------------------------------------------------
+  | Reload to ensure paymentInstructions are visible to the caller
+  |----------------------------------------------------------------------
+  */
+  await payment.reload();
+
+  return { payment, replayed: false };
 }
 
 /*

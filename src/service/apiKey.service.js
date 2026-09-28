@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import env from "../config/constant.js";
+import envConfig from "../config/constant.js";
 import {
   ApiKey,
   ApiKeyPermission,
@@ -26,7 +26,7 @@ export function hashApiKey(apiKey) {
 }
 
 export function getApiKeyEncryptionKey() {
-  const secret = env.API_KEY_ENCRYPTION_KEY || env.JWT_ACCESS_SECRET || "change-me-in-production-please-use-a-strong-secret";
+  const secret =envConfig.API_KEY_ENCRYPTION_KEY ||envConfig.JWT_ACCESS_SECRET || "change-me-in-production-please-use-a-strong-secret";
   return crypto.createHash("sha256").update(secret).digest().subarray(0, 32);
 }
 

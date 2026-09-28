@@ -33,7 +33,7 @@ export const createPaymentSchema = z
       .max(500, "description must not exceed 500 characters")
       .optional(),
     metadata: z.record(z.any()).optional().nullable(),
-    paymentMethod: z.enum(["BANK_TRANSFER"]).optional(),
+    paymentMethod: z.enum(["ACCOUNT_TRANSFER"]).optional(),
   })
   .strict();
 

@@ -49,9 +49,9 @@ const Payment = sequelize.define(
       defaultValue: "NGN",
     },
     paymentMethod: {
-      type: DataTypes.ENUM("BANK_TRANSFER"),
+      type: DataTypes.ENUM("ACCOUNT_TRANSFER"),
       allowNull: false,
-      defaultValue: "BANK_TRANSFER",
+      defaultValue: "ACCOUNT_TRANSFER",
     },
     status: {
       type: DataTypes.ENUM(
@@ -71,6 +71,11 @@ const Payment = sequelize.define(
     metadata: {
       type: DataTypes.JSON,
       allowNull: true,
+    },
+      paymentInstructions: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      comment: "Transfer instructions for ACCOUNT_TRANSFER payments",
     },
     idempotencyKey: {
       type: DataTypes.STRING(255),
