@@ -19,12 +19,7 @@ const IS_PRODUCTION = NODE_ENV === "production";
 | request later, making production incidents much harder to debug.
 */
 
-const REQUIRED_ENV = [
-  "JWT_ACCESS_SECRET",
-  "DB_NAME",
-  "DB_USER",
-  "DB_HOST",
-];
+const REQUIRED_ENV = ["JWT_ACCESS_SECRET", "DB_NAME", "DB_USER", "DB_HOST"];
 
 const REQUIRED_PROVIDER_ENV = [
   "MONNIFY_BASE_URL",
@@ -36,10 +31,12 @@ const REQUIRED_PROVIDER_ENV = [
 function assertRequiredEnv() {
   const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
 
-  const activeProvider = (envConfig.PAYMENT_PROVIDER || "MONNIFY").toUpperCase();
+  const activeProvider = (
+    envConfig.PAYMENT_PROVIDER || "MONNIFY"
+  ).toUpperCase();
   if (activeProvider === "MONNIFY") {
     const missingProvider = REQUIRED_PROVIDER_ENV.filter(
-      (key) => !process.env[key]
+      (key) => !process.env[key],
     );
     missing.push(...missingProvider);
   }
@@ -47,7 +44,7 @@ function assertRequiredEnv() {
   if (missing.length > 0) {
     // eslint-disable-next-line no-console
     console.error(
-      `[startup] Missing required environment variables: ${missing.join(", ")}`
+      `[startup] Missing required environment variables: ${missing.join(", ")}`,
     );
     process.exit(1);
   }
@@ -89,7 +86,6 @@ async function startServer() {
     | schema changes must go through migrations, never through sync().
     */
     await sequelize.sync({
-      alter: !IS_PRODUCTION,
       logging: false,
     });
     // eslint-disable-next-line no-console
@@ -135,7 +131,7 @@ async function startServer() {
 
     // eslint-disable-next-line no-console
     console.log(
-      `[startup] Server running on http://localhost:${PORT} (env=${NODE_ENV})`
+      `[startup] Server running on http://localhost:${PORT} (env=${NODE_ENV})`,
     );
   } catch (error) {
     // eslint-disable-next-line no-console

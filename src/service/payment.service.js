@@ -1,5 +1,6 @@
 import { Op } from "sequelize";
 import crypto from "crypto";
+
 import sequelize from "../config/database.js";
 import {
   Payment,
@@ -10,7 +11,12 @@ import {
 import envConfig from "../config/constant.js";
 import { getPaymentProvider } from "../Provider/provider.factory.js";
 
+/* =========================================================
+ * CONSTANTS
+ * ======================================================= */
+
 const SUPPORTED_CURRENCIES = ["NGN"];
+
 const SUPPORTED_METHODS = ["ACCOUNT_TRANSFER"];
 
 const MAX_LIMIT = 100;
@@ -18,315 +24,251 @@ const DEFAULT_LIMIT = 20;
 const MAX_PAGE = 10_000;
 
 const ALLOWED_SORT_FIELDS = ["createdAt", "amount", "status", "updatedAt"];
+
 const ALLOWED_SORT_DIRECTIONS = ["ASC", "DESC"];
 
-// Business limits
-const MIN_AMOUNT = 50; // ₦50
-const MAX_AMOUNT = 10_000_000; // ₦10,000,000 per transaction
+const VERIFICATION_STATUSES = [
+  "PENDING",
+  "SUCCESS",
+  "FAILED",
+  "EXPIRED",
+  "CANCELLED",
+];
+
+/**
+ * Allowed payment status transitions during verification.
+ *
+ * SUCCESS / EXPIRED / CANCELLED are terminal.
+ * FAILED may still become SUCCESS (late transfer) or EXPIRED.
+ */
+const ALLOWED_VERIFICATION_TRANSITIONS = {
+  PENDING: ["PENDING", "SUCCESS", "FAILED", "EXPIRED", "CANCELLED"],
+  FAILED: ["FAILED", "SUCCESS", "EXPIRED"],
+  SUCCESS: ["SUCCESS"],
+  EXPIRED: ["EXPIRED"],
+  CANCELLED: ["CANCELLED"],
+};
+
+/**
+ * Amounts are integers in kobo (smallest currency unit).
+ * ₦50       => 5000 kobo
+ * ₦10,000,000 => 1_000_000_000 kobo
+ */
+const MIN_AMOUNT = 50;              // kobo
+const MAX_AMOUNT = 1_000_000_000;   // kobo (₦10,000,000)
+
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_METADATA_BYTES = 10 * 1024;
 const MAX_MERCHANT_REFERENCE_LENGTH = 100;
 const MAX_SEARCH_LENGTH = 100;
+
 const MIN_IDEMPOTENCY_KEY_LENGTH = 8;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 255;
-const PENDING_PAYMENT_TTL_MINUTES = 30;
 
 const PAYMENT_REFERENCE_PREFIX =
   envConfig.PAYMENT_REFERENCE_PREFIX || "CTEXPAY";
 
-/*
-|--------------------------------------------------------------------------
-| Reference generation
-|--------------------------------------------------------------------------
-*/
+const FALLBACK_CUSTOMER_EMAIL = "noreply@ctexpay.com";
 
-function generatePaymentReference() {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(now.getUTCDate()).padStart(2, "0");
-  const rand = crypto.randomBytes(8).toString("hex").toUpperCase();
-  return `${PAYMENT_REFERENCE_PREFIX}_${y}${m}${d}_${rand}`;
+/**
+ * Provisional expiry. Replaced by the provider's expiry once the
+ * ACCOUNT_TRANSFER instructions are received.
+ */
+const DEFAULT_PAYMENT_EXPIRY_MINUTES = 30;
+
+/* =========================================================
+ * ERROR HELPER
+ * ======================================================= */
+
+function throwErr(message, code, statusCode = 400, details = null) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  if (details !== null) error.details = details;
+  throw error;
 }
 
-async function generateUniquePaymentReference(transaction) {
-  for (let i = 0; i < 5; i++) {
-    const ref = generatePaymentReference();
-    const existing = await Payment.findOne({
-      where: { paymentReference: ref },
-      transaction,
-    });
-    if (!existing) return ref;
+/* =========================================================
+ * VALIDATION HELPERS
+ * ======================================================= */
+
+function assertSupportedCurrency(currency) {
+  if (!SUPPORTED_CURRENCIES.includes(currency)) {
+    throwErr(`Unsupported currency: ${currency}`, "UNSUPPORTED_CURRENCY", 400);
   }
-  throw new Error("Failed to generate unique payment reference");
 }
 
-/*
-|--------------------------------------------------------------------------
-| Input validation
-|--------------------------------------------------------------------------
-*/
-
-function throwErr(message, code) {
-  const e = new Error(message);
-  e.code = code;
-  throw e;
+function assertSupportedPaymentMethod(paymentMethod) {
+  if (!SUPPORTED_METHODS.includes(paymentMethod)) {
+    throwErr(
+      `Unsupported payment method: ${paymentMethod}`,
+      "UNSUPPORTED_PAYMENT_METHOD",
+      400
+    );
+  }
 }
 
 function assertValidAmount(amount) {
-  const n = typeof amount === "string" ? Number(amount) : amount;
-  if (typeof n !== "number" || !Number.isFinite(n)) {
-    throwErr("Amount must be a valid number", "INVALID_AMOUNT");
-  }
-  const cents = Math.round(n * 100);
-  if (Math.abs(cents - n * 100) > 1e-6) {
+  if (!Number.isInteger(amount)) {
     throwErr(
-      "Amount cannot have more than 2 decimal places",
-      "INVALID_AMOUNT_PRECISION"
+      "Amount must be an integer in the smallest currency unit",
+      "INVALID_AMOUNT",
+      400
     );
   }
-  if (n < MIN_AMOUNT || n > MAX_AMOUNT) {
+  if (amount < MIN_AMOUNT) {
     throwErr(
-      `Amount must be between ${MIN_AMOUNT} and ${MAX_AMOUNT}`,
-      "AMOUNT_OUT_OF_RANGE"
+      `Amount must be at least ${MIN_AMOUNT} kobo`,
+      "INVALID_AMOUNT",
+      400
     );
   }
-  return (cents / 100).toFixed(2);
+  if (amount > MAX_AMOUNT) {
+    throwErr(
+      `Amount cannot exceed ${MAX_AMOUNT} kobo`,
+      "INVALID_AMOUNT",
+      400
+    );
+  }
 }
 
-function assertValidIdempotencyKey(key) {
-  if (key === null || key === undefined) return;
-  if (typeof key !== "string") {
-    throwErr("Idempotency-Key must be a string", "INVALID_IDEMPOTENCY_KEY");
+function assertDescription(description) {
+  if (
+    description !== undefined &&
+    description !== null &&
+    typeof description !== "string"
+  ) {
+    throwErr("Description must be a string", "INVALID_DESCRIPTION", 400);
   }
   if (
-    key.length < MIN_IDEMPOTENCY_KEY_LENGTH ||
-    key.length > MAX_IDEMPOTENCY_KEY_LENGTH
+    typeof description === "string" &&
+    description.length > MAX_DESCRIPTION_LENGTH
+  ) {
+    throwErr(
+      `Description cannot exceed ${MAX_DESCRIPTION_LENGTH} characters`,
+      "INVALID_DESCRIPTION",
+      400
+    );
+  }
+}
+
+function assertMerchantReference(merchantReference) {
+  if (
+    merchantReference !== undefined &&
+    merchantReference !== null &&
+    typeof merchantReference !== "string"
+  ) {
+    throwErr(
+      "merchantReference must be a string",
+      "INVALID_MERCHANT_REFERENCE",
+      400
+    );
+  }
+  if (
+    typeof merchantReference === "string" &&
+    merchantReference.length > MAX_MERCHANT_REFERENCE_LENGTH
+  ) {
+    throwErr(
+      `merchantReference cannot exceed ${MAX_MERCHANT_REFERENCE_LENGTH} characters`,
+      "INVALID_MERCHANT_REFERENCE",
+      400
+    );
+  }
+}
+
+function assertIdempotencyKey(idempotencyKey) {
+  if (!idempotencyKey) {
+    throwErr("Idempotency-Key is required", "IDEMPOTENCY_KEY_REQUIRED", 400);
+  }
+  if (typeof idempotencyKey !== "string") {
+    throwErr(
+      "Idempotency-Key must be a string",
+      "INVALID_IDEMPOTENCY_KEY",
+      400
+    );
+  }
+  if (
+    idempotencyKey.length < MIN_IDEMPOTENCY_KEY_LENGTH ||
+    idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH
   ) {
     throwErr(
       `Idempotency-Key must be between ${MIN_IDEMPOTENCY_KEY_LENGTH} and ${MAX_IDEMPOTENCY_KEY_LENGTH} characters`,
-      "INVALID_IDEMPOTENCY_KEY"
+      "INVALID_IDEMPOTENCY_KEY",
+      400
     );
   }
-  if (!/^[A-Za-z0-9_\-:.]+$/.test(key)) {
+  if (!/^[A-Za-z0-9_\-:.]+$/.test(idempotencyKey)) {
     throwErr(
       "Idempotency-Key contains invalid characters",
-      "INVALID_IDEMPOTENCY_KEY"
+      "INVALID_IDEMPOTENCY_KEY",
+      400
     );
   }
 }
 
-function assertValidMetadata(metadata) {
-  if (metadata === null || metadata === undefined) return;
+function assertMetadata(metadata) {
+  if (metadata === undefined || metadata === null) return;
+
   if (typeof metadata !== "object" || Array.isArray(metadata)) {
-    throwErr("metadata must be a JSON object", "INVALID_METADATA");
+    throwErr("Metadata must be a JSON object", "INVALID_METADATA", 400);
   }
+
   const banned = new Set(["__proto__", "constructor", "prototype"]);
   for (const key of Object.keys(metadata)) {
     if (banned.has(key)) {
-      throwErr(`metadata key "${key}" is not allowed`, "INVALID_METADATA");
+      throwErr(
+        `metadata key "${key}" is not allowed`,
+        "INVALID_METADATA",
+        400
+      );
     }
   }
-  const size = Buffer.byteLength(JSON.stringify(metadata), "utf8");
-  if (size > MAX_METADATA_BYTES) {
+
+  let serialized;
+  try {
+    serialized = JSON.stringify(metadata);
+  } catch {
+    throwErr("Metadata must be valid JSON", "INVALID_METADATA", 400);
+  }
+
+  if (Buffer.byteLength(serialized, "utf8") > MAX_METADATA_BYTES) {
     throwErr(
-      `metadata exceeds ${MAX_METADATA_BYTES} bytes`,
-      "METADATA_TOO_LARGE"
+      `Metadata cannot exceed ${MAX_METADATA_BYTES} bytes`,
+      "INVALID_METADATA",
+      400
     );
   }
 }
 
-function assertValidDescription(description) {
-  if (description === null || description === undefined) return;
-  if (typeof description !== "string") {
-    throwErr("description must be a string", "INVALID_DESCRIPTION");
+function assertSearch(search) {
+  if (search !== undefined && search !== null && typeof search !== "string") {
+    throwErr("Search must be a string", "INVALID_SEARCH", 400);
   }
-  if (description.length > MAX_DESCRIPTION_LENGTH) {
+  if (typeof search === "string" && search.length > MAX_SEARCH_LENGTH) {
     throwErr(
-      `description exceeds ${MAX_DESCRIPTION_LENGTH} characters`,
-      "DESCRIPTION_TOO_LONG"
-    );
-  }
-}
-
-function assertValidMerchantReference(ref) {
-  if (ref === null || ref === undefined) return;
-  if (typeof ref !== "string" || ref.length > MAX_MERCHANT_REFERENCE_LENGTH) {
-    throwErr(
-      `merchantReference must be a string up to ${MAX_MERCHANT_REFERENCE_LENGTH} characters`,
-      "INVALID_MERCHANT_REFERENCE"
+      `Search cannot exceed ${MAX_SEARCH_LENGTH} characters`,
+      "INVALID_SEARCH",
+      400
     );
   }
 }
 
 function parseDateOrNull(value, fieldName) {
-  if (!value) return null;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) {
-    throwErr(`${fieldName} is not a valid date`, "INVALID_DATE");
+  if (value === undefined || value === null || value === "") return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throwErr(`${fieldName} is not a valid date`, "INVALID_DATE", 400);
   }
-  return d;
+  return date;
 }
 
 function escapeLikeTerm(term) {
   return term.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
 
-/*
-|--------------------------------------------------------------------------
-| Idempotency request hash
-|--------------------------------------------------------------------------
-*/
-
-function stableStringify(value) {
-  if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]`;
-  }
-  const keys = Object.keys(value).sort();
-  const entries = keys.map(
-    (k) => `${JSON.stringify(k)}:${stableStringify(value[k])}`
-  );
-  return `{${entries.join(",")}}`;
+function isBlank(value) {
+  return value === undefined || value === null || value === "";
 }
-
-function computeRequestHash({
-  amount,
-  currency,
-  customerId,
-  merchantReference,
-  description,
-  metadata,
-  paymentMethod,
-}) {
-  const canonical = stableStringify({
-    amount,
-    currency: currency || null,
-    customerId: customerId || null,
-    merchantReference: merchantReference || null,
-    description: description || null,
-    metadata: metadata || null,
-    paymentMethod: paymentMethod || null,
-  });
-  return crypto.createHash("sha256").update(canonical).digest("hex");
-}
-
-function hashesMatch(a, b) {
-  const bufA = Buffer.from(a || "", "hex");
-  const bufB = Buffer.from(b || "", "hex");
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
-}
-
-/*
-|--------------------------------------------------------------------------
-| Public serializers
-|--------------------------------------------------------------------------
-*/
-
-export function toPublicPayment(payment) {
-  if (!payment) return null;
-  const data = payment.toJSON ? payment.toJSON() : payment;
-
-  return {
-    id: data.id,
-    paymentReference: data.paymentReference,
-    merchantReference: data.merchantReference,
-    customerId: data.customerId,
-    amount: Number(data.amount),
-    currency: data.currency,
-    paymentMethod: data.paymentMethod,
-    status: data.status,
-    description: data.description,
-    metadata: data.metadata,
-    expiresAt: data.expiresAt,
-    paymentInstructions: data.paymentInstructions || null,
-    createdAt: data.createdAt,
-    updatedAt: data.updatedAt,
-  };
-}
-
-export function toAdminPayment(payment) {
-  if (!payment) return null;
-  const data = payment.toJSON ? payment.toJSON() : payment;
-  return {
-    ...toPublicPayment(payment),
-    merchantId: data.merchantId,
-    idempotencyKey: data.idempotencyKey,
-    provider: data.provider,
-    providerReference: data.providerReference,
-    providerStatus: data.providerStatus,
-  };
-}
-
-export function toAdminPaymentFull(payment, history = []) {
-  const base = toAdminPayment(payment);
-  if (!base) return null;
-  const data = payment.toJSON ? payment.toJSON() : payment;
-  return {
-    ...base,
-    providerMetadata: data.providerMetadata || null,
-    statusHistory: history.map((h) => {
-      const hd = h.toJSON ? h.toJSON() : h;
-      return {
-        id: hd.id,
-        previousStatus: hd.previousStatus,
-        newStatus: hd.newStatus,
-        reason: hd.reason,
-        source: hd.source,
-        createdAt: hd.createdAt,
-      };
-    }),
-  };
-}
-
-/*
-|--------------------------------------------------------------------------
-| Customer / merchant validation (merchant-scoped)
-|--------------------------------------------------------------------------
-*/
-
-async function validateCustomerBelongsToMerchant({
-  customerId,
-  merchantId,
-  transaction,
-}) {
-  if (!customerId) return null;
-
-  if (typeof customerId !== "string" && typeof customerId !== "number") {
-    throwErr("Customer not found", "CUSTOMER_NOT_FOUND");
-  }
-
-  const customer = await Customer.findOne({
-    where: { id: customerId, merchantId },
-    transaction,
-  });
-
-  if (!customer) {
-    throwErr("Customer not found", "CUSTOMER_NOT_FOUND");
-  }
-
-  return customer;
-}
-
-async function assertMerchantActive(merchantId, transaction) {
-  const merchant = await Merchant.findByPk(merchantId, { transaction });
-  if (!merchant) {
-    throwErr("Merchant not found", "MERCHANT_NOT_FOUND");
-  }
-  if (merchant.status && merchant.status !== "ACTIVE") {
-    throwErr("Merchant account is not active", "MERCHANT_INACTIVE");
-  }
-  return merchant;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Unique-violation detection (cross-dialect)
-|--------------------------------------------------------------------------
-*/
 
 function isUniqueViolation(error) {
   if (!error) return false;
@@ -343,189 +285,349 @@ function isUniqueViolation(error) {
   return false;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Provider error normalization
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+ * PAYMENT REFERENCE
+ * ======================================================= */
 
-function normalizeProviderError(providerError, context) {
-  const code = providerError?.code || "PROVIDER_ERROR";
-  const httpStatus = providerError?.httpStatus || null;
-
-  console.error("Payment provider call failed", {
-    paymentReference: context.paymentReference,
-    merchantId: context.merchantId,
-    provider: "MONNIFY",
-    errorCode: code,
-    providerHttpStatus: httpStatus,
-    message: providerError?.message,
-  });
-
-  const e = new Error("Provider initialization failed");
-  e.code = code;
-  e.httpStatus = httpStatus;
-  return e;
+function generatePaymentReference() {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  const rand = crypto.randomBytes(8).toString("hex").toUpperCase();
+  return `${PAYMENT_REFERENCE_PREFIX}_${y}${m}${d}_${rand}`;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Create payment (idempotent, provider-aware, bank-transfer aware)
-|--------------------------------------------------------------------------
-*/
+async function generateUniquePaymentReference(transaction) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const paymentReference = generatePaymentReference();
+    const existing = await Payment.findOne({
+      where: { paymentReference },
+      transaction,
+    });
+    if (!existing) return paymentReference;
+  }
+  throwErr(
+    "Unable to generate a unique payment reference",
+    "PAYMENT_REFERENCE_GENERATION_FAILED",
+    500
+  );
+}
+
+/* =========================================================
+ * IDEMPOTENCY / HASHING
+ * ======================================================= */
+
+function stableStringify(value) {
+  if (value === null || value === undefined) {
+    return JSON.stringify(value ?? null);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  if (typeof value === "object") {
+    const keys = Object.keys(value).sort();
+    return `{${keys
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(",")}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
+function createRequestHash(payload) {
+  return crypto
+    .createHash("sha256")
+    .update(stableStringify(payload))
+    .digest("hex");
+}
+
+function hashesMatch(existingHash, incomingHash) {
+  if (!existingHash || !incomingHash) return false;
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(existingHash, "utf8"),
+      Buffer.from(incomingHash, "utf8")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/* =========================================================
+ * EXPIRY HELPERS
+ * ======================================================= */
+
+function normalizeProviderExpiry(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throwErr(
+      "Provider returned an invalid transfer account expiry",
+      "PROVIDER_RESPONSE_MALFORMED",
+      502
+    );
+  }
+  return date;
+}
+
+function getDefaultPaymentExpiry() {
+  return new Date(Date.now() + DEFAULT_PAYMENT_EXPIRY_MINUTES * 60 * 1000);
+}
+
+/* =========================================================
+ * PAYMENT INSTRUCTIONS
+ * ======================================================= */
+
+function normalizePaymentInstructions(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "object" && !Array.isArray(value)) return value;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed;
+      }
+      return null;
+    } catch {
+      console.warn("Invalid paymentInstructions JSON detected");
+      return null;
+    }
+  }
+
+  return null;
+}
+
+/* =========================================================
+ * SERIALIZERS
+ * ======================================================= */
+
+function toPlain(payment) {
+  return typeof payment.toJSON === "function" ? payment.toJSON() : payment;
+}
+
+export function toPublicPayment(payment) {
+  if (!payment) return null;
+  const data = toPlain(payment);
+
+  return {
+    id: data.id,
+    paymentReference: data.paymentReference,
+    merchantReference: data.merchantReference,
+    customerId: data.customerId,
+    amount: Number(data.amount),
+    currency: data.currency,
+    paymentMethod: data.paymentMethod,
+    status: data.status,
+    description: data.description,
+    metadata: data.metadata,
+    paymentInstructions: normalizePaymentInstructions(data.paymentInstructions),
+    expiresAt: data.expiresAt,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+  };
+}
+
+export function toAdminPayment(payment) {
+  if (!payment) return null;
+  const data = toPlain(payment);
+
+  return {
+    ...toPublicPayment(payment),
+    merchantId: data.merchantId,
+    idempotencyKey: data.idempotencyKey,
+    provider: data.provider,
+    providerReference: data.providerReference,
+    providerStatus: data.providerStatus,
+  };
+}
+
+export function toAdminPaymentFull(payment, history = []) {
+  const base = toAdminPayment(payment);
+  if (!base) return null;
+  const data = toPlain(payment);
+
+  return {
+    ...base,
+    providerMetadata: data.providerMetadata || null,
+    statusHistory: history.map((entry) => {
+      const h = toPlain(entry);
+      return {
+        id: h.id,
+        previousStatus: h.previousStatus,
+        newStatus: h.newStatus,
+        reason: h.reason,
+        source: h.source,
+        createdAt: h.createdAt,
+      };
+    }),
+  };
+}
+
+/* =========================================================
+ * CREATE PAYMENT
+ * ======================================================= */
 
 export async function createPayment({
   merchantId,
-  amount,
-  currency,
   customerId = null,
+  amount,
+  currency = "NGN",
+  paymentMethod = "ACCOUNT_TRANSFER",
   merchantReference = null,
   description = null,
   metadata = null,
-  paymentMethod,
-  idempotencyKey = null,
+  idempotencyKey,
 }) {
   if (!merchantId) {
-    throwErr("merchantId is required", "MERCHANT_ID_REQUIRED");
+    throwErr("merchantId is required", "MERCHANT_REQUIRED", 400);
   }
 
-  const method = paymentMethod || "ACCOUNT_TRANSFER";
-  const curr = currency || "NGN";
+  currency = currency || "NGN";
+  paymentMethod = paymentMethod || "ACCOUNT_TRANSFER";
 
-  if (!SUPPORTED_CURRENCIES.includes(curr)) {
-    throwErr(`Unsupported currency: ${curr}`, "UNSUPPORTED_CURRENCY");
-  }
-  if (!SUPPORTED_METHODS.includes(method)) {
-    throwErr(`Unsupported payment method: ${method}`, "UNSUPPORTED_METHOD");
-  }
+  assertValidAmount(amount);
+  assertSupportedCurrency(currency);
+  assertSupportedPaymentMethod(paymentMethod);
+  assertMerchantReference(merchantReference);
+  assertDescription(description);
+  assertMetadata(metadata);
+  assertIdempotencyKey(idempotencyKey);
 
-  const normalizedAmount = assertValidAmount(amount);
-  assertValidIdempotencyKey(idempotencyKey);
-  assertValidMetadata(metadata);
-  assertValidDescription(description);
-  assertValidMerchantReference(merchantReference);
-
-  const requestHash = computeRequestHash({
-    amount: normalizedAmount,
-    currency: curr,
+  const requestHash = createRequestHash({
+    merchantId,
     customerId,
+    amount,
+    currency,
+    paymentMethod,
     merchantReference,
     description,
     metadata,
-    paymentMethod: method,
   });
 
-  /*
-  |----------------------------------------------------------------------
-  | Customer scope check — before idempotency fast path
-  |----------------------------------------------------------------------
-  */
-  if (customerId) {
-    await validateCustomerBelongsToMerchant({
-      customerId,
-      merchantId,
-      transaction: null,
-    });
+  /* -------------------------------------------------------
+   * MERCHANT
+   * ----------------------------------------------------- */
+
+  const merchant = await Merchant.findByPk(merchantId);
+  if (!merchant) {
+    throwErr("Merchant not found", "MERCHANT_NOT_FOUND", 404);
+  }
+  if (merchant.status && merchant.status !== "ACTIVE") {
+    throwErr("Merchant account is not active", "MERCHANT_INACTIVE", 403);
   }
 
-  /*
-  |----------------------------------------------------------------------
-  | Idempotency fast path
-  |----------------------------------------------------------------------
-  */
-  if (idempotencyKey) {
+  /* -------------------------------------------------------
+   * CUSTOMER (merchant-scoped)
+   * ----------------------------------------------------- */
+
+  let customer = null;
+
+  if (customerId) {
+    if (typeof customerId !== "string" && typeof customerId !== "number") {
+      throwErr(
+        "Customer not found for this merchant",
+        "CUSTOMER_NOT_FOUND",
+        404
+      );
+    }
+
+    customer = await Customer.findOne({
+      where: { id: customerId, merchantId },
+    });
+
+    if (!customer) {
+      throwErr(
+        "Customer not found for this merchant",
+        "CUSTOMER_NOT_FOUND",
+        404
+      );
+    }
+  }
+
+  /* -------------------------------------------------------
+   * IDEMPOTENCY — fast path
+   * ----------------------------------------------------- */
+
+  const replay = async () => {
     const existing = await Payment.findOne({
       where: { merchantId, idempotencyKey },
     });
 
-    if (existing) {
-      if (!hashesMatch(existing.requestHash, requestHash)) {
-        throwErr(
-          "Idempotency-Key was reused with a different request payload",
-          "IDEMPOTENCY_CONFLICT"
-        );
-      }
-      return { payment: existing, replayed: true };
-    }
-  }
+    if (!existing) return null;
 
-  /*
-  |----------------------------------------------------------------------
-  | Step 1: Create C-TEX PAY payment record (PENDING) — atomic
-  |----------------------------------------------------------------------
-  */
+    if (!hashesMatch(existing.requestHash, requestHash)) {
+      throwErr(
+        "This Idempotency-Key was already used with a different payment request",
+        "IDEMPOTENCY_CONFLICT",
+        409
+      );
+    }
+
+    return { payment: existing, reused: true, replayed: true };
+  };
+
+  const replayed = await replay();
+  if (replayed) return replayed;
+
+  /* -------------------------------------------------------
+   * CREATE PAYMENT (atomic)
+   * ----------------------------------------------------- */
+
   let payment;
   try {
-    payment = await sequelize.transaction(async (t) => {
-      await assertMerchantActive(merchantId, t);
-
-      const paymentReference = await generateUniquePaymentReference(t);
-      const expiresAt = new Date(
-        Date.now() + PENDING_PAYMENT_TTL_MINUTES * 60 * 1000
+    payment = await sequelize.transaction(async (transaction) => {
+      const paymentReference = await generateUniquePaymentReference(
+        transaction
       );
 
-      const created = await Payment.create(
+      const createdPayment = await Payment.create(
         {
           merchantId,
           customerId,
           paymentReference,
           merchantReference,
-          amount: normalizedAmount,
-          currency: curr,
-          paymentMethod: method,
+          amount,
+          currency,
+          paymentMethod,
           status: "PENDING",
           description,
           metadata,
-          expiresAt,
-          idempotencyKey: idempotencyKey || null,
+          paymentInstructions: null,
+          idempotencyKey,
           requestHash,
+          // Provisional; replaced by the provider's expiry below.
+          expiresAt: getDefaultPaymentExpiry(),
         },
-        { transaction: t }
+        { transaction }
       );
 
       await PaymentStatusHistory.create(
         {
-          paymentId: created.id,
+          paymentId: createdPayment.id,
           previousStatus: null,
           newStatus: "PENDING",
-          reason: "Payment initialized",
+          reason: "Payment created",
           source: "INITIALIZATION",
         },
-        { transaction: t }
+        { transaction }
       );
 
-      return created;
+      return createdPayment;
     });
   } catch (error) {
-    /*
-    |----------------------------------------------------------------------
-    | Concurrent idempotency race
-    |----------------------------------------------------------------------
-    */
-    if (isUniqueViolation(error) && idempotencyKey) {
-      const existing = await Payment.findOne({
-        where: { merchantId, idempotencyKey },
-      });
-
-      if (existing) {
-        if (!hashesMatch(existing.requestHash, requestHash)) {
-          throwErr(
-            "Idempotency-Key was reused with a different request payload",
-            "IDEMPOTENCY_CONFLICT"
-          );
-        }
-        return { payment: existing, replayed: true };
-      }
+    if (isUniqueViolation(error)) {
+      const raced = await replay();
+      if (raced) return raced;
     }
 
-    /*
-    |----------------------------------------------------------------------
-    | Sequelize validation error (e.g. amount below model min)
-    |----------------------------------------------------------------------
-    */
     if (error.name === "SequelizeValidationError") {
       const mapped = new Error("Validation failed");
       mapped.code = "SEQUELIZE_VALIDATION_ERROR";
+      mapped.statusCode = 400;
       mapped.fields = (error.errors || []).map((err) => ({
         field: err.path || err.field || "unknown",
         message: err.message,
@@ -533,134 +635,540 @@ export async function createPayment({
       throw mapped;
     }
 
-    /*
-    |----------------------------------------------------------------------
-    | Raw DB error — wrap so nothing internal leaks to the client
-    |----------------------------------------------------------------------
-    */
     if (error.name === "SequelizeDatabaseError") {
       const mapped = new Error("Database operation failed");
       mapped.code = "SEQUELIZE_DATABASE_ERROR";
+      mapped.statusCode = 500;
       throw mapped;
     }
 
     throw error;
   }
 
-  /*
-  |----------------------------------------------------------------------
-  | Step 2: Call provider (outside transaction — external call)
-  |----------------------------------------------------------------------
-  */
-  let customer = null;
-  if (customerId) {
-    customer = await Customer.findByPk(customerId);
+  /* -------------------------------------------------------
+   * GET PAYMENT PROVIDER
+   * ----------------------------------------------------- */
+
+  let provider;
+  try {
+    provider = getPaymentProvider();
+  } catch (error) {
+    console.error("Unable to load payment provider", {
+      paymentReference: payment.paymentReference,
+      error: error.message,
+    });
+    throwErr(
+      "Payment provider is currently unavailable",
+      "PAYMENT_PROVIDER_UNAVAILABLE",
+      503
+    );
   }
 
-  const provider = getPaymentProvider();
+  /* -------------------------------------------------------
+   * PROVIDER INITIALIZATION (outside transaction)
+   * ----------------------------------------------------- */
 
-  let providerResult;
+  const customerContext = {
+    id: customerId,
+    email: customer?.email || FALLBACK_CUSTOMER_EMAIL,
+    name: customer
+      ? `${customer.firstName} ${customer.lastName}`.trim()
+      : "Customer",
+    phone: customer?.phone || null,
+  };
+
+  let initializeResult;
   try {
-    providerResult = await provider.initializePayment({
+    initializeResult = await provider.initializePayment({
       paymentReference: payment.paymentReference,
       merchantReference: payment.merchantReference,
-      amount: Number(payment.amount),
+      // Provider expects major units (naira). Payment.amount is kobo.
+      amount: Number(payment.amount) / 100,
       currency: payment.currency,
-      customer: {
-        email: customer?.email || "noreply@ctexpay.com",
-        name: customer
-          ? `${customer.firstName} ${customer.lastName}`
-          : "Customer",
-        phone: customer?.phone || null,
-      },
+      customer: customerContext,
       description: payment.description,
       metadata: payment.metadata,
     });
-  } catch (providerError) {
-    throw normalizeProviderError(providerError, {
+  } catch (error) {
+    console.error("Payment provider initialization failed", {
       paymentReference: payment.paymentReference,
       merchantId,
+      errorCode: error?.code,
+      providerHttpStatus: error?.httpStatus,
+      error: error?.message,
     });
+    throwErr(
+      "Unable to initialize payment",
+      "PAYMENT_PROVIDER_INITIALIZATION_FAILED",
+      502
+    );
+  }
+
+  if (!initializeResult || typeof initializeResult !== "object") {
+    throwErr(
+      "Payment provider returned an invalid initialization response",
+      "PROVIDER_RESPONSE_MALFORMED",
+      502
+    );
+  }
+
+  if (!initializeResult.providerReference) {
+    throwErr(
+      "Payment provider did not return a provider reference",
+      "PROVIDER_RESPONSE_MALFORMED",
+      502
+    );
   }
 
   await payment.update({
-    provider: "MONNIFY",
-    providerReference: providerResult.providerReference,
-    providerStatus: providerResult.providerStatus || "PENDING",
+    provider:
+      initializeResult.provider || envConfig.PAYMENT_PROVIDER || "MONNIFY",
+    providerReference: initializeResult.providerReference,
+    providerStatus: initializeResult.providerStatus || "PENDING",
     providerMetadata: {
-      checkoutUrl: providerResult.checkoutUrl || null,
+      initialization: initializeResult.rawResponse || null,
     },
   });
 
   console.log("Payment provider initialized", {
     merchantId,
     paymentReference: payment.paymentReference,
-    provider: "MONNIFY",
-    providerReference: providerResult.providerReference,
+    provider: payment.provider,
+    providerReference: payment.providerReference,
   });
 
-  /*
-  |----------------------------------------------------------------------
-  | Step 3: If bank transfer, obtain dynamic virtual account
-  |----------------------------------------------------------------------
-  | The Monnify transaction is already created at this point.
-  | If this step fails, we DO NOT delete the payment — the merchant
-  | can retry with a new Idempotency-Key and re-use the same
-  | transactionReference (Monnify permits multiple init calls).
-  */
-  if (method === "ACCOUNT_TRANSFER") {
+  /* -------------------------------------------------------
+   * ACCOUNT TRANSFER INSTRUCTIONS
+   * ----------------------------------------------------- */
+
+  if (paymentMethod === "ACCOUNT_TRANSFER") {
+    let bankTransferResult;
     try {
-      const bankTransferResult = await provider.initializeBankTransfer({
-        transactionReference: providerResult.providerReference,
+      bankTransferResult = await provider.initializeBankTransfer({
+        transactionReference: initializeResult.providerReference,
         bankCode: envConfig.MONNIFY_TRANSFER_BANK_CODE || null,
-      });
-
-      const paymentInstructions = {
-        type: "ACCOUNT_TRANSFER",
-        accountNumber: bankTransferResult.accountNumber,
-        accountName: bankTransferResult.accountName,
-        bankName: bankTransferResult.bankName,
-        bankCode: bankTransferResult.bankCode || null,
-        expiresAt: bankTransferResult.expiresAt || null,
-        ussdPayment: bankTransferResult.ussdPayment || null,
-      };
-
-      await payment.update({ paymentInstructions });
-
-      console.log("Bank transfer instructions generated", {
         paymentReference: payment.paymentReference,
-        bankName: bankTransferResult.bankName,
+        providerReference: initializeResult.providerReference,
+        merchantReference: payment.merchantReference,
+        amount: Number(payment.amount) / 100,
+        currency: payment.currency,
+        customer: customerContext,
+        description: payment.description,
+        metadata: payment.metadata,
       });
-    } catch (bankError) {
+    } catch (error) {
       console.error("Bank transfer initialization failed", {
         paymentReference: payment.paymentReference,
-        errorCode: bankError.code,
-        providerHttpStatus: bankError.httpStatus,
-        message: bankError.message,
+        providerReference: initializeResult.providerReference,
+        errorCode: error?.code,
+        providerHttpStatus: error?.httpStatus,
+        error: error?.message,
       });
-
-      const e = new Error("Failed to generate transfer account");
-      e.code = "ACCOUNT_TRANSFER_INIT_FAILED";
-      e.httpStatus = bankError.httpStatus || null;
-      throw e;
+      throwErr(
+        "Unable to initialize bank transfer payment",
+        "ACCOUNT_TRANSFER_INIT_FAILED",
+        502
+      );
     }
+
+    if (!bankTransferResult || typeof bankTransferResult !== "object") {
+      throwErr(
+        "Payment provider returned an invalid bank transfer response",
+        "PROVIDER_RESPONSE_MALFORMED",
+        502
+      );
+    }
+
+    if (!bankTransferResult.accountNumber) {
+      throwErr(
+        "Payment provider did not return a transfer account number",
+        "PROVIDER_RESPONSE_MALFORMED",
+        502
+      );
+    }
+
+    const providerExpiresAt = normalizeProviderExpiry(
+      bankTransferResult.expiresAt
+    );
+
+    if (!providerExpiresAt) {
+      throwErr(
+        "Payment provider did not return a transfer account expiry",
+        "PROVIDER_RESPONSE_MALFORMED",
+        502
+      );
+    }
+
+    if (providerExpiresAt.getTime() <= Date.now()) {
+      throwErr(
+        "Payment provider returned an already expired transfer account",
+        "PROVIDER_RESPONSE_MALFORMED",
+        502
+      );
+    }
+
+    const paymentInstructions = {
+      type: "ACCOUNT_TRANSFER",
+      accountNumber: bankTransferResult.accountNumber,
+      accountName: bankTransferResult.accountName || null,
+      bankName: bankTransferResult.bankName || null,
+      bankCode: bankTransferResult.bankCode || null,
+      // Always ISO — matches Payment.expiresAt
+      expiresAt: providerExpiresAt.toISOString(),
+      ussdPayment: bankTransferResult.ussdPayment || null,
+    };
+
+    await payment.update({
+      expiresAt: providerExpiresAt,
+      paymentInstructions,
+      providerStatus:
+        bankTransferResult.providerStatus ||
+        initializeResult.providerStatus ||
+        "PENDING",
+      providerMetadata: {
+        ...(payment.providerMetadata || {}),
+        bankTransfer: bankTransferResult.rawResponse || null,
+      },
+    });
+
+    console.log("Bank transfer instructions generated", {
+      paymentReference: payment.paymentReference,
+      bankName: bankTransferResult.bankName,
+    });
+  }
+
+  await payment.reload();
+
+  return { payment, reused: false, replayed: false };
+}
+
+/* =========================================================
+ * VERIFY PAYMENT
+ * ======================================================= */
+
+export async function verifyPayment({
+  merchantId = null,
+  paymentReference,
+  providerReference = null,
+}) {
+  if (!paymentReference) {
+    throwErr(
+      "paymentReference is required",
+      "PAYMENT_REFERENCE_REQUIRED",
+      400
+    );
+  }
+
+  /* -------------------------------------------------------
+   * FIND PAYMENT
+   * ----------------------------------------------------- */
+
+  const where = { paymentReference };
+  if (merchantId) where.merchantId = merchantId;
+
+  const payment = await Payment.findOne({ where });
+  if (!payment) {
+    throwErr("Payment not found", "PAYMENT_NOT_FOUND", 404);
+  }
+
+  /* -------------------------------------------------------
+   * FAST PATHS
+   * ----------------------------------------------------- */
+
+  if (payment.status === "SUCCESS") {
+    return {
+      payment,
+      reused: true,
+      alreadyVerified: true,
+      statusChanged: false,
+    };
+  }
+
+  if (payment.status === "EXPIRED" || payment.status === "CANCELLED") {
+    throwErr(
+      `Payment is ${payment.status} and cannot be verified`,
+      "INVALID_VERIFICATION_STATE",
+      409
+    );
+  }
+
+  if (!payment.providerReference) {
+    throwErr(
+      "Payment does not have a provider reference",
+      "PROVIDER_REFERENCE_MISSING",
+      500
+    );
+  }
+
+  /* -------------------------------------------------------
+   * GET PROVIDER
+   * ----------------------------------------------------- */
+
+  let provider;
+  try {
+    provider = getPaymentProvider();
+  } catch (error) {
+    console.error("Unable to load payment provider", {
+      paymentReference,
+      error: error.message,
+    });
+    throwErr(
+      "Payment provider is currently unavailable",
+      "PAYMENT_PROVIDER_UNAVAILABLE",
+      503
+    );
+  }
+
+  /* -------------------------------------------------------
+   * PROVIDER VERIFICATION (external call — outside tx)
+   * ----------------------------------------------------- */
+
+  let verificationResult;
+  try {
+    verificationResult = await provider.verifyPayment({
+      paymentReference: payment.paymentReference,
+      providerReference: providerReference || payment.providerReference,
+    });
+  } catch (error) {
+    console.error("Payment provider verification failed", {
+      paymentReference: payment.paymentReference,
+      providerReference: payment.providerReference,
+      errorCode: error?.code,
+      providerHttpStatus: error?.httpStatus,
+      error: error?.message,
+    });
+    throwErr(
+      "Unable to verify payment with provider",
+      "PAYMENT_VERIFICATION_FAILED",
+      502
+    );
+  }
+
+  /* -------------------------------------------------------
+   * VALIDATE PROVIDER RESPONSE
+   * ----------------------------------------------------- */
+
+  if (!verificationResult || typeof verificationResult !== "object") {
+    throwErr(
+      "Payment provider returned an invalid verification response",
+      "PROVIDER_RESPONSE_MALFORMED",
+      502
+    );
+  }
+
+  // Accept both normalized mapper field names.
+  const newStatus = verificationResult.ctexStatus ?? verificationResult.status;
+  const rawProviderStatus = verificationResult.providerStatus ?? newStatus;
+
+  if (!VERIFICATION_STATUSES.includes(newStatus)) {
+    throwErr(
+      `Unsupported provider payment status: ${newStatus}`,
+      "PROVIDER_STATUS_UNSUPPORTED",
+      502
+    );
+  }
+
+  if (
+    verificationResult.paymentReference &&
+    verificationResult.paymentReference !== payment.paymentReference
+  ) {
+    throwErr(
+      "Provider payment reference does not match the requested payment",
+      "PROVIDER_REFERENCE_MISMATCH",
+      502
+    );
+  }
+
+  if (
+    verificationResult.providerReference &&
+    verificationResult.providerReference !== payment.providerReference
+  ) {
+    throwErr(
+      "Provider reference does not match the requested payment",
+      "PROVIDER_REFERENCE_MISMATCH",
+      502
+    );
+  }
+
+  if (
+    verificationResult.currency &&
+    verificationResult.currency !== payment.currency
+  ) {
+    throwErr(
+      "Provider currency does not match the payment currency",
+      "PAYMENT_CURRENCY_MISMATCH",
+      502
+    );
   }
 
   /*
-  |----------------------------------------------------------------------
-  | Reload to ensure paymentInstructions are visible to the caller
-  |----------------------------------------------------------------------
-  */
-  await payment.reload();
+   * Amount check — SUCCESS only.
+   * Both values are integer kobo. Underpayment → reject.
+   * Overpayment → accepted.
+   */
+  if (newStatus === "SUCCESS") {
+    const rawPaid =
+      verificationResult.amountPaid ?? verificationResult.amount;
 
-  return { payment, replayed: false };
+    if (rawPaid === undefined || rawPaid === null) {
+      throwErr(
+        "Provider did not return the payment amount",
+        "PROVIDER_AMOUNT_MISSING",
+        502
+      );
+    }
+
+    /*
+     * Monnify returns naira; some providers return kobo.
+     * We normalize: if the value looks like naira (has decimals
+     * or is < 1e6), scale it to kobo. If it's a large integer, treat
+     * it as kobo already.
+     *
+     * The safest rule for THIS codebase (Payment.amount is kobo):
+     *   - if rawPaid is not an integer, treat as naira → * 100
+     *   - if rawPaid is an integer and < Number(payment.amount),
+     *     and payment.amount is large, assume naira → * 100
+     *   - otherwise treat as kobo
+     */
+    let paidAmount = Number(rawPaid);
+
+    if (!Number.isFinite(paidAmount)) {
+      throwErr(
+        "Provider returned an invalid payment amount",
+        "PROVIDER_AMOUNT_INVALID",
+        502
+      );
+    }
+
+    if (!Number.isInteger(paidAmount)) {
+      // Decimal → naira
+      paidAmount = Math.round(paidAmount * 100);
+    } else if (paidAmount < Number(payment.amount)) {
+      // Integer that is smaller than expected kobo — assume naira
+      const asKobo = paidAmount * 100;
+      if (asKobo >= Number(payment.amount)) {
+        paidAmount = asKobo;
+      }
+    }
+
+    if (paidAmount < Number(payment.amount)) {
+      console.error("Amount underpayment detected", {
+        paymentReference: payment.paymentReference,
+        expectedKobo: Number(payment.amount),
+        paidKobo: paidAmount,
+      });
+      throwErr(
+        "Provider payment amount is less than the requested amount",
+        "PAYMENT_AMOUNT_MISMATCH",
+        409
+      );
+    }
+  }
+
+  /* -------------------------------------------------------
+   * ATOMIC STATUS UPDATE (row lock)
+   * ----------------------------------------------------- */
+
+  const result = await sequelize.transaction(async (transaction) => {
+    const lockedPayment = await Payment.findOne({
+      where: { id: payment.id },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!lockedPayment) {
+      throwErr("Payment no longer exists", "PAYMENT_NOT_FOUND", 404);
+    }
+
+    if (lockedPayment.status === "SUCCESS") {
+      return {
+        payment: lockedPayment,
+        statusChanged: false,
+        alreadyVerified: true,
+      };
+    }
+
+    if (
+      lockedPayment.status === "EXPIRED" ||
+      lockedPayment.status === "CANCELLED"
+    ) {
+      throwErr(
+        `Payment is ${lockedPayment.status} and cannot be verified`,
+        "INVALID_VERIFICATION_STATE",
+        409
+      );
+    }
+
+    const currentStatus = lockedPayment.status;
+    const allowedTransitions =
+      ALLOWED_VERIFICATION_TRANSITIONS[currentStatus] || [];
+
+    if (!allowedTransitions.includes(newStatus)) {
+      throwErr(
+        `Invalid payment status transition: ${currentStatus} -> ${newStatus}`,
+        "INVALID_PAYMENT_STATUS_TRANSITION",
+        409
+      );
+    }
+
+    const statusChanged = currentStatus !== newStatus;
+
+    await lockedPayment.update(
+      {
+        status: newStatus,
+        providerStatus: rawProviderStatus,
+        providerMetadata: {
+          ...(lockedPayment.providerMetadata || {}),
+          verification: {
+            amountPaid: verificationResult.amountPaid ?? null,
+            currency: verificationResult.currency ?? null,
+            paymentMethod: verificationResult.paymentMethod ?? null,
+            paidAt: verificationResult.paidAt ?? null,
+            raw: verificationResult.rawResponse ?? null,
+          },
+        },
+      },
+      { transaction }
+    );
+
+    if (statusChanged) {
+      await PaymentStatusHistory.create(
+        {
+          paymentId: lockedPayment.id,
+          previousStatus: currentStatus,
+          newStatus,
+          reason: `Verified via provider: ${rawProviderStatus}`,
+          source: "VERIFICATION",
+        },
+        { transaction }
+      );
+    }
+
+    return {
+      payment: lockedPayment,
+      statusChanged,
+      alreadyVerified: false,
+    };
+  });
+
+  console.log("Payment verification completed", {
+    paymentReference: payment.paymentReference,
+    status: result.payment.status,
+    providerStatus: rawProviderStatus,
+    statusChanged: result.statusChanged,
+  });
+
+  return {
+    payment: result.payment,
+    reused: !result.statusChanged,
+    alreadyVerified: result.alreadyVerified,
+    statusChanged: result.statusChanged,
+  };
 }
 
-/*
-|--------------------------------------------------------------------------
-| Retrieve single payment (merchant-scoped)
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+ * GET PAYMENT (merchant-scoped)
+ * ======================================================= */
 
 export async function getPaymentForMerchant({
   merchantId,
@@ -680,99 +1188,16 @@ export async function getPaymentForMerchant({
   });
 }
 
-/*
-|--------------------------------------------------------------------------
-| List payments (merchant-scoped)
-|--------------------------------------------------------------------------
-*/
-
-export async function listPaymentsForMerchant({
-  merchantId,
-  page = 1,
-  limit = DEFAULT_LIMIT,
-  status = null,
-  customerId = null,
-  merchantReference = null,
-  paymentReference = null,
-  search = null,
-  createdFrom = null,
-  createdTo = null,
-  sortBy = "createdAt",
-  sortDir = "DESC",
-}) {
-  if (!merchantId) {
-    throwErr("merchantId is required", "MERCHANT_ID_REQUIRED");
-  }
-
-  return listPayments({
-    scope: { merchantId },
-    page,
-    limit,
-    status,
-    customerId,
-    merchantReference,
-    paymentReference,
-    search,
-    createdFrom,
-    createdTo,
-    sortBy,
-    sortDir,
-    includeCustomer: true,
-  });
-}
-
-/*
-|--------------------------------------------------------------------------
-| List payments (admin platform-wide)
-|--------------------------------------------------------------------------
-*/
-
-export async function listAllPayments({
-  merchantId = null,
-  page = 1,
-  limit = DEFAULT_LIMIT,
-  status = null,
-  customerId = null,
-  merchantReference = null,
-  paymentReference = null,
-  search = null,
-  createdFrom = null,
-  createdTo = null,
-  sortBy = "createdAt",
-  sortDir = "DESC",
-}) {
-  const scope = {};
-  if (merchantId) scope.merchantId = merchantId;
-
-  return listPayments({
-    scope,
-    page,
-    limit,
-    status,
-    customerId,
-    merchantReference,
-    paymentReference,
-    search,
-    createdFrom,
-    createdTo,
-    sortBy,
-    sortDir,
-    includeCustomer: false,
-    includeMerchant: true,
-  });
-}
-
-/*
-|--------------------------------------------------------------------------
-| Shared list implementation
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+ * SHARED LIST IMPLEMENTATION
+ * ======================================================= */
 
 async function listPayments({
   scope,
   page,
   limit,
   status,
+  paymentMethod,
   customerId,
   merchantReference,
   paymentReference,
@@ -781,38 +1206,87 @@ async function listPayments({
   createdTo,
   sortBy,
   sortDir,
-  includeCustomer,
+  includeCustomer = false,
   includeMerchant = false,
 }) {
-  const safePage = Math.min(Math.max(parseInt(page, 10) || 1, 1), MAX_PAGE);
-  const safeLimit = Math.min(
-    Math.max(parseInt(limit, 10) || DEFAULT_LIMIT, 1),
-    MAX_LIMIT
-  );
-  const offset = (safePage - 1) * safeLimit;
+  const parsedPage = isBlank(page) ? 1 : Number(page);
+  const parsedLimit = isBlank(limit) ? DEFAULT_LIMIT : Number(limit);
+  const resolvedSortBy = isBlank(sortBy) ? "createdAt" : sortBy;
+  const resolvedSortDir = isBlank(sortDir)
+    ? "DESC"
+    : String(sortDir).toUpperCase();
 
-  const where = { ...scope };
+  if (
+    !Number.isInteger(parsedPage) ||
+    parsedPage < 1 ||
+    parsedPage > MAX_PAGE
+  ) {
+    throwErr("Invalid page", "INVALID_PAGE", 400);
+  }
 
-  if (status) where.status = status;
-  if (customerId) where.customerId = customerId;
-  if (paymentReference) where.paymentReference = paymentReference;
-  if (merchantReference) where.merchantReference = merchantReference;
+  if (
+    !Number.isInteger(parsedLimit) ||
+    parsedLimit < 1 ||
+    parsedLimit > MAX_LIMIT
+  ) {
+    throwErr(
+      `Limit must be between 1 and ${MAX_LIMIT}`,
+      "INVALID_LIMIT",
+      400
+    );
+  }
+
+  if (!ALLOWED_SORT_FIELDS.includes(resolvedSortBy)) {
+    throwErr(
+      `Invalid sort field: ${resolvedSortBy}`,
+      "INVALID_SORT_FIELD",
+      400
+    );
+  }
+
+  if (!ALLOWED_SORT_DIRECTIONS.includes(resolvedSortDir)) {
+    throwErr(
+      `Invalid sort direction: ${resolvedSortDir}`,
+      "INVALID_SORT_DIRECTION",
+      400
+    );
+  }
+
+  if (!isBlank(status) && !VERIFICATION_STATUSES.includes(status)) {
+    throwErr(`Invalid payment status: ${status}`, "INVALID_STATUS", 400);
+  }
+
+  if (
+    !isBlank(paymentMethod) &&
+    !SUPPORTED_METHODS.includes(paymentMethod)
+  ) {
+    throwErr(
+      `Invalid payment method: ${paymentMethod}`,
+      "INVALID_PAYMENT_METHOD",
+      400
+    );
+  }
+
+  assertSearch(search);
 
   const from = parseDateOrNull(createdFrom, "createdFrom");
   const to = parseDateOrNull(createdTo, "createdTo");
+
+  const where = { ...scope };
+
+  if (!isBlank(status)) where.status = status;
+  if (!isBlank(paymentMethod)) where.paymentMethod = paymentMethod;
+  if (!isBlank(customerId)) where.customerId = customerId;
+  if (!isBlank(paymentReference)) where.paymentReference = paymentReference;
+  if (!isBlank(merchantReference)) where.merchantReference = merchantReference;
+
   if (from || to) {
     where.createdAt = {};
     if (from) where.createdAt[Op.gte] = from;
     if (to) where.createdAt[Op.lte] = to;
   }
 
-  if (search) {
-    if (typeof search !== "string" || search.length > MAX_SEARCH_LENGTH) {
-      throwErr(
-        `search must be a string up to ${MAX_SEARCH_LENGTH} characters`,
-        "INVALID_SEARCH"
-      );
-    }
+  if (typeof search === "string" && search.trim() !== "") {
     const term = `%${escapeLikeTerm(search.trim())}%`;
     where[Op.or] = [
       { paymentReference: { [Op.like]: term } },
@@ -820,14 +1294,8 @@ async function listPayments({
     ];
   }
 
-  const safeSortBy = ALLOWED_SORT_FIELDS.includes(sortBy)
-    ? sortBy
-    : "createdAt";
-  const safeSortDir = ALLOWED_SORT_DIRECTIONS.includes(sortDir?.toUpperCase())
-    ? sortDir.toUpperCase()
-    : "DESC";
-
   const include = [];
+
   if (includeCustomer) {
     include.push({
       model: Customer,
@@ -835,6 +1303,7 @@ async function listPayments({
       attributes: ["id", "customerCode", "firstName", "lastName", "email"],
     });
   }
+
   if (includeMerchant) {
     include.push({
       model: Merchant,
@@ -843,35 +1312,123 @@ async function listPayments({
     });
   }
 
-  const { count, rows } = await Payment.findAndCountAll({
+  const offset = (parsedPage - 1) * parsedLimit;
+
+  const { rows, count } = await Payment.findAndCountAll({
     where,
     include,
-    order: [[safeSortBy, safeSortDir]],
-    limit: safeLimit,
+    order: [[resolvedSortBy, resolvedSortDir]],
+    limit: parsedLimit,
     offset,
   });
+
+  const totalPages = Math.ceil(count / parsedLimit) || 0;
 
   return {
     payments: rows,
     pagination: {
-      page: safePage,
-      limit: safeLimit,
-      total: count,
-      totalPages: Math.ceil(count / safeLimit) || 0,
+      page: parsedPage,
+      limit: parsedLimit,
+      totalItems: count,
+      totalPages,
+      hasNextPage: parsedPage < totalPages,
+      hasPreviousPage: parsedPage > 1,
     },
   };
 }
 
-/*
-|--------------------------------------------------------------------------
-| Admin: get payment with status history (platform-wide)
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+ * LIST PAYMENTS (merchant-scoped)
+ * ======================================================= */
+
+export async function listPaymentsForMerchant({
+  merchantId,
+  page,
+  limit,
+  status,
+  paymentMethod,
+  customerId,
+  merchantReference,
+  paymentReference,
+  search,
+  createdFrom,
+  createdTo,
+  sortBy,
+  sortDir,
+  sortDirection, // alias of sortDir
+}) {
+  if (!merchantId) {
+    throwErr("merchantId is required", "MERCHANT_REQUIRED", 400);
+  }
+
+  return listPayments({
+    scope: { merchantId },
+    page,
+    limit,
+    status,
+    paymentMethod,
+    customerId,
+    merchantReference,
+    paymentReference,
+    search,
+    createdFrom,
+    createdTo,
+    sortBy,
+    sortDir: sortDir ?? sortDirection,
+    includeCustomer: true,
+  });
+}
+
+/* =========================================================
+ * LIST PAYMENTS (admin, platform-wide)
+ * ======================================================= */
+
+export async function listAllPayments({
+  merchantId = null,
+  page,
+  limit,
+  status,
+  paymentMethod,
+  customerId,
+  merchantReference,
+  paymentReference,
+  search,
+  createdFrom,
+  createdTo,
+  sortBy,
+  sortDir,
+  sortDirection,
+} = {}) {
+  const scope = {};
+  if (!isBlank(merchantId)) scope.merchantId = merchantId;
+
+  return listPayments({
+    scope,
+    page,
+    limit,
+    status,
+    paymentMethod,
+    customerId,
+    merchantReference,
+    paymentReference,
+    search,
+    createdFrom,
+    createdTo,
+    sortBy,
+    sortDir: sortDir ?? sortDirection,
+    includeCustomer: false,
+    includeMerchant: true,
+  });
+}
+
+/* =========================================================
+ * ADMIN: GET PAYMENT WITH STATUS HISTORY
+ * ======================================================= */
 
 export async function getAdminPaymentByReference(paymentReference) {
   if (!paymentReference) return null;
 
-  const payment = await Payment.findOne({
+  return Payment.findOne({
     where: { paymentReference },
     include: [
       {
@@ -900,6 +1457,4 @@ export async function getAdminPaymentByReference(paymentReference) {
       [{ model: PaymentStatusHistory, as: "statusHistory" }, "createdAt", "ASC"],
     ],
   });
-
-  return payment;
 }

@@ -20,7 +20,7 @@ import CustomerPaymentMethod from "./CustomerPaymentMethod.js";
 import Notification from "./Notification.js";
 import Payment from "./Payment.js";
 import PaymentStatusHistory from "./PaymentStatusHistory.js";
-
+import WebhookEvent from "./WebhookEvent.js";
 // user has many refresh tokens
 
 User.hasMany(RefreshToken, {
@@ -337,5 +337,6 @@ export {
   CustomerPaymentMethod,
   Notification,
   Payment,
-  PaymentStatusHistory
+  PaymentStatusHistory,
+  WebhookEvent
 };

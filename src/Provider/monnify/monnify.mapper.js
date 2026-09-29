@@ -3,10 +3,17 @@ import envConfig from "../../config/constant.js";
 /**
  * Monnify Request/Response Mapper
  *
- * Converts between C-TEX PAY internal format and Monnify API format.
- * Provider-specific field names remain isolated in this file.
+ * Purpose:
+ *   Isolate EVERY Monnify-specific field name inside this file.
+ *   The rest of the application consumes only the normalized
+ *   C-TEX provider contract described in each function's return value.
  *
- * Money: C-TEX PAY stores NGN in kobo (integers). Monnify uses naira (decimals).
+ * Amount conventions in C-TEX PAY (LOCKED — do not change without migration):
+ *   - Payment.amount is stored as a naira DECIMAL STRING (e.g. "25000.00").
+ *   - Merchant API accepts amount in naira (25000 = NGN 25,000).
+ *   - Monnify returns amountPaid as naira decimal (e.g. 25000.00).
+ *   - We keep amounts as naira throughout the contract, and only convert
+ *     to integer kobo when comparing (to avoid floating-point drift).
  *
  * Bank-transfer flow:
  *   1. POST /api/v1/merchant/transactions/init-transaction
@@ -15,10 +22,38 @@ import envConfig from "../../config/constant.js";
  *   2. POST /api/v1/merchant/bank-transfer/init-payment
  *        toMonnifyBankTransferRequest -> fromMonnifyBankTransferResponse
  *        (returns the dynamic virtual account the customer pays into)
+ *
+ * Normalized provider contract (every provider adapter MUST return this shape):
+ *
+ *   initializePayment:
+ *     { success, providerReference, providerStatus, paymentInstructions,
+ *       checkoutUrl, rawResponse }
+ *
+ *   initializeBankTransfer:
+ *     { type, accountNumber, accountName, bankName, bankCode,
+ *       expiresAt, ussdPayment, amount, fee, totalPayable,
+ *       providerReference, providerPaymentReference, rawResponse }
+ *
+ *   verifyPayment:
+ *     { success, providerReference, paymentReference,
+ *       status,           // C-TEX: PENDING|SUCCESS|FAILED|EXPIRED|CANCELLED
+ *       providerStatus,   // original Monnify status
+ *       amount,           // naira
+ *       currency,
+ *       paymentMethod,
+ *       paidAt,
+ *       rawResponse }
  */
 
-/** Monnify's documented validity of a dynamic account: 2400s (40 minutes). */
+/** Monnify's documented maximum validity of a dynamic account: 2400s (40 minutes). */
 const MAX_ACCOUNT_DURATION_SECONDS = 2400;
+
+/**
+ * Max tolerated difference between Monnify's `requestTime` and our clock.
+ * Beyond this we distrust the timestamp and start the validity window from
+ * local processing time instead.
+ */
+const MAX_REQUEST_TIME_SKEW_MS = 5 * 60 * 1000;
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
@@ -72,24 +107,61 @@ function unwrapBody(monnifyResponse, label) {
 }
 
 /**
- * Resolves the remaining validity of the virtual account in seconds.
+ * Resolves the validity of the virtual account in seconds.
  *
  * Monnify's bank-transfer response returns `accountDurationSeconds`.
  * (`accountDuration` is accepted as a legacy fallback.)
- * If neither is usable we fall back to the documented 40-minute window
- * rather than failing a payment whose account was already generated.
+ * A duration is never invented: if the provider omits it or returns
+ * something unusable, the response is treated as malformed.
  */
 function resolveAccountDurationSeconds(body) {
   const candidates = [body.accountDurationSeconds, body.accountDuration];
 
   for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined || candidate === "") {
+      continue;
+    }
+
     const seconds = Number(candidate);
-    if (Number.isFinite(seconds) && seconds > 0) {
-      return Math.min(Math.floor(seconds), MAX_ACCOUNT_DURATION_SECONDS);
+
+    if (
+      Number.isFinite(seconds) &&
+      Number.isInteger(seconds) &&
+      seconds > 0 &&
+      seconds <= MAX_ACCOUNT_DURATION_SECONDS
+    ) {
+      return seconds;
     }
   }
 
-  return MAX_ACCOUNT_DURATION_SECONDS;
+  throw malformed(
+    "Monnify bank-transfer response is missing a valid account duration"
+  );
+}
+
+/**
+ * Picks the start of the account validity window.
+ *
+ * Prefers Monnify's `requestTime` when it is present, parseable and close to
+ * our clock. Otherwise (missing, unparseable, or skewed beyond tolerance —
+ * e.g. a zone-less timestamp read in the wrong timezone) it falls back to the
+ * local processing time. Falling back never extends validity beyond what the
+ * provider granted, because the duration is counted from a time no earlier
+ * than the real request.
+ */
+function resolveWindowStart(requestTimeRaw) {
+  const now = new Date();
+
+  if (!requestTimeRaw) return now;
+
+  const parsed = new Date(requestTimeRaw);
+  if (Number.isNaN(parsed.getTime())) return now;
+
+  if (Math.abs(parsed.getTime() - now.getTime()) > MAX_REQUEST_TIME_SKEW_MS) {
+    return now;
+  }
+
+  return parsed;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -99,12 +171,13 @@ function resolveAccountDurationSeconds(body) {
 /**
  * Maps C-TEX PAY PaymentContext -> Monnify Initialize Transaction request.
  *
- * Example: 25000 kobo -> 250 NGN.
+ * `amount` MUST be in naira (same unit as Payment.amount).
+ * Example: 25000 -> NGN 25,000.
  */
 export function toMonnifyInitializeRequest(paymentContext) {
   const {
     paymentReference,
-    amount,
+    amount,           // naira number
     currency,
     customer,
     description,
@@ -113,25 +186,32 @@ export function toMonnifyInitializeRequest(paymentContext) {
   } = paymentContext || {};
 
   if (!paymentReference) {
-    throw invalidRequest("Payment reference is required for Monnify initialization");
-  }
-
-  if (!Number.isInteger(amount) || amount <= 0) {
     throw invalidRequest(
-      "Payment amount must be a positive integer in the smallest currency unit"
+      "Payment reference is required for Monnify initialization"
     );
   }
 
+  const amountNaira = Number(amount);
+  if (!Number.isFinite(amountNaira) || amountNaira <= 0) {
+    throw invalidRequest("Payment amount must be a positive number");
+  }
+
   if (!customer?.email) {
-    throw invalidRequest("Customer email is required for Monnify payment initialization");
+    throw invalidRequest(
+      "Customer email is required for Monnify payment initialization"
+    );
   }
 
   if (!customer?.name) {
-    throw invalidRequest("Customer name is required for Monnify payment initialization");
+    throw invalidRequest(
+      "Customer name is required for Monnify payment initialization"
+    );
   }
 
   if (!currency) {
-    throw invalidRequest("Currency is required for Monnify payment initialization");
+    throw invalidRequest(
+      "Currency is required for Monnify payment initialization"
+    );
   }
 
   if (!envConfig.MONNIFY_CONTRACT_CODE) {
@@ -142,7 +222,7 @@ export function toMonnifyInitializeRequest(paymentContext) {
   }
 
   const request = {
-    amount: Number((amount / 100).toFixed(2)),
+    amount: Number(amountNaira.toFixed(2)), // Monnify expects a decimal naira
     customerName: customer.name,
     customerEmail: customer.email,
     paymentReference,
@@ -184,6 +264,9 @@ export function fromMonnifyInitializeResponse(monnifyResponse) {
 
     providerReference: body.transactionReference,
 
+    // C-TEX normalized status — always PENDING after initialization.
+    status: "PENDING",
+
     providerStatus: "PENDING",
 
     // Populated from fromMonnifyBankTransferResponse().
@@ -210,9 +293,14 @@ export function fromMonnifyInitializeResponse(monnifyResponse) {
  * Builds the body for POST /api/v1/merchant/bank-transfer/init-payment.
  * bankCode is optional; when provided Monnify also returns a USSD string.
  */
-export function toMonnifyBankTransferRequest({ transactionReference, bankCode } = {}) {
+export function toMonnifyBankTransferRequest({
+  transactionReference,
+  bankCode,
+} = {}) {
   if (!transactionReference) {
-    throw invalidRequest("transactionReference is required for Monnify bank transfer");
+    throw invalidRequest(
+      "transactionReference is required for Monnify bank transfer"
+    );
   }
 
   const request = { transactionReference };
@@ -249,7 +337,13 @@ export function fromMonnifyBankTransferResponse(monnifyResponse) {
   }
 
   const durationSeconds = resolveAccountDurationSeconds(body);
-  const expiresAt = new Date(Date.now() + durationSeconds * 1000);
+  const windowStart = resolveWindowStart(body.requestTime);
+
+  const expiresAt = new Date(windowStart.getTime() + durationSeconds * 1000);
+
+  if (expiresAt.getTime() <= Date.now()) {
+    throw malformed("Monnify returned an already expired transfer account");
+  }
 
   return {
     type: "ACCOUNT_TRANSFER",
@@ -270,7 +364,7 @@ export function fromMonnifyBankTransferResponse(monnifyResponse) {
 
     ussdPayment: body.ussdPayment || null,
 
-    // Amounts normalized to kobo.
+    // Amounts normalized to kobo for reconciliation/debugging.
     amount: nairaToKobo(body.amount),
     fee: nairaToKobo(body.fee),
     totalPayable: nairaToKobo(body.totalPayable),
@@ -278,5 +372,145 @@ export function fromMonnifyBankTransferResponse(monnifyResponse) {
     // Useful for reconciliation/debugging.
     providerReference: body.transactionReference || null,
     providerPaymentReference: body.paymentReference || null,
+
+    rawResponse: body,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Verification                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Maps C-TEX verification context -> Monnify query parameters.
+ * Monnify accepts either paymentReference or transactionReference.
+ * We prefer paymentReference (our own reference) when available.
+ */
+export function toMonnifyVerifyRequest({ paymentReference, providerReference }) {
+  if (paymentReference) {
+    return { paymentReference };
+  }
+  if (providerReference) {
+    return { transactionReference: providerReference };
+  }
+  throw providerError(
+    "PROVIDER_VALIDATION_ERROR",
+    "Missing both paymentReference and providerReference"
+  );
+}
+
+/**
+ * Maps Monnify verification response -> C-TEX normalized format.
+ *
+ * Returns the NORMALIZED provider contract consumed by the service layer:
+ *
+ *   {
+ *     success: true,
+ *     providerReference,        // MNFY|...
+ *     paymentReference,         // CTEXPAY_...
+ *     status,                   // C-TEX: PENDING|SUCCESS|FAILED|EXPIRED|CANCELLED
+ *     providerStatus,           // original Monnify status (PAID, PENDING, ...)
+ *     amount,                   // naira (same unit as Payment.amount)
+ *     currency,                 // NGN
+ *     paymentMethod,            // ACCOUNT_TRANSFER, CARD, ...
+ *     paidAt,                   // Date or null
+ *     rawResponse,              // sanitized provider body
+ *   }
+ *
+ * Monnify response shape (from /api/v2/merchant/transactions/query):
+ * {
+ *   requestSuccessful: true,
+ *   responseMessage: "success",
+ *   responseBody: {
+ *     transactionReference: "MNFY|...",
+ *     paymentReference: "CTX_pay_...",
+ *     amountPaid: "25000.00",       // naira
+ *     totalPayable: "25000.00",
+ *     settlementAmount: "24875.00",
+ *     paymentStatus: "PAID",         // PAID | PARTIALLY_PAID | PENDING | OVERPAID | FAILED | EXPIRED | REVERSED
+ *     currency: "NGN",
+ *     paymentMethod: "ACCOUNT_TRANSFER",
+ *     paidOn: "2026-09-28T02:15:30.000Z"
+ *   }
+ * }
+ */
+export function fromMonnifyVerifyResponse(monnifyResponse) {
+  const body = unwrapBody(monnifyResponse, "verification");
+
+  if (!body.paymentStatus) {
+    throw malformed("Monnify verification response missing paymentStatus");
+  }
+
+  // Convert naira (decimal string/number) -> validated naira number
+  const amountPaidNaira = Number(body.amountPaid);
+  if (!Number.isFinite(amountPaidNaira) || amountPaidNaira < 0) {
+    throw malformed("Monnify verification response has invalid amountPaid");
+  }
+
+  let paidAt = null;
+  if (body.paidOn) {
+    const parsed = new Date(body.paidOn);
+    paidAt = Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return {
+    success: true,
+
+    providerReference: body.transactionReference || null,
+    paymentReference: body.paymentReference || null,
+
+    // C-TEX normalized status (consumed by service).
+    status: mapMonnifyStatusToCtex(body.paymentStatus),
+
+    // Original Monnify status (for logging / providerStatus persistence).
+    providerStatus: body.paymentStatus,
+
+    // Amount in naira — same unit as Payment.amount.
+    amount: amountPaidNaira,
+
+    currency: body.currency || "NGN",
+    paymentMethod: body.paymentMethod || null,
+    paidAt,
+
+    rawResponse: {
+      transactionReference: body.transactionReference || null,
+      paymentReference: body.paymentReference || null,
+      amountPaid: body.amountPaid,
+      totalPayable: body.totalPayable,
+      settlementAmount: body.settlementAmount,
+      paymentStatus: body.paymentStatus,
+      currency: body.currency,
+      paymentMethod: body.paymentMethod,
+      paidOn: body.paidOn,
+    },
+  };
+}
+
+/**
+ * Maps Monnify paymentStatus -> C-TEX status enum.
+ *
+ * Monnify: PAID | PARTIALLY_PAID | PENDING | OVERPAID | FAILED | REVERSED | EXPIRED
+ * C-TEX:   PENDING | SUCCESS | FAILED | EXPIRED | CANCELLED
+ *
+ * Unknown statuses default to PENDING — never to SUCCESS — to prevent
+ * a provider change from silently confirming a payment.
+ */
+function mapMonnifyStatusToCtex(monnifyStatus) {
+  switch (monnifyStatus) {
+    case "PAID":
+      return "SUCCESS";
+    case "OVERPAID":
+      return "SUCCESS";                 // business rule: accept overpayment
+    case "PARTIALLY_PAID":
+      return "PENDING";                 // stays pending — underpayment path
+    case "PENDING":
+      return "PENDING";
+    case "FAILED":
+    case "REVERSED":
+      return "FAILED";
+    case "EXPIRED":
+      return "EXPIRED";
+    default:
+      return "PENDING";
+  }
 }

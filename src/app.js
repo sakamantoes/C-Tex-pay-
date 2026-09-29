@@ -11,8 +11,14 @@ import { requestId } from "./middleware/requestId.middleware.js";
 import announcementRoutes from "./routes/announcement.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import adminPaymentRoutes from "./routes/adminPayment.routes.js";
+import webhookRoutes from "./webhooks/monnify.webhook.routes.js";
+import { captureRawBody } from "./middleware/rawBody.middleware.js";
 
 const app = express();
+
+app.use(captureRawBody);
+
+app.use("/api/v1/webhooks", webhookRoutes);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -50,6 +56,7 @@ app.use("/api/v1/customers", customerRoutes);
 app.use("/api/v1/admin", announcementRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/admin/payments", adminPaymentRoutes);
+app.use("/api/v1/webhooks", webhookRoutes);
 
 app.get("/", (req, res) => {
   res.json({

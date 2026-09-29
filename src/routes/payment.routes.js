@@ -6,6 +6,7 @@ import {
   createPayment,
   getPayment,
   listPayments,
+  verifyPayment,
 } from "../controller/payment.controller.js";
 import {
   createPaymentSchema,
@@ -15,12 +16,7 @@ import {
 
 const router = Router();
 
-/*
-|--------------------------------------------------------------------------
-| POST /api/v1/payments
-|--------------------------------------------------------------------------
-*/
-
+/* POST /api/v1/payments */
 router.post(
   "/",
   authenticateApiKey,
@@ -29,12 +25,7 @@ router.post(
   createPayment
 );
 
-/*
-|--------------------------------------------------------------------------
-| GET /api/v1/payments
-|--------------------------------------------------------------------------
-*/
-
+/* GET /api/v1/payments */
 router.get(
   "/",
   authenticateApiKey,
@@ -43,12 +34,16 @@ router.get(
   listPayments
 );
 
-/*
-|--------------------------------------------------------------------------
-| GET /api/v1/payments/:paymentReference
-|--------------------------------------------------------------------------
-*/
+/* POST /api/v1/payments/:paymentReference/verify */
+router.post(
+  "/:paymentReference/verify",
+  authenticateApiKey,
+  requireApiKeyPermission("payments.read"),
+  validate(paymentReferenceParamSchema, "params"),
+  verifyPayment
+);
 
+/* GET /api/v1/payments/:paymentReference */
 router.get(
   "/:paymentReference",
   authenticateApiKey,

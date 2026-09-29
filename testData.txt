@@ -11,7 +11,7 @@ email: godswilltrade2004@gmail.com
 
    curl -X POST http://localhost:3000/api/v1/auth/login   -H "Content-Type: application/json"   -d '{
     "email": "godswilltrade2004@gmail.com",
-    "password": "SecurePass123"
+    "password": "SecurePass123#"
   }'
 
   curl -X POST http://localhost:3000/api/v1/merchants \
