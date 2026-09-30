@@ -50,6 +50,12 @@ const envConfig = {
   //provider selector config
    PAYMENT_PROVIDER: process.env.PAYMENT_PROVIDER || "MONNIFY",
    MONNIFY_TRANSFER_BANK_CODE: process.env.MONNIFY_TRANSFER_BANK_CODE || null,
+
+   //Monnfy webhook
+    MONNIFY_SKIP_SIGNATURE_VERIFICATION:
+    process.env.MONNIFY_SKIP_SIGNATURE_VERIFICATION === "true",
+  MONNIFY_WEBHOOK_MAX_BYTES:
+    parseInt(process.env.MONNIFY_WEBHOOK_MAX_BYTES || "262144", 10),
 };
 
 export default envConfig;

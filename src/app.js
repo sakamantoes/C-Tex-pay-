@@ -56,7 +56,6 @@ app.use("/api/v1/customers", customerRoutes);
 app.use("/api/v1/admin", announcementRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/admin/payments", adminPaymentRoutes);
-app.use("/api/v1/webhooks", webhookRoutes);
 
 app.get("/", (req, res) => {
   res.json({

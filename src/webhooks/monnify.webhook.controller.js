@@ -1,188 +1,228 @@
-import crypto from "crypto";
 import envConfig from "../config/constant.js";
-import { Payment, WebhookEvent } from "../models/index.js";
+import { verifyMonnifySignature } from "../utils/monnifySignature.js";
+import {
+  deriveEventKey,
+  recordWebhookEvent,
+  resolvePaymentForEvent,
+} from "../service/webhookEvent.service.js";
 import { verifyPayment as verifyPaymentService } from "../service/payment.service.js";
-
-/*
-|--------------------------------------------------------------------------
-| Signature verification (HMAC-SHA512, timing-safe)
-|--------------------------------------------------------------------------
-*/
-
-function verifyMonnifySignature(rawBody, signature) {
-  if (!signature) return false;
-  if (!envConfig.MONNIFY_SECRET_KEY) return false;
-
-  const expected = crypto
-    .createHmac("sha512", envConfig.MONNIFY_SECRET_KEY)
-    .update(rawBody)
-    .digest("hex");
-
-  const expectedBuf = Buffer.from(expected, "hex");
-  const receivedBuf = Buffer.from(signature, "hex");
-
-  if (expectedBuf.length !== receivedBuf.length) return false;
-  return crypto.timingSafeEqual(expectedBuf, receivedBuf);
-}
-
-/*
-|--------------------------------------------------------------------------
-| Event key derivation
-|--------------------------------------------------------------------------
-| We dedupe on a stable identifier per event:
-|   - SUCCESSFUL_TRANSACTION: transactionReference (unique per payment)
-|   - Everything else: SHA-256 of (eventType + JSON(eventData))
-|
-| The key is scoped by provider in the DB unique index.
-*/
-
-function deriveEventKey(eventType, eventData) {
-  if (
-    eventType === "SUCCESSFUL_TRANSACTION" &&
-    eventData?.transactionReference
-  ) {
-    return String(eventData.transactionReference);
-  }
-  const canonical = `${eventType}|${JSON.stringify(eventData || {})}`;
-  return crypto.createHash("sha256").update(canonical).digest("hex");
-}
 
 /*
 |--------------------------------------------------------------------------
 | POST /api/v1/webhooks/monnify
 |--------------------------------------------------------------------------
+|
+| Response codes:
+|   200 — event accepted (created, duplicate, or safely acknowledged)
+|   400 — malformed request body or missing raw body
+|   401 — signature missing or invalid
+|   500 — transient failure; Monnify should retry
+|
+| We only return 500 for cases where the payment state could not be
+| verified or persisted due to a TRANSIENT problem (DB error, provider
+| timeout). Permanent errors (mismatch, unsupported event, unknown
+| payment) are acked with 200 so Monnify does not retry endlessly.
 */
 
+const SUPPORTED_EVENTS = new Set([
+  "SUCCESSFUL_TRANSACTION",
+  "SUCCESSFUL_DISBURSEMENT",  // future
+  "FAILED_DISBURSEMENT",      // future
+  "REJECTED_PAYMENT",         // overdraft/underpaid case per Monnify docs
+]);
+
 export const handleMonnifyWebhook = async (req, res) => {
+  const startedAt = Date.now();
+
   try {
     /*
     |----------------------------------------------------------------------
-    | Step 1 — Signature verification (production only)
+    | Step 1 — Raw body presence
     |----------------------------------------------------------------------
     */
-    const isProduction = envConfig.NODE_ENV === "production";
-    const signature = req.headers["monnify-signature"];
-
-    if (isProduction) {
-      if (!req.rawBody) {
-        console.error("Monnify webhook: raw body not captured");
-        return res
-          .status(400)
-          .json({ success: false, message: "Invalid request" });
-      }
-      if (!verifyMonnifySignature(req.rawBody, signature)) {
-        console.warn("Monnify webhook: invalid signature");
-        return res
-          .status(401)
-          .json({ success: false, message: "Invalid signature" });
-      }
+    if (!req.rawBody || typeof req.rawBody !== "string") {
+      console.warn("Monnify webhook: raw body not captured");
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid request body" });
     }
 
     /*
     |----------------------------------------------------------------------
-    | Step 2 — Payload validation
+    | Step 2 — Signature verification
+    |----------------------------------------------------------------------
+    */
+    const signature = req.headers["monnify-signature"];
+    const sigResult = verifyMonnifySignature(req.rawBody, signature);
+
+    if (!sigResult.valid) {
+      console.warn("Monnify webhook: signature rejected", {
+        reason: sigResult.reason,
+      });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid signature" });
+    }
+
+    /*
+    |----------------------------------------------------------------------
+    | Step 3 — Payload structure
     |----------------------------------------------------------------------
     */
     const { eventType, eventData } = req.body || {};
 
-    if (!eventType || !eventData) {
+    if (!eventType || typeof eventType !== "string" || !eventData) {
       console.warn("Monnify webhook: malformed payload");
-      return res.status(200).json({ success: true, message: "Acknowledged" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Malformed payload" });
     }
 
     console.log("Monnify webhook received", { eventType });
 
     /*
     |----------------------------------------------------------------------
-    | Step 3 — Only process SUCCESSFUL_TRANSACTION
+    | Step 4 — Deduplication (durable)
     |----------------------------------------------------------------------
-    | Other event types (settlements, refunds, etc.) are acknowledged
-    | without processing.
-    */
-    if (eventType !== "SUCCESSFUL_TRANSACTION") {
-      console.log("Monnify webhook: ignoring event", { eventType });
-      return res.status(200).json({ success: true, message: "Acknowledged" });
-    }
-
-    /*
-    |----------------------------------------------------------------------
-    | Step 4 — Deduplication
-    |----------------------------------------------------------------------
-    | Attempt to insert a webhook_events row. If it already exists,
-    | this is a retry — acknowledge and return.
+    | Persist BEFORE acking. On duplicate, still return 200 so Monnify
+    | stops retrying.
     */
     const eventKey = deriveEventKey(eventType, eventData);
 
+    let recordResult;
     try {
-      await WebhookEvent.create({
+      recordResult = await recordWebhookEvent({
         provider: "MONNIFY",
         eventType,
         eventKey,
         payload: eventData,
-        processedAt: new Date(),
       });
-    } catch (err) {
-      if (
-        err.name === "SequelizeUniqueConstraintError" ||
-        err.parent?.code === "ER_DUP_ENTRY"
-      ) {
-        console.log("Monnify webhook: duplicate event, skipping", {
-          eventKey,
-        });
-        return res
-          .status(200)
-          .json({ success: true, message: "Acknowledged (duplicate)" });
-      }
-      throw err;
+    } catch (dbErr) {
+      // Transient DB failure — ask provider to retry.
+      console.error("Monnify webhook: event persistence failed", {
+        eventType,
+        error: dbErr.message,
+      });
+      return res
+        .status(500)
+        .json({ success: false, message: "Unable to persist event" });
+    }
+
+    if (!recordResult.created) {
+      console.log("Monnify webhook: duplicate event", { eventKey });
+      return res
+        .status(200)
+        .json({ success: true, message: "Acknowledged (duplicate)" });
     }
 
     /*
     |----------------------------------------------------------------------
-    | Step 5 — Identify C-TEX payment
+    | Step 5 — Unsupported event types
+    |----------------------------------------------------------------------
+    */
+    if (!SUPPORTED_EVENTS.has(eventType)) {
+      console.log("Monnify webhook: unsupported event, acknowledged", {
+        eventType,
+      });
+      return res.status(200).json({ success: true, message: "Acknowledged" });
+    }
+
+    /*
+    |----------------------------------------------------------------------
+    | Step 6 — Resolve payment
     |----------------------------------------------------------------------
     */
     const paymentReference = eventData.paymentReference;
-    if (!paymentReference) {
-      console.warn("Monnify webhook: missing paymentReference");
-      return res.status(200).json({ success: true, message: "Acknowledged" });
-    }
+    const transactionReference = eventData.transactionReference;
 
-    const payment = await Payment.findOne({ where: { paymentReference } });
-    if (!payment) {
-      console.warn("Monnify webhook: payment not found", { paymentReference });
+    const { payment, mismatch } = await resolvePaymentForEvent({
+      paymentReference,
+      transactionReference,
+    });
+
+    if (mismatch) {
+      console.warn("Monnify webhook: payment resolution failed", {
+        paymentReference,
+        transactionReference,
+        mismatch,
+      });
+      // Permanent — do not ask provider to retry
       return res.status(200).json({ success: true, message: "Acknowledged" });
     }
 
     /*
     |----------------------------------------------------------------------
-    | Step 6 — Verify with provider (never trust webhook alone)
+    | Step 7 — Provider verification
     |----------------------------------------------------------------------
+    | Never trust the webhook payload alone. Re-query the provider.
+    | verifyPaymentService already:
+    |   - Validates reference, currency, amount.
+    |   - Performs the atomic status transition with row lock.
+    |   - Appends a PaymentStatusHistory row.
     */
     try {
-      await verifyPaymentService({
+      const { payment: verified, alreadyVerified } = await verifyPaymentService({
         merchantId: payment.merchantId,
         paymentReference: payment.paymentReference,
       });
-      console.log("Monnify webhook: payment verified", { paymentReference });
+
+      console.log("Monnify webhook: verified", {
+        paymentReference: payment.paymentReference,
+        status: verified.status,
+        alreadyVerified,
+        durationMs: Date.now() - startedAt,
+      });
+
+      return res.status(200).json({ success: true, message: "Acknowledged" });
     } catch (verifyError) {
+      const code = verifyError.code || "UNKNOWN";
+
       /*
-       * Non-fatal cases (amount mismatch, provider timeout, etc.):
-       * log and ack. Payment stays in its current state; a future
-       * reconciliation job or manual retry can re-verify.
+       * Classify: is this transient (retry) or permanent (ack)?
+       *
+       * Transient → 500 so Monnify retries:
+       *   PROVIDER_TIMEOUT, PROVIDER_NETWORK_ERROR,
+       *   PROVIDER_ERROR, SEQUELIZE_DATABASE_ERROR
+       *
+       * Permanent → 200 ack (retry won't help):
+       *   AMOUNT_MISMATCH, CURRENCY_MISMATCH, REFERENCE_MISMATCH,
+       *   INVALID_VERIFICATION_STATE, INVALID_STATE_TRANSITION,
+       *   PAYMENT_NOT_FOUND
        */
+      const transientCodes = new Set([
+        "PROVIDER_TIMEOUT",
+        "PROVIDER_NETWORK_ERROR",
+        "PROVIDER_ERROR",
+        "SEQUELIZE_DATABASE_ERROR",
+      ]);
+
+      const isTransient = transientCodes.has(code);
+
       console.error("Monnify webhook: verification failed", {
-        paymentReference,
-        errorCode: verifyError.code,
+        paymentReference: payment.paymentReference,
+        errorCode: code,
+        transient: isTransient,
         message: verifyError.message,
       });
-    }
 
-    return res.status(200).json({ success: true, message: "Acknowledged" });
+      if (isTransient) {
+        return res
+          .status(500)
+          .json({ success: false, message: "Temporary failure" });
+      }
+
+      return res
+        .status(200)
+        .json({ success: true, message: "Acknowledged (permanent)" });
+    }
   } catch (error) {
     console.error("Monnify webhook: unhandled error", {
       error: error.message,
       stack: error.stack,
     });
-    return res.status(200).json({ success: true, message: "Acknowledged" });
+    // Unknown failure — ask Monnify to retry safely.
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal error" });
   }
 };
