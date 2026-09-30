@@ -12,12 +12,11 @@ import announcementRoutes from "./routes/announcement.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import adminPaymentRoutes from "./routes/adminPayment.routes.js";
 import webhookRoutes from "./webhooks/monnify.webhook.routes.js";
-import { captureRawBody } from "./middleware/rawBody.middleware.js";
 
 const app = express();
 
-app.use(captureRawBody);
-
+// Webhooks MUST be mounted BEFORE express.json() so their raw body
+// is preserved for signature verification.
 app.use("/api/v1/webhooks", webhookRoutes);
 
 app.use(express.json());
