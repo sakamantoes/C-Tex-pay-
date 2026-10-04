@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --ctex-blue: hsl(205.56deg 88.04% 36.08%);
+  --ctex-blue-light: hsl(205.56deg 88.04% 52%);
+  --ctex-bg: #f8fafc;
+  --ctex-surface: #ffffff;
+  --ctex-elevated: #f4f8ff;
+  --ctex-text: #0b1220;
+  --ctex-text-muted: #475467;
+  --ctex-border: rgba(15, 23, 42, 0.12);
+  color-scheme: light;
+}
+
+html.dark {
+  --ctex-blue: hsl(205.56deg 88.04% 52%);
+  --ctex-blue-light: hsl(205.56deg 88.04% 68%);
+  --ctex-bg: #020817;
+  --ctex-surface: #0b1220;
+  --ctex-elevated: #111827;
+  --ctex-text: #f8fafc;
+  --ctex-text-muted: #cbd5e1;
+  --ctex-border: rgba(148, 163, 184, 0.22);
+  color-scheme: dark;
+}
+
+@theme {
+  --color-ctex-blue: var(--ctex-blue);
+  --color-ctex-blue-light: var(--ctex-blue-light);
+  --color-ctex-bg: var(--ctex-bg);
+  --color-ctex-surface: var(--ctex-surface);
+  --color-ctex-elevated: var(--ctex-elevated);
+  --color-ctex-text: var(--ctex-text);
+  --color-ctex-text-muted: var(--ctex-text-muted);
+  --color-ctex-border: var(--ctex-border);
+  --font-display: "Segoe UI", "Inter", "Arial", sans-serif;
+  --font-body: "Segoe UI", "Inter", "Arial", sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--ctex-bg);
+  color: var(--ctex-text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  border-color: var(--ctex-border);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--ctex-blue) 30%, transparent);
+  color: var(--ctex-text);
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: 15px;
+  }
+}
