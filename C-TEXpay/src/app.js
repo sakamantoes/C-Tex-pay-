@@ -15,6 +15,7 @@ import adminPaymentRoutes from "./routes/adminPayment.routes.js";
 import merchantWebhookRoutes from "./routes/merchantWebhook.routes.js";
 import merchantSettingRoutes from "./routes/merchantSetting.routes.js";
 import webhookRoutes from "./webhooks/monnify.webhook.routes.js";
+import feeRoutes from "./routes/fee.routes.js";
 
 const app = express();
 
@@ -63,6 +64,7 @@ app.use("/api/v1/transactions", transactionRoutes);
 app.use("/api/v1/merchant-webhooks", merchantWebhookRoutes);
 app.use("/api/v1/merchant-settings", merchantSettingRoutes);
 app.use("/api/v1/admin/payments", adminPaymentRoutes);
+app.use("/api/v1/fees", feeRoutes);
 
 app.get("/", (req, res) => {
   res.json({
