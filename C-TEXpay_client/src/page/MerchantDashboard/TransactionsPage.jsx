@@ -58,9 +58,9 @@ export default function TransactionsPage() {
     sortBy: "createdAt",
     direction: "DESC",
   });
-  const [appliedFilters, setAppliedFilters] = useState(() => (
+  const [appliedFilters, setAppliedFilters] = useState(() =>
     initialPaymentReference ? { paymentReference: initialPaymentReference } : {}
-  ));
+  );
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -208,19 +208,70 @@ export default function TransactionsPage() {
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-ctex-border">
             <thead className="bg-ctex-elevated/60 text-left text-xs text-ctex-text-muted">
-              <tr><Th>Payment</Th><Th>Customer</Th><Th>Amount</Th><Th>Status</Th><Th>Created</Th><Th><span className="sr-only">Details</span></Th></tr>
+              <tr>
+                <Th>Payment</Th>
+                <Th>Customer</Th>
+                <Th>Amount</Th>
+                <Th>Status</Th>
+                <Th>Created</Th>
+                <Th><span className="sr-only">Details</span></Th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-ctex-border">
-              {isLoading && transactions.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-ctex-text-muted">Loading transactions…</td></tr>}
-              {!isLoading && transactions.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-ctex-text-muted">No transactions match these filters.</td></tr>}
+              {isLoading && transactions.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-ctex-text-muted">Loading transactions…</td></tr>
+              )}
+              {!isLoading && transactions.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-ctex-text-muted">No transactions match these filters.</td></tr>
+              )}
               {transactions.map((transaction) => (
                 <tr key={transaction.id} className="hover:bg-ctex-elevated/30">
-                  <Td><span className="font-medium text-ctex-text">{transaction.paymentReference}</span><span className="mt-1 block text-xs text-ctex-text-muted">{transaction.merchantReference || "No merchant reference"}</span></Td>
-                  <Td><span className="text-ctex-text">{transaction.customer?.name || "Guest"}</span><span className="mt-1 block text-xs text-ctex-text-muted">{transaction.customer?.email || "—"}</span></Td>
-                  <Td><span className="whitespace-nowrap font-medium text-ctex-text">{formatMoney(transaction.amount, transaction.currency)}</span></Td>
-                  <Td><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(transaction.status)}`}>{transaction.status}</span></Td>
-                  <Td><span className="whitespace-nowrap text-xs text-ctex-text-muted">{formatDate(transaction.createdAt)}</span></Td>
-                  <Td><button type="button" onClick={() => openDetail(transaction.paymentReference)} className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-ctex-blue hover:bg-ctex-blue/10">Details</button></Td>
+                  <Td>
+                    <span className="font-medium text-ctex-text">{transaction.paymentReference}</span>
+                    <span className="mt-1 block text-xs text-ctex-text-muted">
+                      {transaction.merchantReference || "No merchant reference"}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className="text-ctex-text">{transaction.customer?.name || "Guest"}</span>
+                    <span className="mt-1 block text-xs text-ctex-text-muted">{transaction.customer?.email || "—"}</span>
+                  </Td>
+                  <Td>
+                    <div className="whitespace-nowrap">
+                      <span className="font-medium text-ctex-text">
+                        {formatMoney(transaction.amount, transaction.currency)}
+                      </span>
+                      {transaction.fees && (
+                        <span className="mt-1 block text-xs text-emerald-500">
+                          Net {formatMoney(transaction.fees.merchantNetAmount, transaction.currency)}
+                        </span>
+                      )}
+                      {transaction.fees && transaction.fees.totalFee > 0 && (
+                        <span className="block text-[11px] text-ctex-text-muted">
+                          Fee {formatMoney(transaction.fees.totalFee, transaction.currency)}
+                        </span>
+                      )}
+                    </div>
+                  </Td>
+                  <Td>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(transaction.status)}`}>
+                      {transaction.status}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className="whitespace-nowrap text-xs text-ctex-text-muted">
+                      {formatDate(transaction.createdAt)}
+                    </span>
+                  </Td>
+                  <Td>
+                    <button
+                      type="button"
+                      onClick={() => openDetail(transaction.paymentReference)}
+                      className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-ctex-blue hover:bg-ctex-blue/10"
+                    >
+                      Details
+                    </button>
+                  </Td>
                 </tr>
               ))}
             </tbody>
@@ -229,41 +280,145 @@ export default function TransactionsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ctex-border px-4 py-3">
           <div className="flex items-center gap-3 text-xs text-ctex-text-muted">
             <span>Showing {start}–{end} of {meta.total.toLocaleString()}</span>
-            <select aria-label="Rows per page" value={limit} onChange={(event) => { setLimit(Number(event.target.value)); setPage(1); }} className="rounded-lg border border-ctex-border bg-ctex-elevated/60 px-2 py-1.5 text-xs text-ctex-text">
+            <select
+              aria-label="Rows per page"
+              value={limit}
+              onChange={(event) => { setLimit(Number(event.target.value)); setPage(1); }}
+              className="rounded-lg border border-ctex-border bg-ctex-elevated/60 px-2 py-1.5 text-xs text-ctex-text"
+            >
               {PAGE_SIZES.map((size) => <option key={size} value={size}>{size} / page</option>)}
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={page <= 1 || isLoading} onClick={() => setPage((current) => current - 1)} className="rounded-lg border border-ctex-border px-3 py-1.5 text-xs text-ctex-text disabled:opacity-40">Previous</button>
-            <span className="text-xs text-ctex-text-muted">Page {page} of {Math.max(meta.totalPages, 1)}</span>
-            <button type="button" disabled={page >= meta.totalPages || isLoading} onClick={() => setPage((current) => current + 1)} className="rounded-lg border border-ctex-border px-3 py-1.5 text-xs text-ctex-text disabled:opacity-40">Next</button>
+            <button
+              type="button"
+              disabled={page <= 1 || isLoading}
+              onClick={() => setPage((current) => current - 1)}
+              className="rounded-lg border border-ctex-border px-3 py-1.5 text-xs text-ctex-text disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span className="text-xs text-ctex-text-muted">
+              Page {page} of {Math.max(meta.totalPages, 1)}
+            </span>
+            <button
+              type="button"
+              disabled={page >= meta.totalPages || isLoading}
+              onClick={() => setPage((current) => current + 1)}
+              className="rounded-lg border border-ctex-border px-3 py-1.5 text-xs text-ctex-text disabled:opacity-40"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
 
       <AnimatePresence>
         {detailOpen && (
-          <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) closeDetail(); }}>
-            <motion.section role="dialog" aria-modal="true" aria-labelledby="transaction-detail-title" className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-ctex-border bg-ctex-surface p-5 shadow-2xl" initial={{ y: 12, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 12, scale: 0.98 }}>
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(event) => { if (event.target === event.currentTarget) closeDetail(); }}
+          >
+            <motion.section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="transaction-detail-title"
+              className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-ctex-border bg-ctex-surface p-5 shadow-2xl"
+              initial={{ y: 12, scale: 0.98 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: 12, scale: 0.98 }}
+            >
               <div className="flex items-start justify-between gap-3 border-b border-ctex-border pb-4">
-                <div><p className="text-xs uppercase tracking-wide text-ctex-text-muted">C-TEX PAY transaction</p><h2 id="transaction-detail-title" className="mt-1 break-all text-lg font-semibold text-ctex-text">{selectedTransaction?.paymentReference || "Transaction details"}</h2></div>
-                <button type="button" onClick={closeDetail} aria-label="Close transaction details" className="rounded-lg p-2 text-ctex-text-muted hover:bg-ctex-elevated hover:text-ctex-text"><X size={18} /></button>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-ctex-text-muted">C-TEX PAY transaction</p>
+                  <h2 id="transaction-detail-title" className="mt-1 break-all text-lg font-semibold text-ctex-text">
+                    {selectedTransaction?.paymentReference || "Transaction details"}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDetail}
+                  aria-label="Close transaction details"
+                  className="rounded-lg p-2 text-ctex-text-muted hover:bg-ctex-elevated hover:text-ctex-text"
+                >
+                  <X size={18} />
+                </button>
               </div>
-              {isLoading && !selectedTransaction ? <p className="py-8 text-sm text-ctex-text-muted">Loading transaction…</p> : selectedTransaction ? (
-                <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <Detail label="Payment reference" value={selectedTransaction.paymentReference} />
-                  <Detail label="Merchant reference" value={selectedTransaction.merchantReference || "—"} />
-                  <Detail label="Amount" value={formatMoney(selectedTransaction.amount, selectedTransaction.currency)} />
-                  <Detail label="Status" value={selectedTransaction.status} />
-                  <Detail label="Payment method" value={selectedTransaction.paymentMethod} />
-                  <Detail label="Currency" value={selectedTransaction.currency} />
-                  <Detail label="Customer" value={selectedTransaction.customer?.name || "Guest"} />
-                  <Detail label="Customer email" value={selectedTransaction.customer?.email || "—"} />
-                  <Detail label="Customer phone" value={selectedTransaction.customer?.phone || "—"} />
-                  <Detail label="Created" value={formatDate(selectedTransaction.createdAt)} />
-                  <Detail label="Updated" value={formatDate(selectedTransaction.updatedAt)} />
-                </dl>
-              ) : <p role="alert" className="py-8 text-sm text-red-500">{error || "Unable to load transaction."}</p>}
+
+              {isLoading && !selectedTransaction ? (
+                <p className="py-8 text-sm text-ctex-text-muted">Loading transaction…</p>
+              ) : selectedTransaction ? (
+                <>
+                  <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <Detail label="Payment reference" value={selectedTransaction.paymentReference} />
+                    <Detail label="Merchant reference" value={selectedTransaction.merchantReference || "—"} />
+                    <Detail label="Amount" value={formatMoney(selectedTransaction.amount, selectedTransaction.currency)} />
+                    <Detail label="Status" value={selectedTransaction.status} />
+                    <Detail label="Payment method" value={selectedTransaction.paymentMethod} />
+                    <Detail label="Currency" value={selectedTransaction.currency} />
+                    <Detail label="Customer" value={selectedTransaction.customer?.name || "Guest"} />
+                    <Detail label="Customer email" value={selectedTransaction.customer?.email || "—"} />
+                    <Detail label="Customer phone" value={selectedTransaction.customer?.phone || "—"} />
+                    <Detail label="Created" value={formatDate(selectedTransaction.createdAt)} />
+                    <Detail label="Updated" value={formatDate(selectedTransaction.updatedAt)} />
+                  </dl>
+
+                  {selectedTransaction.fees && (
+                    <div className="mt-4 rounded-xl border border-ctex-border bg-ctex-elevated/40 p-4">
+                      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ctex-text-muted">
+                        Fee breakdown
+                      </p>
+                      <dl className="grid gap-3 sm:grid-cols-2">
+                        <Detail
+                          label="Gross amount"
+                          value={formatMoney(
+                            selectedTransaction.fees.grossAmount,
+                            selectedTransaction.fees.currency
+                          )}
+                        />
+                        <Detail
+                          label="C-TEX service fee"
+                          value={formatMoney(
+                            selectedTransaction.fees.totalFee,
+                            selectedTransaction.fees.currency
+                          )}
+                        />
+                        <Detail
+                          label="Merchant net settlement"
+                          value={formatMoney(
+                            selectedTransaction.fees.merchantNetAmount,
+                            selectedTransaction.fees.currency
+                          )}
+                        />
+                        <Detail
+                          label="Provider fee treatment"
+                          value={selectedTransaction.fees.providerFeeTreatment}
+                        />
+                        {selectedTransaction.fees.providerFee !== null && (
+                          <Detail
+                            label="Provider processing fee"
+                            value={formatMoney(
+                              selectedTransaction.fees.providerFee,
+                              selectedTransaction.fees.currency
+                            )}
+                          />
+                        )}
+                        <Detail
+                          label="Calculation version"
+                          value={selectedTransaction.fees.calculationVersion}
+                        />
+                      </dl>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p role="alert" className="py-8 text-sm text-red-500">
+                  {error || "Unable to load transaction."}
+                </p>
+              )}
             </motion.section>
           </motion.div>
         )}
@@ -276,7 +431,16 @@ function Field({ label, name, value, onChange, type = "text", placeholder, min }
   return (
     <label className="block text-xs text-ctex-text-muted">
       {label}
-      <input name={name} type={type} value={value} onChange={onChange} placeholder={placeholder} min={min} step={type === "number" ? "1" : undefined} className="mt-1.5 h-10 w-full rounded-xl border border-ctex-border bg-ctex-elevated/60 px-3 text-sm text-ctex-text outline-none focus:border-ctex-blue" />
+      <input
+        name={name}
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        min={min}
+        step={type === "number" ? "1" : undefined}
+        className="mt-1.5 h-10 w-full rounded-xl border border-ctex-border bg-ctex-elevated/60 px-3 text-sm text-ctex-text outline-none focus:border-ctex-blue"
+      />
     </label>
   );
 }
@@ -290,5 +454,10 @@ function Td({ children }) {
 }
 
 function Detail({ label, value }) {
-  return <div className="min-w-0"><dt className="text-xs text-ctex-text-muted">{label}</dt><dd className="mt-1 wrap-break-word text-sm font-medium text-ctex-text">{value}</dd></div>;
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-ctex-text-muted">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-medium text-ctex-text">{value}</dd>
+    </div>
+  );
 }

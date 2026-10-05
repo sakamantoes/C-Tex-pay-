@@ -16,6 +16,8 @@ import ProtectedRoute from "./page/ProtectedRoute.jsx";
 
 import MerchantDashboard from "./page/MerchantDashboard/MerchantDashboard.jsx";
 import AdminDashboard from "./page/AdminDashboard/AdminDashboard.jsx";
+import PlatformFeesPage from "./page/AdminDashboard/PlatformFeesPage.jsx";
+import PlatformTransactionsPage from "./page/AdminDashboard/PlatformTransactionsPage.jsx";
 import SuperAdminDashboard from "./page/SuperAdminDashboard/SuperAdminDashboard.jsx";
 
 import { useAuthStore } from "./store/auth.store";
@@ -310,10 +312,46 @@ const AppRoutes = () => {
       />
 
       <Route
+        path="/admin/fees"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+            <PlatformFeesPage basePath="/admin" />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/transactions"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+            <PlatformTransactionsPage platformRole="ADMIN" />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/super-admin/dashboard"
         element={
           <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
             <SuperAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/super-admin/fees"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <PlatformFeesPage basePath="/super-admin" />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/super-admin/transactions"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <PlatformTransactionsPage platformRole="SUPER_ADMIN" />
           </ProtectedRoute>
         }
       />

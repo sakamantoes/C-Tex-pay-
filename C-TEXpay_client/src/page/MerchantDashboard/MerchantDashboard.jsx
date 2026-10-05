@@ -394,7 +394,7 @@ const MerchantDashboard = () => {
         {hasPermission(permissions, "transactions.read") && (
           <StatCard
             title="Successful volume"
-            value={formatMoneyMinor(transactionSummary?.successfulVolumeMinor)}
+            value={formatMoneyMinor(transactionSummary?.successfulNetMinor)}
             detail={`${transactionSummary?.successfulTransactions ?? 0} successful · ${transactionSummary?.totalTransactions ?? 0} total`}
             loading={transactionsLoading && !transactionSummary}
           />
