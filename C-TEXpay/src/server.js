@@ -5,6 +5,7 @@ import sequelize from "./config/database.js";
 import envConfig from "./config/constant.js";
 import { seedPermissions } from "./seeders/2024XXXXXX-permissions.js";
 import feePermissionSeed from "./seeders/20261003-fee-permissions.js";
+import ledgerPermissionSeed from "./seeders/20261005-ledger-permissions.js";
 import { initializeSocketServer } from "./realtime/socket.js";
 import {
   startMerchantNotificationWorker,
@@ -103,6 +104,7 @@ async function startServer() {
     */
     const permissionSeed = await seedPermissions();
     await feePermissionSeed.seed();
+    await ledgerPermissionSeed.seed();
     // eslint-disable-next-line no-console
     console.log("[startup] Permission seed:", permissionSeed.message, {
       inserted: permissionSeed.inserted,

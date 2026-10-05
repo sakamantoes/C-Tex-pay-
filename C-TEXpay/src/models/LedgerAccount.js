@@ -53,15 +53,15 @@ const LedgerAccount = sequelize.define(
     tableName: "ledger_accounts",
     timestamps: true,
     indexes: [
-      // Merchant-scoped accounts: one per (merchant, type, currency).
-      // Platform accounts (merchantId NULL): one per (type, currency).
-      // MariaDB treats NULL as distinct in unique indexes, so we use two
-      // separate indexes to cover both cases cleanly.
+      // One account per (merchant, type, currency).
+      // MySQL treats NULL as distinct in unique indexes, so this enforces
+      // uniqueness for merchant accounts only. Platform accounts
+      // (merchantId NULL) must be deduplicated in the service layer.
+      // MySQL has no partial indexes, so no `where` clause here.
       {
         name: "ledger_accounts_merchant_unique",
         fields: ["merchantId", "type", "currency"],
         unique: true,
-        where: { merchantId: { [Symbol.for("op.not")]: null } },
       },
       { fields: ["type", "currency"] },
       { fields: ["merchantId"] },

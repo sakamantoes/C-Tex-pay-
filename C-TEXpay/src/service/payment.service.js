@@ -17,6 +17,7 @@ import {
 } from "./merchantWebhook.service.js";
 import { enqueueSuccessfulPaymentNotifications } from "./merchantNotification.service.js";
 import { calculateAndRecordFees } from "./fee.service.js";
+import { postPaymentSettlement } from "./ledger.service.js";
 
 /* =========================================================
  * CONSTANTS
@@ -1229,6 +1230,43 @@ export async function verifyPayment({
     providerStatus: rawProviderStatus,
     statusChanged: result.statusChanged,
   });
+
+  /*
+  |----------------------------------------------------------------------
+  | Ledger settlement
+  |----------------------------------------------------------------------
+  | Only post when the payment actually transitioned to SUCCESS in
+  | this call. Duplicate verifications (already SUCCESS) skip this
+  | block because result.statusChanged will be false.
+  |
+  | postPaymentSettlement is idempotent on its own, so even a race
+  | between this call and a webhook-driven verification cannot
+  | double-credit.
+  */
+  if (result.statusChanged && result.payment.status === "SUCCESS") {
+    try {
+      const ledgerResult = await postPaymentSettlement({
+        paymentId: result.payment.id,
+      });
+      console.log("Ledger settlement posted", {
+        paymentReference: result.payment.paymentReference,
+        ledgerTransactionId: ledgerResult.transaction.id,
+        created: ledgerResult.created,
+      });
+    } catch (ledgerError) {
+      /*
+       * Non-fatal for the HTTP response: the payment is already SUCCESS.
+       * The ledger can be re-posted by a reconciliation job (Stage 15)
+       * using the same deterministic reference.
+       */
+      console.error("Ledger settlement failed — will need reconciliation", {
+        paymentReference: result.payment.paymentReference,
+        errorCode: ledgerError.code,
+        errorName: ledgerError.name,
+        errorMessage: ledgerError.message,
+      });
+    }
+  }
 
   if (merchantWebhookEvent) {
     try {
