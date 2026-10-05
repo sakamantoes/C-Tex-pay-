@@ -27,6 +27,9 @@ import MerchantNotificationDelivery from "./MerchantNotificationDelivery.js";
 import WebhookEvent from "./WebhookEvent.js";
 import FeeConfiguration from "./FeeConfiguration.js";
 import FeeRecord from "./FeeRecord.js";
+import LedgerAccount from "./LedgerAccount.js";
+import LedgerTransaction from "./LedgerTransaction.js";
+import LedgerEntry from "./LedgerEntry.js";
 // user has many refresh tokens
 
 User.hasMany(RefreshToken, {
@@ -428,6 +431,52 @@ FeeRecord.belongsTo(FeeConfiguration, {
   as: "feeConfiguration",
 });
 
+// ============= LEDGER ASSOCIATIONS =============
+Merchant.hasMany(LedgerAccount, {
+  foreignKey: "merchantId",
+  as: "ledgerAccounts",
+});
+LedgerAccount.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+Merchant.hasMany(LedgerTransaction, {
+  foreignKey: "merchantId",
+  as: "ledgerTransactions",
+});
+LedgerTransaction.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+Payment.hasMany(LedgerTransaction, {
+  foreignKey: "paymentId",
+  as: "ledgerTransactions",
+});
+LedgerTransaction.belongsTo(Payment, {
+  foreignKey: "paymentId",
+  as: "payment",
+});
+
+LedgerTransaction.hasMany(LedgerEntry, {
+  foreignKey: "ledgerTransactionId",
+  as: "entries",
+});
+LedgerEntry.belongsTo(LedgerTransaction, {
+  foreignKey: "ledgerTransactionId",
+  as: "transaction",
+});
+
+LedgerAccount.hasMany(LedgerEntry, {
+  foreignKey: "ledgerAccountId",
+  as: "entries",
+});
+LedgerEntry.belongsTo(LedgerAccount, {
+  foreignKey: "ledgerAccountId",
+  as: "account",
+});
+
 export {
   User,
   RefreshToken,
@@ -456,6 +505,9 @@ export {
   MerchantSetting,
   MerchantNotificationDelivery,
   WebhookEvent,
-   FeeConfiguration,
+  FeeConfiguration,
   FeeRecord,
+  LedgerAccount,
+  LedgerTransaction,
+  LedgerEntry,
 };
