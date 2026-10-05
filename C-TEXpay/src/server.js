@@ -4,6 +4,7 @@ import app from "./app.js";
 import sequelize from "./config/database.js";
 import envConfig from "./config/constant.js";
 import { seedPermissions } from "./seeders/2024XXXXXX-permissions.js";
+import feePermissionSeed from "./seeders/20261003-fee-permissions.js";
 import { initializeSocketServer } from "./realtime/socket.js";
 import {
   startMerchantNotificationWorker,
@@ -40,7 +41,7 @@ function assertRequiredEnv() {
   ).toUpperCase();
   if (activeProvider === "MONNIFY") {
     const missingProvider = REQUIRED_PROVIDER_ENV.filter(
-      (key) => !process.env[key],
+      (key) => !process.env[key]
     );
     missing.push(...missingProvider);
   }
@@ -48,7 +49,7 @@ function assertRequiredEnv() {
   if (missing.length > 0) {
     // eslint-disable-next-line no-console
     console.error(
-      `[startup] Missing required environment variables: ${missing.join(", ")}`,
+      `[startup] Missing required environment variables: ${missing.join(", ")}`
     );
     process.exit(1);
   }
@@ -99,10 +100,9 @@ async function startServer() {
     |----------------------------------------------------------------------
     | 4. Idempotent permission seed (retroactive, safe to re-run)
     |----------------------------------------------------------------------
-    | This seeds the permissions table AND grants any missing permissions
-    | to existing OWNER roles. It is safe to run on every boot.
     */
     const permissionSeed = await seedPermissions();
+    await feePermissionSeed.seed();
     // eslint-disable-next-line no-console
     console.log("[startup] Permission seed:", permissionSeed.message, {
       inserted: permissionSeed.inserted,
@@ -135,9 +135,25 @@ async function startServer() {
 
     // eslint-disable-next-line no-console
     console.log(
-      `[startup] Server running on http://localhost:${PORT} (env=${NODE_ENV})`,
+      `[startup] Server running on http://localhost:${PORT} (env=${NODE_ENV})`
     );
+
+    /*
+    |----------------------------------------------------------------------
+    | 7. Start background workers
+    |----------------------------------------------------------------------
+    | The merchant notification worker polls for pending email deliveries.
+    | It must run AFTER the HTTP server is up, otherwise a fast restart
+    | could interrupt a running worker before the socket is bound.
+    */
     startMerchantNotificationWorker();
+
+    /*
+     * Liveness probe: confirm the worker timer is actually ticking.
+     * If this log doesn't appear, the worker was never installed.
+     */
+    // eslint-disable-next-line no-console
+    console.log("[startup] Merchant notification worker started");
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error("[startup] Unable to start server:", error);
@@ -170,6 +186,8 @@ async function shutdown(reason, exitCode = 0) {
 
   try {
     await stopMerchantNotificationWorker();
+    // eslint-disable-next-line no-console
+    console.log("[shutdown] Merchant notification worker stopped");
 
     if (io) {
       await new Promise((resolve) => io.close(resolve));

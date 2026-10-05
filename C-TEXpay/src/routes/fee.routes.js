@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { protect } from "../middleware/auth.middleware.js";
+import { requirePlatformRole } from "../middleware/platformRole.middleware.js";
 import { requireMerchant } from "../middleware/merchant.middleware.js";
 import { requirePermission } from "../middleware/permission.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
@@ -21,22 +22,12 @@ import {
 
 const router = Router();
 
-/*
-|--------------------------------------------------------------------------
-| Admin routes (platform-wide pricing)
-|--------------------------------------------------------------------------
-| These use requirePermission against the merchant's role. Only users
-| whose role has fees.manage can hit them. The platform-wide config
-| is still scoped to "the authenticated merchant's admin context" —
-| in your current RBAC, that's how admin actions flow. If you later
-| add a dedicated admin realm, move these to /admin/fees.
-*/
+// Platform fee configurations are never managed through merchant RBAC.
 
 router.post(
   "/",
   protect,
-  requireMerchant,
-  requirePermission("fees.manage"),
+  requirePlatformRole("ADMIN", "SUPER_ADMIN"),
   validate(createFeeConfigSchema),
   createFeeConfig
 );
@@ -44,8 +35,7 @@ router.post(
 router.get(
   "/",
   protect,
-  requireMerchant,
-  requirePermission("fees.read"),
+  requirePlatformRole("ADMIN", "SUPER_ADMIN"),
   validate(listFeeConfigsQuerySchema, "query"),
   listFeeConfigs
 );
@@ -61,8 +51,7 @@ router.get(
 router.get(
   "/:id",
   protect,
-  requireMerchant,
-  requirePermission("fees.read"),
+  requirePlatformRole("ADMIN", "SUPER_ADMIN"),
   validate(feeConfigIdParamSchema, "params"),
   getFeeConfig
 );
@@ -70,8 +59,7 @@ router.get(
 router.patch(
   "/:id",
   protect,
-  requireMerchant,
-  requirePermission("fees.manage"),
+  requirePlatformRole("ADMIN", "SUPER_ADMIN"),
   validate(feeConfigIdParamSchema, "params"),
   validate(updateFeeConfigSchema),
   updateFeeConfig
@@ -80,8 +68,7 @@ router.patch(
 router.patch(
   "/:id/status",
   protect,
-  requireMerchant,
-  requirePermission("fees.manage"),
+  requirePlatformRole("ADMIN", "SUPER_ADMIN"),
   validate(feeConfigIdParamSchema, "params"),
   validate(feeConfigStatusSchema),
   updateFeeConfigStatus

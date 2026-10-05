@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { protect } from "../middleware/auth.middleware.js";
-import { requirePermission } from "../middleware/permission.middleware.js";
+import { requirePlatformRole } from "../middleware/platformRole.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
   adminListPayments,
@@ -18,19 +18,14 @@ const router = Router();
 | Admin payment routes
 |--------------------------------------------------------------------------
 | Authenticated via JWT dashboard auth (protect).
-| Authorized via payments.read_all permission on the merchant/role model.
-| NOTE: The existing project uses requirePermission(permissionKey) which
-| reads req.merchantMember. Admin users are expected to be members of a
-| platform-level merchant OR use a super-admin role that owns the
-| payments.read_all permission. This preserves the existing RBAC model
-| without inventing a new admin bypass.
+| Authorized only for platform ADMIN and SUPER_ADMIN accounts.
 |--------------------------------------------------------------------------
 */
 
 router.get(
   "/",
   protect,
-  requirePermission("payments.read_all"),
+  requirePlatformRole("ADMIN", "SUPER_ADMIN"),
   validate(adminListPaymentsQuerySchema, "query"),
   adminListPayments
 );
@@ -38,7 +33,7 @@ router.get(
 router.get(
   "/:paymentReference",
   protect,
-  requirePermission("payments.read_all"),
+  requirePlatformRole("ADMIN", "SUPER_ADMIN"),
   validate(paymentReferenceParamSchema, "params"),
   adminGetPayment
 );

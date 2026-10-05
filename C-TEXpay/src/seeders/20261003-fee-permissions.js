@@ -18,13 +18,15 @@ const permissions = [
 ];
 
 export async function seed() {
+  let created = 0;
   for (const perm of permissions) {
-    await Permission.findOrCreate({
+    const [, wasCreated] = await Permission.findOrCreate({
       where: { key: perm.key },
       defaults: perm,
     });
+    if (wasCreated) created += 1;
   }
-  return permissions.length;
+  return created;
 }
 
 export default { seed };

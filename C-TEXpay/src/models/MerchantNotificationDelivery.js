@@ -36,7 +36,13 @@ const MerchantNotificationDelivery = sequelize.define(
       allowNull: false,
     },
     status: {
-      type: DataTypes.ENUM("PENDING", "PROCESSING", "RETRYING", "SENT", "FAILED"),
+      type: DataTypes.ENUM(
+        "PENDING",
+        "PROCESSING",
+        "RETRYING",
+        "SENT",
+        "FAILED"
+      ),
       allowNull: false,
       defaultValue: "PENDING",
     },
@@ -45,9 +51,10 @@ const MerchantNotificationDelivery = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    // null once the delivery reaches a terminal state (SENT or FAILED).
     nextAttemptAt: {
       type: DataTypes.DATE,
-      allowNull: false,
+      allowNull: true,
     },
     processingStartedAt: {
       type: DataTypes.DATE,
@@ -73,7 +80,7 @@ const MerchantNotificationDelivery = sequelize.define(
       { fields: ["status", "nextAttemptAt"] },
       { fields: ["merchantId", "createdAt"] },
     ],
-  },
+  }
 );
 
 export default MerchantNotificationDelivery;

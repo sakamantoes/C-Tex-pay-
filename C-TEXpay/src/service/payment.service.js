@@ -7,6 +7,7 @@ import {
   PaymentStatusHistory,
   Customer,
   Merchant,
+  FeeRecord,
 } from "../models/index.js";
 import envConfig from "../config/constant.js";
 import { getPaymentProvider } from "../Provider/provider.factory.js";
@@ -15,13 +16,13 @@ import {
   processMerchantWebhookDelivery,
 } from "./merchantWebhook.service.js";
 import { enqueueSuccessfulPaymentNotifications } from "./merchantNotification.service.js";
+import { calculateAndRecordFees } from "./fee.service.js";
 
 /* =========================================================
  * CONSTANTS
  * ======================================================= */
 
 const SUPPORTED_CURRENCIES = ["NGN"];
-
 const SUPPORTED_METHODS = ["ACCOUNT_TRANSFER"];
 
 const MAX_LIMIT = 100;
@@ -29,7 +30,6 @@ const DEFAULT_LIMIT = 20;
 const MAX_PAGE = 10_000;
 
 const ALLOWED_SORT_FIELDS = ["createdAt", "amount", "status", "updatedAt"];
-
 const ALLOWED_SORT_DIRECTIONS = ["ASC", "DESC"];
 
 const VERIFICATION_STATUSES = [
@@ -59,8 +59,8 @@ const ALLOWED_VERIFICATION_TRANSITIONS = {
  * ₦50       => 5000 kobo
  * ₦10,000,000 => 1_000_000_000 kobo
  */
-const MIN_AMOUNT = 50;              // kobo
-const MAX_AMOUNT = 1_000_000_000;   // kobo (₦10,000,000)
+const MIN_AMOUNT = 50;
+const MAX_AMOUNT = 1_000_000_000;
 
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_METADATA_BYTES = 10 * 1024;
@@ -75,10 +75,6 @@ const PAYMENT_REFERENCE_PREFIX =
 
 const FALLBACK_CUSTOMER_EMAIL = "noreply@ctexpay.com";
 
-/**
- * Provisional expiry. Replaced by the provider's expiry once the
- * ACCOUNT_TRANSFER instructions are received.
- */
 const DEFAULT_PAYMENT_EXPIRY_MINUTES = 30;
 
 /* =========================================================
@@ -99,7 +95,11 @@ function throwErr(message, code, statusCode = 400, details = null) {
 
 function assertSupportedCurrency(currency) {
   if (!SUPPORTED_CURRENCIES.includes(currency)) {
-    throwErr(`Unsupported currency: ${currency}`, "UNSUPPORTED_CURRENCY", 400);
+    throwErr(
+      `Unsupported currency: ${currency}`,
+      "UNSUPPORTED_CURRENCY",
+      400
+    );
   }
 }
 
@@ -183,7 +183,11 @@ function assertMerchantReference(merchantReference) {
 
 function assertIdempotencyKey(idempotencyKey) {
   if (!idempotencyKey) {
-    throwErr("Idempotency-Key is required", "IDEMPOTENCY_KEY_REQUIRED", 400);
+    throwErr(
+      "Idempotency-Key is required",
+      "IDEMPOTENCY_KEY_REQUIRED",
+      400
+    );
   }
   if (typeof idempotencyKey !== "string") {
     throwErr(
@@ -414,7 +418,25 @@ function toPlain(payment) {
   return typeof payment.toJSON === "function" ? payment.toJSON() : payment;
 }
 
-export function toPublicPayment(payment) {
+function toFeeBreakdown(record) {
+  if (!record) return null;
+  const d = typeof record.toJSON === "function" ? record.toJSON() : record;
+  return {
+    currency: d.currency,
+    grossAmount: Number(d.grossAmount),
+    serviceFee: Number(d.serviceFee),
+    providerFee:
+      d.providerFee === null || d.providerFee === undefined
+        ? null
+        : Number(d.providerFee),
+    totalFee: Number(d.totalFee),
+    merchantNetAmount: Number(d.merchantNetAmount),
+    providerFeeTreatment: d.providerFeeTreatment,
+    calculationVersion: d.calculationVersion,
+  };
+}
+
+export function toPublicPayment(payment, feeRecord = null) {
   if (!payment) return null;
   const data = toPlain(payment);
 
@@ -431,6 +453,7 @@ export function toPublicPayment(payment) {
     metadata: data.metadata,
     paymentInstructions: normalizePaymentInstructions(data.paymentInstructions),
     expiresAt: data.expiresAt,
+    fees: toFeeBreakdown(feeRecord ?? data.feeRecord ?? null),
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };
@@ -560,6 +583,13 @@ export async function createPayment({
   const replay = async () => {
     const existing = await Payment.findOne({
       where: { merchantId, idempotencyKey },
+      include: [
+        {
+          model: FeeRecord,
+          as: "feeRecord",
+          required: false,
+        },
+      ],
     });
 
     if (!existing) return null;
@@ -579,7 +609,7 @@ export async function createPayment({
   if (replayed) return replayed;
 
   /* -------------------------------------------------------
-   * CREATE PAYMENT (atomic)
+   * CREATE PAYMENT + FEE SNAPSHOT (atomic)
    * ----------------------------------------------------- */
 
   let payment;
@@ -604,7 +634,6 @@ export async function createPayment({
           paymentInstructions: null,
           idempotencyKey,
           requestHash,
-          // Provisional; replaced by the provider's expiry below.
           expiresAt: getDefaultPaymentExpiry(),
         },
         { transaction }
@@ -620,6 +649,24 @@ export async function createPayment({
         },
         { transaction }
       );
+
+      /*
+       * Fee snapshot — MUST be inside this transaction.
+       *
+       * If fee calculation or persistence fails, the Payment rolls back.
+       * This guarantees: no payment without a fee record.
+       *
+       * The fee service reads FeeConfiguration and writes FeeRecord
+       * using the same transaction handle.
+       */
+      await calculateAndRecordFees({
+        payment: createdPayment,
+        merchantId,
+        grossAmount: amount,        // integer kobo — matches Payment.amount
+        currency,
+        paymentMethod,
+        transaction,
+      });
 
       return createdPayment;
     });
@@ -818,7 +865,6 @@ export async function createPayment({
       accountName: bankTransferResult.accountName || null,
       bankName: bankTransferResult.bankName || null,
       bankCode: bankTransferResult.bankCode || null,
-      // Always ISO — matches Payment.expiresAt
       expiresAt: providerExpiresAt.toISOString(),
       ussdPayment: bankTransferResult.ussdPayment || null,
     };
@@ -842,7 +888,19 @@ export async function createPayment({
     });
   }
 
-  await payment.reload();
+  /* -------------------------------------------------------
+   * Reload with fee record for the response
+   * ----------------------------------------------------- */
+
+  await payment.reload({
+    include: [
+      {
+        model: FeeRecord,
+        as: "feeRecord",
+        required: false,
+      },
+    ],
+  });
 
   return { payment, reused: false, replayed: false };
 }
@@ -961,7 +1019,6 @@ export async function verifyPayment({
     );
   }
 
-  // Accept both normalized mapper field names.
   const newStatus = verificationResult.ctexStatus ?? verificationResult.status;
   const rawProviderStatus = verificationResult.providerStatus ?? newStatus;
 
@@ -1008,8 +1065,6 @@ export async function verifyPayment({
 
   /*
    * Amount check — SUCCESS only.
-   * Both values are integer kobo. Underpayment → reject.
-   * Overpayment → accepted.
    */
   if (newStatus === "SUCCESS") {
     const rawPaid =
@@ -1023,18 +1078,6 @@ export async function verifyPayment({
       );
     }
 
-    /*
-     * Monnify returns naira; some providers return kobo.
-     * We normalize: if the value looks like naira (has decimals
-     * or is < 1e6), scale it to kobo. If it's a large integer, treat
-     * it as kobo already.
-     *
-     * The safest rule for THIS codebase (Payment.amount is kobo):
-     *   - if rawPaid is not an integer, treat as naira → * 100
-     *   - if rawPaid is an integer and < Number(payment.amount),
-     *     and payment.amount is large, assume naira → * 100
-     *   - otherwise treat as kobo
-     */
     let paidAmount = Number(rawPaid);
 
     if (!Number.isFinite(paidAmount)) {
@@ -1046,10 +1089,8 @@ export async function verifyPayment({
     }
 
     if (!Number.isInteger(paidAmount)) {
-      // Decimal → naira
       paidAmount = Math.round(paidAmount * 100);
     } else if (paidAmount < Number(payment.amount)) {
-      // Integer that is smaller than expected kobo — assume naira
       const asKobo = paidAmount * 100;
       if (asKobo >= Number(payment.amount)) {
         paidAmount = asKobo;
@@ -1235,6 +1276,11 @@ export async function getPaymentForMerchant({
         as: "customer",
         attributes: ["id", "customerCode", "firstName", "lastName", "email"],
       },
+      {
+        model: FeeRecord,
+        as: "feeRecord",
+        required: false,
+      },
     ],
   });
 }
@@ -1363,6 +1409,12 @@ async function listPayments({
     });
   }
 
+  include.push({
+    model: FeeRecord,
+    as: "feeRecord",
+    required: false,
+  });
+
   const offset = (parsedPage - 1) * parsedLimit;
 
   const { rows, count } = await Payment.findAndCountAll({
@@ -1406,7 +1458,7 @@ export async function listPaymentsForMerchant({
   createdTo,
   sortBy,
   sortDir,
-  sortDirection, // alias of sortDir
+  sortDirection,
 }) {
   if (!merchantId) {
     throwErr("merchantId is required", "MERCHANT_REQUIRED", 400);
@@ -1503,9 +1555,18 @@ export async function getAdminPaymentByReference(paymentReference) {
         model: PaymentStatusHistory,
         as: "statusHistory",
       },
+      {
+        model: FeeRecord,
+        as: "feeRecord",
+        required: false,
+      },
     ],
     order: [
-      [{ model: PaymentStatusHistory, as: "statusHistory" }, "createdAt", "ASC"],
+      [
+        { model: PaymentStatusHistory, as: "statusHistory" },
+        "createdAt",
+        "ASC",
+      ],
     ],
   });
 }
