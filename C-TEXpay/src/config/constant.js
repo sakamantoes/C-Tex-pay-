@@ -71,6 +71,12 @@ const envConfig = {
     parseInt(process.env.MERCHANT_WEBHOOK_RETRY_BASE_MS || "5000", 10),
   MERCHANT_WEBHOOK_ALLOW_LOCAL:
     process.env.MERCHANT_WEBHOOK_ALLOW_LOCAL === "true",
+
+    // Stage 14 — Payouts
+PAYOUT_MIN_AMOUNT: parseInt(process.env.PAYOUT_MIN_AMOUNT || "10000", 10),     // ₦100 default
+PAYOUT_MAX_AMOUNT: parseInt(process.env.PAYOUT_MAX_AMOUNT || "500000000", 10), // ₦5M default
+MONNIFY_PAYOUT_SOURCE_ACCOUNT: process.env.MONNIFY_PAYOUT_SOURCE_ACCOUNT,
+MONNIFY_PAYOUT_ASYNC: process.env.MONNIFY_PAYOUT_ASYNC === "true",
 };
 
 export default envConfig;

@@ -435,54 +435,41 @@ export function toMonnifyVerifyRequest({ paymentReference, providerReference }) 
  * }
  */
 export function fromMonnifyVerifyResponse(monnifyResponse) {
-  const body = unwrapBody(monnifyResponse, "verification");
+  const body = monnifyResponse?.responseBody;
 
-  if (!body.paymentStatus) {
-    throw malformed("Monnify verification response missing paymentStatus");
+  if (!body || !body.paymentStatus) {
+    const err = new Error(
+      "Monnify verification response missing paymentStatus"
+    );
+    err.code = "PROVIDER_RESPONSE_MALFORMED";
+    throw err;
   }
 
-  // Convert naira (decimal string/number) -> validated naira number
   const amountPaidNaira = Number(body.amountPaid);
-  if (!Number.isFinite(amountPaidNaira) || amountPaidNaira < 0) {
-    throw malformed("Monnify verification response has invalid amountPaid");
+  if (!Number.isFinite(amountPaidNaira)) {
+    const err = new Error(
+      "Monnify verification response has invalid amountPaid"
+    );
+    err.code = "PROVIDER_RESPONSE_MALFORMED";
+    throw err;
   }
 
-  let paidAt = null;
-  if (body.paidOn) {
-    const parsed = new Date(body.paidOn);
-    paidAt = Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
+  // CRITICAL: convert naira → kobo so this value is directly comparable
+  // with Payment.amount, LedgerEntry.amount, and everything else in C-TEX.
+  const amountPaidKobo = Math.round(amountPaidNaira * 100);
 
   return {
     success: true,
-
     providerReference: body.transactionReference || null,
     paymentReference: body.paymentReference || null,
-
-    // C-TEX normalized status (consumed by service).
-    status: mapMonnifyStatusToCtex(body.paymentStatus),
-
-    // Original Monnify status (for logging / providerStatus persistence).
     providerStatus: body.paymentStatus,
-
-    // Amount in naira — same unit as Payment.amount.
-    amount: amountPaidNaira,
-
+    status: mapMonnifyStatusToCtex(body.paymentStatus),
+    amount: amountPaidKobo,                 // ← kobo, always
+    amountPaid: amountPaidKobo,             // ← keep alias for safety
     currency: body.currency || "NGN",
     paymentMethod: body.paymentMethod || null,
-    paidAt,
-
-    rawResponse: {
-      transactionReference: body.transactionReference || null,
-      paymentReference: body.paymentReference || null,
-      amountPaid: body.amountPaid,
-      totalPayable: body.totalPayable,
-      settlementAmount: body.settlementAmount,
-      paymentStatus: body.paymentStatus,
-      currency: body.currency,
-      paymentMethod: body.paymentMethod,
-      paidOn: body.paidOn,
-    },
+    paidAt: body.paidOn ? new Date(body.paidOn) : null,
+    rawResponse: body,
   };
 }
 

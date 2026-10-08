@@ -69,9 +69,6 @@ function assertBalanced(entries) {
  * ACCOUNT RESOLUTION
  * ======================================================= */
 
-/**
- * Find or create a platform-level account (merchantId = null).
- */
 async function getPlatformAccount(type, currency, transaction) {
   const [account] = await LedgerAccount.findOrCreate({
     where: { type, merchantId: null, currency },
@@ -81,9 +78,6 @@ async function getPlatformAccount(type, currency, transaction) {
   return account;
 }
 
-/**
- * Find or create a merchant-scoped account.
- */
 async function getMerchantAccount({
   merchantId,
   type,
@@ -117,15 +111,11 @@ async function getMerchantAccount({
  *   - If a transaction with that reference already exists, it is returned
  *     unchanged and no new entries are created.
  *
- * @param {object} params
- * @param {string} params.reference         - deterministic idempotency key
- * @param {string} params.type              - LedgerTransaction type
- * @param {string|null} params.merchantId
- * @param {string} params.currency
- * @param {string|null} params.paymentId
- * @param {object|null} params.metadata
- * @param {Array<{account: LedgerAccount, direction: string, amount: number, metadata?: object}>} params.entries
- * @returns {Promise<{ transaction: LedgerTransaction, created: boolean }>}
+ * Transaction coordination:
+ *   - Pass `transaction` to have this posting participate in a caller's
+ *     transaction (e.g. payout reserve with row lock on Merchant). This
+ *     avoids nested transactions and shortens lock hold time.
+ *   - Omit `transaction` to have this function open its own transaction.
  */
 export async function postLedgerTransaction({
   reference,
@@ -135,12 +125,12 @@ export async function postLedgerTransaction({
   paymentId = null,
   metadata = null,
   entries,
+  transaction: externalTx = null,
 }) {
   if (!reference) {
     throw new LedgerError("reference is required", "REFERENCE_REQUIRED", 400);
   }
 
-  // Validate direction/amount up-front; caller provides ledgerAccount instances.
   const normalizedEntries = entries.map((e) => {
     assertPositiveInteger(e.amount, "entry.amount");
     if (e.direction !== "DEBIT" && e.direction !== "CREDIT") {
@@ -168,50 +158,46 @@ export async function postLedgerTransaction({
 
   assertBalanced(normalizedEntries);
 
-  /*
-   * Fast path: existing transaction?
-   * This is an optimization. The real protection is the DB unique constraint
-   * below, which is enforced even under concurrency.
-   */
+  /* Fast path: existing transaction? */
   const existing = await LedgerTransaction.findOne({
     where: { reference, currency },
     include: [{ model: LedgerEntry, as: "entries" }],
+    transaction: externalTx || undefined,
   });
   if (existing) {
     return { transaction: existing, created: false };
   }
 
-  /*
-   * Insert inside a transaction. Under concurrency, one writer wins the
-   * unique constraint, the others get SequelizeUniqueConstraintError and
-   * fetch the existing transaction.
-   */
+  const executeIn = async (t) => {
+    const ledgerTx = await LedgerTransaction.create(
+      {
+        reference,
+        type,
+        merchantId,
+        currency,
+        status: "POSTED",
+        paymentId,
+        metadata,
+        postedAt: new Date(),
+      },
+      { transaction: t }
+    );
+
+    await LedgerEntry.bulkCreate(
+      normalizedEntries.map((e) => ({
+        ...e,
+        ledgerTransactionId: ledgerTx.id,
+      })),
+      { transaction: t, validate: true }
+    );
+
+    return ledgerTx;
+  };
+
   try {
-    const created = await sequelize.transaction(async (t) => {
-      const ledgerTx = await LedgerTransaction.create(
-        {
-          reference,
-          type,
-          merchantId,
-          currency,
-          status: "POSTED",
-          paymentId,
-          metadata,
-          postedAt: new Date(),
-        },
-        { transaction: t }
-      );
-
-      await LedgerEntry.bulkCreate(
-        normalizedEntries.map((e) => ({
-          ...e,
-          ledgerTransactionId: ledgerTx.id,
-        })),
-        { transaction: t, validate: true }
-      );
-
-      return ledgerTx;
-    });
+    const created = externalTx
+      ? await executeIn(externalTx)
+      : await sequelize.transaction(async (t) => executeIn(t));
 
     return { transaction: created, created: true };
   } catch (error) {
@@ -223,6 +209,7 @@ export async function postLedgerTransaction({
       const winner = await LedgerTransaction.findOne({
         where: { reference, currency },
         include: [{ model: LedgerEntry, as: "entries" }],
+        transaction: externalTx || undefined,
       });
       if (winner) return { transaction: winner, created: false };
     }
@@ -234,17 +221,6 @@ export async function postLedgerTransaction({
  * PAYMENT SETTLEMENT
  * ======================================================= */
 
-/**
- * Post settlement for a SUCCESS payment. Idempotent.
- *
- * Uses FeeRecord as the authoritative source of amounts.
- * Never recomputes fees.
- *
- * Accounting:
- *   DEBIT  CLEARING                     gross
- *   CREDIT MERCHANT_AVAILABLE (merchant) net
- *   CREDIT CTEX_FEE_REVENUE              serviceFee
- */
 export async function postPaymentSettlement({ paymentId }) {
   if (!paymentId) {
     throw new LedgerError("paymentId is required", "PAYMENT_ID_REQUIRED", 400);
@@ -311,7 +287,6 @@ export async function postPaymentSettlement({ paymentId }) {
       },
     ];
 
-    // Only post the fee revenue line if there is a service fee.
     if (serviceFee > 0) {
       entries.push({
         account: feeRevenue,
@@ -332,6 +307,7 @@ export async function postPaymentSettlement({ paymentId }) {
         providerFeeTreatment: feeRecord.providerFeeTreatment,
       },
       entries,
+      transaction: t,
     });
   });
 }
@@ -340,15 +316,6 @@ export async function postPaymentSettlement({ paymentId }) {
  * PROVIDER COST
  * ======================================================= */
 
-/**
- * Post provider cost for a payment. Idempotent per payment.
- *
- * Accounting:
- *   DEBIT  CTEX_PROVIDER_EXPENSE   providerFee
- *   CREDIT CLEARING                providerFee
- *
- * Note: only call this when an authoritative providerFee exists.
- */
 export async function postProviderCost({ paymentId, providerFee, currency }) {
   if (!paymentId) {
     throw new LedgerError("paymentId is required", "PAYMENT_ID_REQUIRED", 400);
@@ -389,6 +356,7 @@ export async function postProviderCost({ paymentId, providerFee, currency }) {
           amount: providerFee,
         },
       ],
+      transaction: t,
     });
   });
 }
@@ -397,18 +365,6 @@ export async function postProviderCost({ paymentId, providerFee, currency }) {
  * ADMIN ADJUSTMENT
  * ======================================================= */
 
-/**
- * Post an admin adjustment. Each call has a unique reference.
- *
- * @param {object} params
- * @param {string} params.merchantId
- * @param {string} params.currency
- * @param {number} params.amount              - minor units
- * @param {"CREDIT"|"DEBIT"} params.direction - merchant direction
- * @param {string} params.reason
- * @param {string} params.actorUserId
- * @param {string} params.adminReference      - unique idempotency token
- */
 export async function postAdminAdjustment({
   merchantId,
   currency = "NGN",
@@ -475,6 +431,7 @@ export async function postAdminAdjustment({
           amount,
         },
       ],
+      transaction: t,
     });
   });
 }
@@ -483,10 +440,6 @@ export async function postAdminAdjustment({
  * BALANCE CALCULATION
  * ======================================================= */
 
-/**
- * Derive balance for a merchant's account of a given type.
- * Sum over posted credits minus debits.
- */
 async function sumAccount({ merchantId, type, currency }) {
   const account = await LedgerAccount.findOne({
     where: { merchantId, type, currency },
@@ -556,11 +509,6 @@ export async function listMerchantLedgerEntries({
   const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
   const offset = (safePage - 1) * safeLimit;
 
-  /*
-   * Merchant-visible entries: credits and debits on the merchant's
-   * MERCHANT_AVAILABLE account only. Provider expense and C-TEX revenue
-   * entries are excluded by joining to the merchant's own account.
-   */
   const merchantAccount = await LedgerAccount.findOne({
     where: {
       merchantId,

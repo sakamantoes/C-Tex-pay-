@@ -46,3 +46,9 @@ email: godswilltrade2004@gmail.com
   providerStatus
 FROM payments
 WHERE providerReference = 'CTX_pay_saka__...';
+
+admin {
+   
+    "email": "superadmin@ctexpay.local",
+    "password": "ChooseAStrongPasswordHere123!"
+  }

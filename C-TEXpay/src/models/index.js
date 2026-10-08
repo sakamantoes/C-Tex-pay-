@@ -31,6 +31,9 @@ import LedgerAccount from "./LedgerAccount.js";
 import LedgerTransaction from "./LedgerTransaction.js";
 import LedgerEntry from "./LedgerEntry.js";
 // user has many refresh tokens
+import Payout from "./Payout.js";
+import ReconciliationRun from "./ReconciliationRun.js";
+import ReconciliationDiscrepancy from "./ReconciliationDiscrepancy.js";
 
 User.hasMany(RefreshToken, {
   foreignKey: "userId",
@@ -477,6 +480,90 @@ LedgerEntry.belongsTo(LedgerAccount, {
   as: "account",
 });
 
+// ============= PAYOUT ASSOCIATIONS =============
+Merchant.hasMany(Payout, {
+  foreignKey: "merchantId",
+  as: "payouts",
+});
+Payout.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+Payout.belongsTo(LedgerTransaction, {
+  foreignKey: "reserveLedgerTransactionId",
+  as: "reserveLedgerTransaction",
+});
+Payout.belongsTo(LedgerTransaction, {
+  foreignKey: "settleLedgerTransactionId",
+  as: "settleLedgerTransaction",
+});
+
+
+// ============= RECONCILIATION ASSOCIATIONS =============
+ReconciliationRun.hasMany(ReconciliationDiscrepancy, {
+  foreignKey: "reconciliationId",
+  as: "discrepancies",
+});
+ReconciliationDiscrepancy.belongsTo(ReconciliationRun, {
+  foreignKey: "reconciliationId",
+  as: "reconciliation",
+});
+
+Merchant.hasMany(ReconciliationRun, {
+  foreignKey: "merchantId",
+  as: "reconciliationRuns",
+});
+ReconciliationRun.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+Merchant.hasMany(ReconciliationDiscrepancy, {
+  foreignKey: "merchantId",
+  as: "reconciliationDiscrepancies",
+});
+ReconciliationDiscrepancy.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+Payment.hasMany(ReconciliationDiscrepancy, {
+  foreignKey: "paymentId",
+  as: "reconciliationDiscrepancies",
+});
+ReconciliationDiscrepancy.belongsTo(Payment, {
+  foreignKey: "paymentId",
+  as: "payment",
+});
+
+Payout.hasMany(ReconciliationDiscrepancy, {
+  foreignKey: "payoutId",
+  as: "reconciliationDiscrepancies",
+});
+ReconciliationDiscrepancy.belongsTo(Payout, {
+  foreignKey: "payoutId",
+  as: "payout",
+});
+
+User.hasMany(ReconciliationRun, {
+  foreignKey: "triggeredBy",
+  as: "triggeredReconciliations",
+});
+ReconciliationRun.belongsTo(User, {
+  foreignKey: "triggeredBy",
+  as: "triggeredByUser",
+});
+
+User.hasMany(ReconciliationDiscrepancy, {
+  foreignKey: "resolvedBy",
+  as: "resolvedDiscrepancies",
+});
+ReconciliationDiscrepancy.belongsTo(User, {
+  foreignKey: "resolvedBy",
+  as: "resolvedByUser",
+});
+
 export {
   User,
   RefreshToken,
@@ -510,4 +597,7 @@ export {
   LedgerAccount,
   LedgerTransaction,
   LedgerEntry,
+  Payout,
+  ReconciliationRun,
+  ReconciliationDiscrepancy,
 };

@@ -1,5 +1,6 @@
 import envConfig from "../config/constant.js";
 import MonnifyProvider from "./monnify/monnify.provider.js";
+import MonnifyPayoutAdapter from "./monnify/monnify.payout.adapter.js";
 
 /**
  * Provider Factory
@@ -27,6 +28,24 @@ export function getPaymentProvider() {
     //   return new KorapayProvider();
     default:
       throw new Error(`Unsupported payment provider: ${activeProvider}`);
+  }
+}
+
+/**
+ * Returns the payout adapter for the active provider.
+ * Mirrors getPaymentProvider() so payout and payment use the same
+ * server-side provider selection.
+ */
+export function getPayoutProvider() {
+  const activeProvider = (envConfig.PAYMENT_PROVIDER || "MONNIFY").toUpperCase();
+
+  switch (activeProvider) {
+    case "MONNIFY":
+      return new MonnifyPayoutAdapter();
+    default:
+      throw new Error(
+        `Unsupported payout provider: ${activeProvider}`
+      );
   }
 }
 

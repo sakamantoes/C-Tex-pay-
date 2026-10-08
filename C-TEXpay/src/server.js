@@ -6,11 +6,17 @@ import envConfig from "./config/constant.js";
 import { seedPermissions } from "./seeders/2024XXXXXX-permissions.js";
 import feePermissionSeed from "./seeders/20261003-fee-permissions.js";
 import ledgerPermissionSeed from "./seeders/20261005-ledger-permissions.js";
+import payoutPermissionSeed from "./seeders/20261005-payout-permissions.js";
+import reconciliationPermissionSeed from "./seeders/20261006-reconciliation-permissions.js";
 import { initializeSocketServer } from "./realtime/socket.js";
 import {
   startMerchantNotificationWorker,
   stopMerchantNotificationWorker,
 } from "./service/merchantNotification.service.js";
+import {
+  startPaymentExpiryWorker,
+  stopPaymentExpiryWorker,
+} from "./jobs/paymentExpiry.job.js";
 
 const PORT = Number(envConfig.PORT) || 5000;
 const NODE_ENV = envConfig.NODE_ENV || "development";
@@ -105,6 +111,8 @@ async function startServer() {
     const permissionSeed = await seedPermissions();
     await feePermissionSeed.seed();
     await ledgerPermissionSeed.seed();
+    await payoutPermissionSeed.seed();
+    await reconciliationPermissionSeed.seed();
     // eslint-disable-next-line no-console
     console.log("[startup] Permission seed:", permissionSeed.message, {
       inserted: permissionSeed.inserted,
@@ -142,20 +150,21 @@ async function startServer() {
 
     /*
     |----------------------------------------------------------------------
-    | 7. Start background workers
+    | 7. Background workers
     |----------------------------------------------------------------------
-    | The merchant notification worker polls for pending email deliveries.
-    | It must run AFTER the HTTP server is up, otherwise a fast restart
-    | could interrupt a running worker before the socket is bound.
+    | Both workers are idempotent and safe to run on every boot.
+    |
+    |   Merchant notification worker : drains pending email deliveries
+    |   Payment expiry worker        : moves PENDING → EXPIRED after expiry
+    |
+    | They must run AFTER the HTTP server is bound so a fast restart
+    | cannot interrupt an in-flight worker before the socket is up.
     */
     startMerchantNotificationWorker();
+    startPaymentExpiryWorker(5 * 60 * 1000);
 
-    /*
-     * Liveness probe: confirm the worker timer is actually ticking.
-     * If this log doesn't appear, the worker was never installed.
-     */
     // eslint-disable-next-line no-console
-    console.log("[startup] Merchant notification worker started");
+    console.log("[startup] Background workers started");
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error("[startup] Unable to start server:", error);
@@ -190,6 +199,10 @@ async function shutdown(reason, exitCode = 0) {
     await stopMerchantNotificationWorker();
     // eslint-disable-next-line no-console
     console.log("[shutdown] Merchant notification worker stopped");
+
+    await stopPaymentExpiryWorker();
+    // eslint-disable-next-line no-console
+    console.log("[shutdown] Payment expiry worker stopped");
 
     if (io) {
       await new Promise((resolve) => io.close(resolve));

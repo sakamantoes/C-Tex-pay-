@@ -19,6 +19,9 @@ import feeRoutes from "./routes/fee.routes.js";
 import adminDashboardRoutes from "./routes/adminDashboard.routes.js";
 import ledgerRoutes from "./routes/ledger.routes.js";
 import adminLedgerRoutes from "./routes/adminLedger.routes.js";
+import payoutRoutes from "./routes/payout.routes.js";
+import adminPayoutRoutes from "./routes/adminPayout.routes.js";
+import reconciliationRoutes from "./routes/reconciliation.routes.js";
 
 const app = express();
 
@@ -71,6 +74,9 @@ app.use("/api/v1/admin/dashboard", adminDashboardRoutes);
 app.use("/api/v1/fees", feeRoutes);
 app.use("/api/v1/ledger", ledgerRoutes);
 app.use("/api/v1/admin/ledger", adminLedgerRoutes);
+app.use("/api/v1/payouts", payoutRoutes);
+app.use("/api/v1/admin/payouts", adminPayoutRoutes);
+app.use("/api/v1/admin/reconciliations", reconciliationRoutes);
 
 app.get("/", (req, res) => {
   res.json({
