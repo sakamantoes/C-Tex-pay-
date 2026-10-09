@@ -631,13 +631,16 @@ function Navbar({ theme, setTheme }) {
       }`}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 sm:py-3">
-        <Link to="/" className="flex items-center">
+        <div className=" w-[400px]">
+  <Link to="/" className="flex items-center">
           <img
             src={ImageLogo.Logo2}
             alt="Ctex PAY"
-            className="h-20 w-auto sm:h-55 md:h-55 lg:h-40"
+            className="h-20 w-auto sm:h-30 md:h-30 lg:h-2"
           />
         </Link>
+        </div>
+      
 
         <nav className="hidden items-center gap-1 rounded-full border border-[var(--Ctex-border)] px-2 py-1 md:flex">
           {links.map((l) => (

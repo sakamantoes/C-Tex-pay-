@@ -34,7 +34,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://ctexpay.vercel.app"],
+    origin: ["http://localhost:5173", "https://ctexpay.vercel.app", "https://www.ctex.online"],
     credentials: true,
   }),
 );
