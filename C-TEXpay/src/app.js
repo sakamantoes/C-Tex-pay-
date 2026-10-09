@@ -22,6 +22,7 @@ import adminLedgerRoutes from "./routes/adminLedger.routes.js";
 import payoutRoutes from "./routes/payout.routes.js";
 import adminPayoutRoutes from "./routes/adminPayout.routes.js";
 import reconciliationRoutes from "./routes/reconciliation.routes.js";
+import xixapayWebhookRoutes from "./webhooks/xixapay.webhook.routes.js";
 
 const app = express();
 
@@ -77,6 +78,7 @@ app.use("/api/v1/admin/ledger", adminLedgerRoutes);
 app.use("/api/v1/payouts", payoutRoutes);
 app.use("/api/v1/admin/payouts", adminPayoutRoutes);
 app.use("/api/v1/admin/reconciliations", reconciliationRoutes);
+app.use("/api/v1/webhooks", xixapayWebhookRoutes);
 
 app.get("/", (req, res) => {
   res.json({

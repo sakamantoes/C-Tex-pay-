@@ -77,6 +77,22 @@ PAYOUT_MIN_AMOUNT: parseInt(process.env.PAYOUT_MIN_AMOUNT || "10000", 10),     /
 PAYOUT_MAX_AMOUNT: parseInt(process.env.PAYOUT_MAX_AMOUNT || "500000000", 10), // ₦5M default
 MONNIFY_PAYOUT_SOURCE_ACCOUNT: process.env.MONNIFY_PAYOUT_SOURCE_ACCOUNT,
 MONNIFY_PAYOUT_ASYNC: process.env.MONNIFY_PAYOUT_ASYNC === "true",
+
+// Stage X2 — Xixapay Provider
+XIXAPAY_BASE_URL: process.env.XIXAPAY_BASE_URL || "https://api.xixapay.com",
+XIXAPAY_API_KEY: process.env.XIXAPAY_API_KEY || null,
+XIXAPAY_API_SECRET: process.env.XIXAPAY_API_SECRET || null,
+XIXAPAY_BUSINESS_ID: process.env.XIXAPAY_BUSINESS_ID || null,
+XIXAPAY_DEFAULT_BANK_CODE: process.env.XIXAPAY_DEFAULT_BANK_CODE || "20867",
+XIXAPAY_CALLBACK_URL: process.env.XIXAPAY_CALLBACK_URL || null,
+XIXAPAY_ACCOUNT_EXPIRY_MINUTES: parseInt(
+  process.env.XIXAPAY_ACCOUNT_EXPIRY_MINUTES || "30",
+  10
+),
+XIXAPAY_TIMEOUT_MS: parseInt(process.env.XIXAPAY_TIMEOUT_MS || "30000", 10),
+
+// Webhook
+XIXAPAY_WEBHOOK_SECRET: process.env.XIXAPAY_WEBHOOK_SECRET || null,
 };
 
 export default envConfig;
