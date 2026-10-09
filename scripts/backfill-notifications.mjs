@@ -1,6 +1,6 @@
-import sequelize from "../src/config/database.js";
-import { Payment } from "../src/models/index.js";
-import { enqueueSuccessfulPaymentNotifications } from "../src/service/merchantNotification.service.js";
+import sequelize from "../C-TEXpay/src/config/database.js";
+import { Payment } from "../C-TEXpay/src/models/index.js";
+import { enqueueSuccessfulPaymentNotifications } from "../C-TEXpay/src/service/merchantNotification.service.js";
 
 const REFS = [
   "CTX_pay_saka__20261005_2084BC84134F930D",

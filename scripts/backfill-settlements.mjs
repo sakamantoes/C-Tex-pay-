@@ -1,6 +1,6 @@
-import sequelize from "../src/config/database.js";
-import { Payment, FeeRecord } from "../src/models/index.js";
-import { postPaymentSettlement } from "../src/service/ledger.service.js";
+import sequelize from "../C-TEXpay/src/config/database.js";
+import { Payment, FeeRecord } from "../C-TEXpay/src/models/index.js";
+import { postPaymentSettlement } from "../C-TEXpay/src/service/ledger.service.js";
 
 async function main() {
   await sequelize.authenticate();

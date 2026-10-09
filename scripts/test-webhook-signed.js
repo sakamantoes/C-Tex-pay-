@@ -1,6 +1,6 @@
 // scripts/test-webhook-signed.js
 import crypto from "crypto";
-import envConfig from "../src/config/constant.js";
+import envConfig from "../C-TEXpay/src/config/constant.js";
 
 // Default to localhost — skips localtunnel entirely
 const WEBHOOK_URL =
