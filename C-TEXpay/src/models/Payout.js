@@ -137,7 +137,6 @@ const Payout = sequelize.define(
         name: "payouts_provider_reference_unique",
         fields: ["provider", "providerReference"],
         unique: true,
-        where: { providerReference: { [Symbol.for("op.ne")]: null } },
       },
       { fields: ["merchantId", "createdAt"] },
       { fields: ["status"] },
