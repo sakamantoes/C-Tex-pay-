@@ -119,12 +119,12 @@ function DarkBand({ children, className = "", id }) {
 }
 
 const dotGrid = {
-  backgroundImage:
-    "radial-gradient(var(--Ctex-border) 1px, transparent 1px)",
+  backgroundImage: "radial-gradient(var(--Ctex-border) 1px, transparent 1px)",
   backgroundSize: "22px 22px",
   WebkitMaskImage:
     "radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%)",
-  maskImage: "radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%)",
+  maskImage:
+    "radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%)",
 };
 
 function Reveal({ children, delay = 0, className = "" }) {
@@ -146,13 +146,19 @@ function Reveal({ children, delay = 0, className = "" }) {
 
 function Eyebrow({ children }) {
   return (
-    <p className={`font-mono text-[12px] sm:text-[13px] ${ACCENT}`}>{children}</p>
+    <p className={`font-mono text-[12px] sm:text-[13px] ${ACCENT}`}>
+      {children}
+    </p>
   );
 }
 
 function SectionHeading({ eyebrow, title, sub, align = "left" }) {
   return (
-    <div className={align === "center" ? "mx-auto max-w-2xl text-center" : "max-w-2xl"}>
+    <div
+      className={
+        align === "center" ? "mx-auto max-w-2xl text-center" : "max-w-2xl"
+      }
+    >
       {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
       <h2 className="mt-2 sm:mt-3 font-display text-3xl sm:text-4xl md:text-[2.75rem] md:leading-[1.1] font-semibold tracking-tight text-[var(--Ctex-text)]">
         {title}
@@ -166,7 +172,13 @@ function SectionHeading({ eyebrow, title, sub, align = "left" }) {
   );
 }
 
-function Button({ as = "button", variant = "primary", children, className = "", ...props }) {
+function Button({
+  as = "button",
+  variant = "primary",
+  children,
+  className = "",
+  ...props
+}) {
   const base =
     "inline-flex items-center justify-center gap-2 rounded-full px-5 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-Ctex-blue";
   const variants = {
@@ -218,16 +230,26 @@ function CodeWindow({ label = "request.js", lines, accent = false }) {
           <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-amber-400/70" />
           <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-emerald-400/70" />
         </div>
-        <span className="font-mono text-[10px] sm:text-xs text-[var(--Ctex-text-muted)]">{label}</span>
+        <span className="font-mono text-[10px] sm:text-xs text-[var(--Ctex-text-muted)]">
+          {label}
+        </span>
       </div>
       <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words px-3 sm:px-5 py-3 sm:py-5 font-mono text-[11px] sm:text-[13px] leading-relaxed text-[var(--Ctex-text)]">
-        <code className="block min-w-0 whitespace-pre-wrap break-words">{highlight(lines)}</code>
+        <code className="block min-w-0 whitespace-pre-wrap break-words">
+          {highlight(lines)}
+        </code>
       </pre>
     </div>
   );
 }
 
-function HeroStatusBadge({ icon: Icon, label, tone = "success", delay = 0, className = "" }) {
+function HeroStatusBadge({
+  icon: Icon,
+  label,
+  tone = "success",
+  delay = 0,
+  className = "",
+}) {
   const reduceMotion = useReducedMotion();
   const toneClasses =
     tone === "success"
@@ -253,10 +275,14 @@ function FlowSteps({ steps, orientation = "vertical" }) {
       {steps.map((step, i) => (
         <div
           key={step.title}
-          className={isRow ? "flex flex-1 items-start gap-3" : "flex gap-3 sm:gap-4"}
+          className={
+            isRow ? "flex flex-1 items-start gap-3" : "flex gap-3 sm:gap-4"
+          }
         >
           <div className="flex flex-col items-center">
-            <div className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full border border-Ctex-blue/50 bg-Ctex-blue/10 font-mono text-[10px] sm:text-xs ${ACCENT}`}>
+            <div
+              className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full border border-Ctex-blue/50 bg-Ctex-blue/10 font-mono text-[10px] sm:text-xs ${ACCENT}`}
+            >
               {i + 1}
             </div>
             {i < steps.length - 1 && (
@@ -270,8 +296,12 @@ function FlowSteps({ steps, orientation = "vertical" }) {
             )}
           </div>
           <div className={isRow ? "pb-8" : "pb-6 sm:pb-8"}>
-            <p className="font-medium text-sm sm:text-base text-[var(--Ctex-text)]">{step.title}</p>
-            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-[var(--Ctex-text-muted)]">{step.desc}</p>
+            <p className="font-medium text-sm sm:text-base text-[var(--Ctex-text)]">
+              {step.title}
+            </p>
+            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-[var(--Ctex-text-muted)]">
+              {step.desc}
+            </p>
           </div>
         </div>
       ))}
@@ -331,16 +361,22 @@ function AnimatedOrderCard() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.3 }}
             >
-              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">Complete your order</p>
+              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">
+                Complete your order
+              </p>
               <p className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:text-3xl">
                 ₦5,000.00
               </p>
-              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">order_10234</p>
+              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
+                order_10234
+              </p>
 
               <div className="mt-4 space-y-2 border-t border-[var(--Ctex-border)] pt-3 text-[11px] sm:text-xs">
                 <div className="flex justify-between text-[var(--Ctex-text-muted)]">
                   <span>Customer</span>
-                  <span className="font-mono text-[var(--Ctex-text)]">cus_8fh29a</span>
+                  <span className="font-mono text-[var(--Ctex-text)]">
+                    cus_8fh29a
+                  </span>
                 </div>
                 <div className="flex justify-between text-[var(--Ctex-text-muted)]">
                   <span>Currency</span>
@@ -368,11 +404,15 @@ function AnimatedOrderCard() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.3 }}
             >
-              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">Verifying payment</p>
+              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">
+                Verifying payment
+              </p>
               <p className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:text-3xl">
                 ₦5,000.00
               </p>
-              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">order_10234</p>
+              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
+                order_10234
+              </p>
 
               <div className="mt-4 space-y-2.5 border-t border-[var(--Ctex-border)] pt-3 text-[11px] sm:text-xs">
                 <div className="flex items-center gap-2 text-[var(--Ctex-text-muted)]">
@@ -411,11 +451,15 @@ function AnimatedOrderCard() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.3 }}
             >
-              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">Payment verified</p>
+              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">
+                Payment verified
+              </p>
               <p className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:text-3xl">
                 ₦5,000.00
               </p>
-              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">order_10234</p>
+              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
+                order_10234
+              </p>
 
               <div className="mt-4 space-y-2.5 border-t border-[var(--Ctex-border)] pt-3 text-[11px] sm:text-xs">
                 <div className="flex items-center gap-2 text-[var(--Ctex-text)]">
@@ -454,11 +498,15 @@ function AnimatedOrderCard() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.3 }}
             >
-              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">Finalizing</p>
+              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">
+                Finalizing
+              </p>
               <p className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:text-3xl">
                 ₦5,000.00
               </p>
-              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">order_10234</p>
+              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
+                order_10234
+              </p>
 
               <div className="mt-4 space-y-2.5 border-t border-[var(--Ctex-border)] pt-3 text-[11px] sm:text-xs">
                 <div className="flex items-center gap-2 text-[var(--Ctex-text)]">
@@ -528,11 +576,15 @@ function AnimatedOrderCard() {
                 <div className="mt-4 w-full space-y-2 border-t border-[var(--Ctex-border)] pt-3 text-left text-[11px] sm:text-xs">
                   <div className="flex justify-between text-[var(--Ctex-text-muted)]">
                     <span>Amount</span>
-                    <span className="font-mono font-medium text-[var(--Ctex-text)]">₦5,000.00</span>
+                    <span className="font-mono font-medium text-[var(--Ctex-text)]">
+                      ₦5,000.00
+                    </span>
                   </div>
                   <div className="flex justify-between text-[var(--Ctex-text-muted)]">
                     <span>Customer</span>
-                    <span className="font-mono text-[var(--Ctex-text)]">cus_8fh29a</span>
+                    <span className="font-mono text-[var(--Ctex-text)]">
+                      cus_8fh29a
+                    </span>
                   </div>
                   <div className="flex justify-between text-[var(--Ctex-text-muted)]">
                     <span>Status</span>
@@ -632,15 +684,14 @@ function Navbar({ theme, setTheme }) {
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 sm:py-3">
         <div className=" w-[400px]">
-  <Link to="/" className="flex items-center">
-          <img
-            src={ImageLogo.Logo2}
-            alt="Ctex PAY"
-            className="h-20 w-auto sm:h-30 sm:w-auto md:h-30 md:w-auto lg:h-2 lg:w-[140px]"
-          />
-        </Link>
+          <Link to="/" className="flex items-center">
+            <img
+              src={ImageLogo.Logo2}
+              alt="Ctex PAY"
+              className="h-20 w-auto sm:h-30 sm:w-auto md:h-30 md:w-auto lg:h-2 lg:w-[140px]"
+            />
+          </Link>
         </div>
-      
 
         <nav className="hidden items-center gap-1 rounded-full border border-[var(--Ctex-border)] px-2 py-1 md:flex">
           {links.map((l) => (
@@ -774,7 +825,8 @@ function LiveTransactionFeed() {
 
     const interval = setInterval(() => {
       setFeed((prev) => {
-        const nextItem = TRANSACTION_POOL[nextIndexRef.current % TRANSACTION_POOL.length];
+        const nextItem =
+          TRANSACTION_POOL[nextIndexRef.current % TRANSACTION_POOL.length];
         nextIndexRef.current += 1;
         // Push new item to top, drop the last one
         return [nextItem, ...prev].slice(0, 4);
@@ -793,9 +845,15 @@ function LiveTransactionFeed() {
             <motion.div
               key={`${r.ref}-${i}-${r.amount}`}
               layout
-              initial={reduceMotion ? undefined : { opacity: 0, y: -14, scale: 0.97 }}
-              animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-              exit={reduceMotion ? undefined : { opacity: 0, y: 14, scale: 0.97 }}
+              initial={
+                reduceMotion ? undefined : { opacity: 0, y: -14, scale: 0.97 }
+              }
+              animate={
+                reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }
+              }
+              exit={
+                reduceMotion ? undefined : { opacity: 0, y: 14, scale: 0.97 }
+              }
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
               className="flex items-center justify-between gap-3 py-2.5 sm:py-3"
             >
@@ -834,7 +892,9 @@ function HeroVisual() {
         className="absolute right-0 top-0 w-[92%] overflow-hidden rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-elevated)] shadow-[0_24px_48px_-24px_rgba(5,20,40,0.5)] sm:w-[86%]"
       >
         <div className="flex items-center justify-between border-b border-[var(--Ctex-border)] px-4 py-3">
-          <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">Transactions</p>
+          <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">
+            Transactions
+          </p>
           <span className="flex items-center gap-1.5 font-mono text-[10px] text-emerald-500">
             <span className="relative flex h-1.5 w-1.5">
               <span className="Ctex-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500/60" />
@@ -878,12 +938,20 @@ function Hero() {
   const reduceMotion = useReducedMotion();
   const textBlock = {
     hidden: { opacity: 0, y: 14 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
+    },
   };
 
   return (
     <section className="relative overflow-hidden">
-      <div aria-hidden className="pointer-events-none absolute inset-0" style={dotGrid} />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={dotGrid}
+      />
       <div
         aria-hidden
         className="pointer-events-none absolute -top-24 left-1/2 h-[480px] w-full max-w-[1000px] -translate-x-1/2 bg-[radial-gradient(closest-side,hsl(205.56deg_88.04%_36.08%_/_0.2),transparent)] dark:bg-[radial-gradient(closest-side,hsl(205.56deg_88.04%_46%_/_0.28),transparent)]"
@@ -921,7 +989,11 @@ function Hero() {
             </Button>
           </div>
           <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[var(--Ctex-text-muted)] sm:mt-9 sm:text-sm">
-            {["No SDK to install", "Your API key is the integration", "Signed webhooks"].map((t) => (
+            {[
+              "No SDK to install",
+              "Your API key is the integration",
+              "Signed webhooks",
+            ].map((t) => (
               <li key={t} className="flex items-center gap-1.5">
                 <CheckCircle2 size={14} className={ACCENT} />
                 {t}
@@ -956,8 +1028,10 @@ function TrustBar() {
     <div
       className="overflow-hidden border-y border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] py-4 sm:py-5"
       style={{
-        WebkitMaskImage: "linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent)",
-        maskImage: "linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent)",
+        WebkitMaskImage:
+          "linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent)",
+        maskImage:
+          "linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent)",
       }}
     >
       <div className="Ctex-marquee flex w-max items-center gap-10 sm:gap-14">
@@ -982,9 +1056,18 @@ function TrustBar() {
 function ProblemSolution() {
   const rows = [
     { problem: "Complex integrations", solution: "One documented API" },
-    { problem: "Manual verification", solution: "Automatic verification + webhooks" },
-    { problem: "Unclear transaction status", solution: "Real-time transaction state" },
-    { problem: "Difficult API management", solution: "Simple key generation and rotation" },
+    {
+      problem: "Manual verification",
+      solution: "Automatic verification + webhooks",
+    },
+    {
+      problem: "Unclear transaction status",
+      solution: "Real-time transaction state",
+    },
+    {
+      problem: "Difficult API management",
+      solution: "Simple key generation and rotation",
+    },
   ];
   return (
     <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28">
@@ -996,27 +1079,38 @@ function ProblemSolution() {
       </Reveal>
 
       <div className="mt-10 grid gap-4 sm:mt-14 lg:grid-cols-2">
-        <Reveal>
-          <div className="h-full rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] p-6 sm:p-8">
-            <p className="text-sm font-medium text-[var(--Ctex-text-muted)]">Without Ctex PAY</p>
-            <ul className="mt-5 space-y-4">
-              {rows.map((r) => (
-                <li key={r.problem} className="flex items-center gap-3 text-sm text-[var(--Ctex-text-muted)] sm:text-base">
-                  <XCircle size={18} className="shrink-0 text-red-500/80" />
-                  {r.problem}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Reveal>
         <Reveal delay={0.08}>
           <div className="relative h-full overflow-hidden rounded-2xl border border-Ctex-blue/40 bg-gradient-to-br from-Ctex-blue/15 via-[var(--Ctex-surface)] to-[var(--Ctex-surface)] p-6 shadow-[0_20px_44px_-24px_rgba(11,104,173,0.5)] sm:p-8">
             <p className={`text-sm font-medium ${ACCENT}`}>With Ctex PAY</p>
             <ul className="mt-5 space-y-4">
               {rows.map((r) => (
-                <li key={r.solution} className="flex items-center gap-3 text-sm font-medium text-[var(--Ctex-text)] sm:text-base">
-                  <CheckCircle2 size={18} className="shrink-0 text-emerald-500" />
+                <li
+                  key={r.solution}
+                  className="flex items-center gap-3 text-sm font-medium text-[var(--Ctex-text)] sm:text-base"
+                >
+                  <CheckCircle2
+                    size={18}
+                    className="shrink-0 text-emerald-500"
+                  />
                   {r.solution}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Reveal>
+        <Reveal>
+          <div className="h-full rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] p-6 sm:p-8">
+            <p className="text-sm font-medium text-[var(--Ctex-text-muted)]">
+              Without Ctex PAY
+            </p>
+            <ul className="mt-5 space-y-4">
+              {rows.map((r) => (
+                <li
+                  key={r.problem}
+                  className="flex items-center gap-3 text-sm text-[var(--Ctex-text-muted)] sm:text-base"
+                >
+                  <XCircle size={18} className="shrink-0 text-red-500/80" />
+                  {r.problem}
                 </li>
               ))}
             </ul>
@@ -1040,9 +1134,13 @@ function BentoCell({ icon: Icon, title, desc, children, className = "" }) {
       <div className="mt-5">
         <div className="flex items-center gap-2">
           <Icon size={16} className={ACCENT} />
-          <p className="text-sm font-medium text-[var(--Ctex-text)] sm:text-base">{title}</p>
+          <p className="text-sm font-medium text-[var(--Ctex-text)] sm:text-base">
+            {title}
+          </p>
         </div>
-        <p className="mt-1.5 text-xs leading-relaxed text-[var(--Ctex-text-muted)] sm:text-sm">{desc}</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-[var(--Ctex-text-muted)] sm:text-sm">
+          {desc}
+        </p>
       </div>
     </div>
   );
@@ -1050,16 +1148,35 @@ function BentoCell({ icon: Icon, title, desc, children, className = "" }) {
 
 function Features() {
   const compact = [
-    { icon: Key, title: "API-First Payments", desc: "Integrate directly with the Ctex PAY API without installing an SDK." },
-    { icon: Users, title: "Customer Management", desc: "Create and manage customers directly from your API." },
-    { icon: Receipt, title: "Transaction Management", desc: "Track payment status and transaction history in one place." },
-    { icon: ArrowDownToLine, title: "Payouts", desc: "Withdraw eligible funds to your supported bank accounts." },
+    {
+      icon: Key,
+      title: "API-First Payments",
+      desc: "Integrate directly with the Ctex PAY API without installing an SDK.",
+    },
+    {
+      icon: Users,
+      title: "Customer Management",
+      desc: "Create and manage customers directly from your API.",
+    },
+    {
+      icon: Receipt,
+      title: "Transaction Management",
+      desc: "Track payment status and transaction history in one place.",
+    },
+    {
+      icon: ArrowDownToLine,
+      title: "Payouts",
+      desc: "Withdraw eligible funds to your supported bank accounts.",
+    },
   ];
 
   const chain = ["Customer pays", "Provider", "Verified", "Signed webhook"];
 
   return (
-    <section id="features" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28">
+    <section
+      id="features"
+      className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28"
+    >
       <Reveal>
         <SectionHeading title="One platform for your entire payment operation." />
       </Reveal>
@@ -1084,7 +1201,9 @@ function Features() {
                   >
                     {c}
                   </span>
-                  {i < chain.length - 1 && <ArrowRight size={11} className="shrink-0 opacity-50" />}
+                  {i < chain.length - 1 && (
+                    <ArrowRight size={11} className="shrink-0 opacity-50" />
+                  )}
                 </React.Fragment>
               ))}
             </div>
@@ -1092,38 +1211,70 @@ function Features() {
         </Reveal>
 
         <Reveal delay={0.04} className="lg:col-span-2">
-          <BentoCell icon={Lock} title="API Keys" desc="Generate, rotate, and revoke API keys directly from your dashboard." className="h-full">
+          <BentoCell
+            icon={Lock}
+            title="API Keys"
+            desc="Generate, rotate, and revoke API keys directly from your dashboard."
+            className="h-full"
+          >
             <div className="space-y-2 rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-3 font-mono text-[10px] sm:text-xs">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[var(--Ctex-text)]">Ctex_live_••••8f21</span>
-                <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-500">Active</span>
+                <span className="truncate text-[var(--Ctex-text)]">
+                  Ctex_live_••••8f21
+                </span>
+                <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-500">
+                  Active
+                </span>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[var(--Ctex-text)]">Ctex_test_••••1a09</span>
-                <span className="shrink-0 rounded-full bg-Ctex-blue/10 px-2 py-0.5 text-[var(--Ctex-accent)]">Test</span>
+                <span className="truncate text-[var(--Ctex-text)]">
+                  Ctex_test_••••1a09
+                </span>
+                <span className="shrink-0 rounded-full bg-Ctex-blue/10 px-2 py-0.5 text-[var(--Ctex-accent)]">
+                  Test
+                </span>
               </div>
             </div>
           </BentoCell>
         </Reveal>
 
         <Reveal className="lg:col-span-2">
-          <BentoCell icon={Webhook} title="Webhooks" desc="Receive secure payment notifications directly on your server." className="h-full">
+          <BentoCell
+            icon={Webhook}
+            title="Webhooks"
+            desc="Receive secure payment notifications directly on your server."
+            className="h-full"
+          >
             <div className="space-y-1.5 rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-3 font-mono text-[10px] sm:text-xs">
-              {["payment.success", "payment.success", "payment.pending"].map((e, i) => (
-                <div key={i} className="flex items-center justify-between gap-2">
-                  <span className="text-[var(--Ctex-text)]">{e}</span>
-                  <span className="text-emerald-500">200 OK</span>
-                </div>
-              ))}
+              {["payment.success", "payment.success", "payment.pending"].map(
+                (e, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="text-[var(--Ctex-text)]">{e}</span>
+                    <span className="text-emerald-500">200 OK</span>
+                  </div>
+                ),
+              )}
             </div>
           </BentoCell>
         </Reveal>
 
         <Reveal delay={0.04} className="lg:col-span-2">
-          <BentoCell icon={Wallet} title="Merchant Wallet" desc="Monitor available funds and balances as payments settle." className="h-full">
+          <BentoCell
+            icon={Wallet}
+            title="Merchant Wallet"
+            desc="Monitor available funds and balances as payments settle."
+            className="h-full"
+          >
             <div className="rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-4">
-              <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">Available balance</p>
-              <p className="mt-1 font-mono text-lg text-[var(--Ctex-text)] sm:text-xl">₦482,300.00</p>
+              <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">
+                Available balance
+              </p>
+              <p className="mt-1 font-mono text-lg text-[var(--Ctex-text)] sm:text-xl">
+                ₦482,300.00
+              </p>
             </div>
           </BentoCell>
         </Reveal>
@@ -1136,7 +1287,9 @@ function Features() {
             className="h-full"
           >
             <div className="space-y-1.5 rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-3 font-mono text-[10px] sm:text-xs">
-              <p className="text-[var(--Ctex-text-muted)]">Idempotency-Key: order_10234</p>
+              <p className="text-[var(--Ctex-text-muted)]">
+                Idempotency-Key: order_10234
+              </p>
               <p className="flex items-center gap-1.5 text-[var(--Ctex-text)]">
                 <RefreshCw size={11} className={ACCENT} /> Retried after timeout
               </p>
@@ -1151,8 +1304,12 @@ function Features() {
           <Reveal key={f.title} delay={i * 0.04}>
             <div className="h-full rounded-2xl border border-[var(--Ctex-border)] p-5 transition-colors duration-200 hover:border-Ctex-blue/50">
               <f.icon size={16} className={ACCENT} />
-              <p className="mt-3 text-sm font-medium text-[var(--Ctex-text)]">{f.title}</p>
-              <p className="mt-1 text-xs leading-relaxed text-[var(--Ctex-text-muted)] sm:text-sm">{f.desc}</p>
+              <p className="mt-3 text-sm font-medium text-[var(--Ctex-text)]">
+                {f.title}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--Ctex-text-muted)] sm:text-sm">
+                {f.desc}
+              </p>
             </div>
           </Reveal>
         ))}
@@ -1248,20 +1405,53 @@ window.location.href = checkout_url;`,
 
   const steps = [
     { title: "Create account", desc: "Sign up for Ctex PAY in a few minutes." },
-    { title: "Create merchant", desc: "Register the business you're collecting payments for." },
-    { title: "Generate API key", desc: "Create a key from your dashboard — no approval wait." },
-    { title: "Add API to your application", desc: "Call the API directly. No SDK required." },
-    { title: "Receive webhook", desc: "Ctex PAY notifies your server the moment status changes." },
-    { title: "Verify payment", desc: "Confirm the signature, then mark the order paid." },
+    {
+      title: "Create merchant",
+      desc: "Register the business you're collecting payments for.",
+    },
+    {
+      title: "Generate API key",
+      desc: "Create a key from your dashboard — no approval wait.",
+    },
+    {
+      title: "Add API to your application",
+      desc: "Call the API directly. No SDK required.",
+    },
+    {
+      title: "Receive webhook",
+      desc: "Ctex PAY notifies your server the moment status changes.",
+    },
+    {
+      title: "Verify payment",
+      desc: "Confirm the signature, then mark the order paid.",
+    },
   ];
 
   const flow = [
-    { title: "Customer pays", desc: "Your customer completes payment at checkout." },
-    { title: "Ctex PAY verifies transaction", desc: "The payment is confirmed with the provider, not assumed." },
-    { title: "Ctex PAY signs webhook", desc: "A signed event is generated for your endpoint." },
-    { title: "Merchant receives webhook", desc: "Your server gets a POST request with the event payload." },
-    { title: "Merchant verifies signature", desc: "Confirm the request actually came from Ctex PAY." },
-    { title: "Merchant updates order", desc: "Mark the order paid and continue your flow." },
+    {
+      title: "Customer pays",
+      desc: "Your customer completes payment at checkout.",
+    },
+    {
+      title: "Ctex PAY verifies transaction",
+      desc: "The payment is confirmed with the provider, not assumed.",
+    },
+    {
+      title: "Ctex PAY signs webhook",
+      desc: "A signed event is generated for your endpoint.",
+    },
+    {
+      title: "Merchant receives webhook",
+      desc: "Your server gets a POST request with the event payload.",
+    },
+    {
+      title: "Merchant verifies signature",
+      desc: "Confirm the request actually came from Ctex PAY.",
+    },
+    {
+      title: "Merchant updates order",
+      desc: "Mark the order paid and continue your flow.",
+    },
   ];
 
   const webhookCode = `import crypto from "crypto";
@@ -1282,11 +1472,22 @@ app.post("/webhooks/Ctexpay", (req, res) => {
   res.sendStatus(200);
 });`;
 
-  const ext = active === "Python" ? "py" : active === "PHP" ? "php" : active === "cURL" ? "sh" : "js";
+  const ext =
+    active === "Python"
+      ? "py"
+      : active === "PHP"
+        ? "php"
+        : active === "cURL"
+          ? "sh"
+          : "js";
 
   return (
     <DarkBand id="developers">
-      <div aria-hidden className="pointer-events-none absolute inset-0" style={dotGrid} />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={dotGrid}
+      />
       <div
         aria-hidden
         className="pointer-events-none absolute -right-40 top-0 h-[460px] w-[620px] bg-[radial-gradient(closest-side,hsl(205.56deg_88.04%_46%_/_0.22),transparent)]"
@@ -1322,7 +1523,11 @@ app.post("/webhooks/Ctexpay", (req, res) => {
               ))}
             </div>
             <div className="mt-3 sm:mt-4">
-              <CodeWindow label={`payments.${ext}`} lines={tabs[active]} accent />
+              <CodeWindow
+                label={`payments.${ext}`}
+                lines={tabs[active]}
+                accent
+              />
             </div>
           </Reveal>
         </div>
@@ -1357,14 +1562,46 @@ app.post("/webhooks/Ctexpay", (req, res) => {
 
 function SecuritySection() {
   const items = [
-    { icon: Key, title: "API key security", desc: "Keys are hashed at rest and scoped to permissions you set." },
-    { icon: Webhook, title: "Webhook signatures", desc: "Every webhook is signed so you can confirm its origin." },
-    { icon: CheckCircle2, title: "Transaction verification", desc: "Payments are confirmed with the provider before they're reported as successful." },
-    { icon: ShieldCheck, title: "Idempotency", desc: "Duplicate requests are detected and safely ignored." },
-    { icon: RefreshCw, title: "Automatic retries", desc: "Transient failures are retried without duplicating charges." },
-    { icon: UserCheck, title: "Permission-based access", desc: "API access is scoped to what each key is allowed to do." },
-    { icon: Lock, title: "Merchant isolation", desc: "Each merchant's data and keys are kept fully separate." },
-    { icon: ScrollText, title: "Audit logs", desc: "Key actions on your account are recorded for review." },
+    {
+      icon: Key,
+      title: "API key security",
+      desc: "Keys are hashed at rest and scoped to permissions you set.",
+    },
+    {
+      icon: Webhook,
+      title: "Webhook signatures",
+      desc: "Every webhook is signed so you can confirm its origin.",
+    },
+    {
+      icon: CheckCircle2,
+      title: "Transaction verification",
+      desc: "Payments are confirmed with the provider before they're reported as successful.",
+    },
+    {
+      icon: ShieldCheck,
+      title: "Idempotency",
+      desc: "Duplicate requests are detected and safely ignored.",
+    },
+    {
+      icon: RefreshCw,
+      title: "Automatic retries",
+      desc: "Transient failures are retried without duplicating charges.",
+    },
+    {
+      icon: UserCheck,
+      title: "Permission-based access",
+      desc: "API access is scoped to what each key is allowed to do.",
+    },
+    {
+      icon: Lock,
+      title: "Merchant isolation",
+      desc: "Each merchant's data and keys are kept fully separate.",
+    },
+    {
+      icon: ScrollText,
+      title: "Audit logs",
+      desc: "Key actions on your account are recorded for review.",
+    },
   ];
 
   const pipeline = [
@@ -1377,7 +1614,10 @@ function SecuritySection() {
   ];
 
   return (
-    <section id="security" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28">
+    <section
+      id="security"
+      className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28"
+    >
       <Reveal>
         <SectionHeading
           eyebrow="Security"
@@ -1399,7 +1639,9 @@ function SecuritySection() {
               >
                 {step}
               </span>
-              {i < pipeline.length - 1 && <ArrowRight size={11} className="shrink-0 opacity-50" />}
+              {i < pipeline.length - 1 && (
+                <ArrowRight size={11} className="shrink-0 opacity-50" />
+              )}
             </React.Fragment>
           ))}
         </div>
@@ -1412,8 +1654,12 @@ function SecuritySection() {
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-Ctex-blue/10">
                 <it.icon size={16} className={ACCENT} />
               </span>
-              <p className="mt-3 text-sm font-medium text-[var(--Ctex-text)]">{it.title}</p>
-              <p className="mt-1.5 text-xs leading-relaxed text-[var(--Ctex-text-muted)]">{it.desc}</p>
+              <p className="mt-3 text-sm font-medium text-[var(--Ctex-text)]">
+                {it.title}
+              </p>
+              <p className="mt-1.5 text-xs leading-relaxed text-[var(--Ctex-text-muted)]">
+                {it.desc}
+              </p>
             </div>
           </Reveal>
         ))}
@@ -1436,10 +1682,30 @@ function DashboardPreview() {
   ];
 
   const transactions = [
-    { ref: "order_10234", customer: "cus_8fh29a", amount: "₦5,000.00", status: "success" },
-    { ref: "order_10233", customer: "cus_2ka91c", amount: "₦12,500.00", status: "success" },
-    { ref: "order_10232", customer: "cus_9jd03f", amount: "₦2,000.00", status: "pending" },
-    { ref: "order_10231", customer: "cus_71la5v", amount: "₦8,750.00", status: "failed" },
+    {
+      ref: "order_10234",
+      customer: "cus_8fh29a",
+      amount: "₦5,000.00",
+      status: "success",
+    },
+    {
+      ref: "order_10233",
+      customer: "cus_2ka91c",
+      amount: "₦12,500.00",
+      status: "success",
+    },
+    {
+      ref: "order_10232",
+      customer: "cus_9jd03f",
+      amount: "₦2,000.00",
+      status: "pending",
+    },
+    {
+      ref: "order_10231",
+      customer: "cus_71la5v",
+      amount: "₦8,750.00",
+      status: "failed",
+    },
   ];
 
   return (
@@ -1462,35 +1728,56 @@ function DashboardPreview() {
               <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
               <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
-              <span className="ml-3 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">Dashboard</span>
+              <span className="ml-3 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">
+                Dashboard
+              </span>
             </div>
 
             <div className="grid grid-cols-2 divide-x divide-y divide-[var(--Ctex-border)] border-b border-[var(--Ctex-border)] sm:grid-cols-5 sm:divide-y-0">
               {stats.map((s) => (
                 <div key={s.label} className="px-3 py-3 sm:px-5 sm:py-5">
-                  <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">{s.label}</p>
-                  <p className="mt-1 font-mono text-sm text-[var(--Ctex-text)] sm:mt-1.5 sm:text-lg">{s.value}</p>
+                  <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">
+                    {s.label}
+                  </p>
+                  <p className="mt-1 font-mono text-sm text-[var(--Ctex-text)] sm:mt-1.5 sm:text-lg">
+                    {s.value}
+                  </p>
                 </div>
               ))}
             </div>
 
             <div className="grid lg:grid-cols-[1.4fr_1fr]">
               <div className="border-b border-[var(--Ctex-border)] p-4 sm:p-5 lg:border-b-0 lg:border-r">
-                <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">Recent transactions</p>
+                <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">
+                  Recent transactions
+                </p>
                 <div className="mt-3 divide-y divide-[var(--Ctex-border)] sm:mt-4">
                   {transactions.map((t) => {
                     const meta = statusMeta[t.status];
                     return (
-                      <div key={t.ref} className="flex items-center justify-between gap-2 py-2.5 sm:py-3">
+                      <div
+                        key={t.ref}
+                        className="flex items-center justify-between gap-2 py-2.5 sm:py-3"
+                      >
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-mono text-[10px] text-[var(--Ctex-text)] sm:text-xs">{t.ref}</p>
-                          <p className="mt-0.5 truncate font-mono text-[9px] text-[var(--Ctex-text-muted)] sm:text-[11px]">{t.customer}</p>
+                          <p className="truncate font-mono text-[10px] text-[var(--Ctex-text)] sm:text-xs">
+                            {t.ref}
+                          </p>
+                          <p className="mt-0.5 truncate font-mono text-[9px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
+                            {t.customer}
+                          </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
-                          <span className="font-mono text-[10px] text-[var(--Ctex-text)] sm:text-xs">{t.amount}</span>
-                          <span className={`flex items-center gap-1 text-[10px] sm:text-xs ${meta.color}`}>
+                          <span className="font-mono text-[10px] text-[var(--Ctex-text)] sm:text-xs">
+                            {t.amount}
+                          </span>
+                          <span
+                            className={`flex items-center gap-1 text-[10px] sm:text-xs ${meta.color}`}
+                          >
                             <meta.icon size={11} />
-                            <span className="hidden sm:inline">{meta.label}</span>
+                            <span className="hidden sm:inline">
+                              {meta.label}
+                            </span>
                           </span>
                         </div>
                       </div>
@@ -1500,24 +1787,41 @@ function DashboardPreview() {
               </div>
 
               <div className="p-4 sm:p-5">
-                <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">API keys</p>
+                <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">
+                  API keys
+                </p>
                 <div className="mt-3 space-y-2.5 sm:mt-4 sm:space-y-3">
                   <div className="flex items-center justify-between gap-2 font-mono text-[10px] sm:text-xs">
-                    <span className="truncate text-[var(--Ctex-text)]">Ctex_live_saka_••••••••8f21</span>
+                    <span className="truncate text-[var(--Ctex-text)]">
+                      Ctex_live_saka_••••••••8f21
+                    </span>
                     <span className="shrink-0 text-emerald-500">Active</span>
                   </div>
                   <div className="flex items-center justify-between gap-2 font-mono text-[10px] sm:text-xs">
-                    <span className="truncate text-[var(--Ctex-text)]">Ctex_test_saka_••••••••1a09</span>
-                    <span className="shrink-0 text-[var(--Ctex-text-muted)]">Test mode</span>
+                    <span className="truncate text-[var(--Ctex-text)]">
+                      Ctex_test_saka_••••••••1a09
+                    </span>
+                    <span className="shrink-0 text-[var(--Ctex-text-muted)]">
+                      Test mode
+                    </span>
                   </div>
                 </div>
 
-                <p className="mt-5 text-xs font-medium text-[var(--Ctex-text)] sm:mt-6 sm:text-sm">Webhook status</p>
+                <p className="mt-5 text-xs font-medium text-[var(--Ctex-text)] sm:mt-6 sm:text-sm">
+                  Webhook status
+                </p>
                 <div className="mt-2.5 flex items-center gap-2 font-mono text-[10px] sm:mt-3 sm:text-xs">
-                  <Circle size={7} className="shrink-0 fill-emerald-500 text-emerald-500" />
-                  <span className="truncate text-[var(--Ctex-text)]">api.yourapp.com/webhooks/Ctexpay</span>
+                  <Circle
+                    size={7}
+                    className="shrink-0 fill-emerald-500 text-emerald-500"
+                  />
+                  <span className="truncate text-[var(--Ctex-text)]">
+                    api.yourapp.com/webhooks/Ctexpay
+                  </span>
                 </div>
-                <p className="mt-1 text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">Last delivery succeeded</p>
+                <p className="mt-1 text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
+                  Last delivery succeeded
+                </p>
               </div>
             </div>
           </div>
@@ -1534,19 +1838,46 @@ function DashboardPreview() {
 function MerchantFlow() {
   const steps = [
     { title: "Create account", desc: "Sign up as a merchant on Ctex PAY." },
-    { title: "Create business", desc: "Register the business you're collecting payments for." },
-    { title: "Generate API key", desc: "Create keys scoped to what your app needs." },
-    { title: "Configure webhook", desc: "Point Ctex PAY at your server's webhook endpoint." },
-    { title: "Integrate API", desc: "Call the payments API directly from your application." },
-    { title: "Accept payments", desc: "Customers pay; you get notified automatically." },
-    { title: "Monitor transactions", desc: "Track status and history from your dashboard." },
-    { title: "Withdraw funds", desc: "Move eligible balance to your bank account." },
+    {
+      title: "Create business",
+      desc: "Register the business you're collecting payments for.",
+    },
+    {
+      title: "Generate API key",
+      desc: "Create keys scoped to what your app needs.",
+    },
+    {
+      title: "Configure webhook",
+      desc: "Point Ctex PAY at your server's webhook endpoint.",
+    },
+    {
+      title: "Integrate API",
+      desc: "Call the payments API directly from your application.",
+    },
+    {
+      title: "Accept payments",
+      desc: "Customers pay; you get notified automatically.",
+    },
+    {
+      title: "Monitor transactions",
+      desc: "Track status and history from your dashboard.",
+    },
+    {
+      title: "Withdraw funds",
+      desc: "Move eligible balance to your bank account.",
+    },
   ];
 
   return (
-    <section id="merchant-flow" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28">
+    <section
+      id="merchant-flow"
+      className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28"
+    >
       <Reveal>
-        <SectionHeading eyebrow="Merchant experience" title="From account to payout, in one flow." />
+        <SectionHeading
+          eyebrow="Merchant experience"
+          title="From account to payout, in one flow."
+        />
       </Reveal>
       <Reveal delay={0.06}>
         <div className="mt-8 grid grid-cols-2 gap-3 sm:mt-12 sm:gap-4 lg:grid-cols-4">
@@ -1555,11 +1886,17 @@ function MerchantFlow() {
               key={s.title}
               className="rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] p-4 transition-colors duration-200 hover:border-Ctex-blue/50 sm:p-5"
             >
-              <span className={`flex h-7 w-7 items-center justify-center rounded-full bg-Ctex-blue/10 font-mono text-[10px] sm:text-xs ${ACCENT}`}>
+              <span
+                className={`flex h-7 w-7 items-center justify-center rounded-full bg-Ctex-blue/10 font-mono text-[10px] sm:text-xs ${ACCENT}`}
+              >
                 {i + 1}
               </span>
-              <p className="mt-3 text-xs font-medium text-[var(--Ctex-text)] sm:text-base">{s.title}</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-[var(--Ctex-text-muted)] sm:text-sm">{s.desc}</p>
+              <p className="mt-3 text-xs font-medium text-[var(--Ctex-text)] sm:text-base">
+                {s.title}
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--Ctex-text-muted)] sm:text-sm">
+                {s.desc}
+              </p>
             </div>
           ))}
         </div>
@@ -1569,7 +1906,15 @@ function MerchantFlow() {
 }
 
 function CustomerFlow() {
-  const steps = ["Merchant website", "Checkout", "Customer payment", "Ctex PAY", "Payment provider", "Verification", "Merchant webhook"];
+  const steps = [
+    "Merchant website",
+    "Checkout",
+    "Customer payment",
+    "Ctex PAY",
+    "Payment provider",
+    "Verification",
+    "Merchant webhook",
+  ];
   return (
     <section className="border-y border-[var(--Ctex-border)] bg-[var(--Ctex-surface)]">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24">
@@ -1593,7 +1938,9 @@ function CustomerFlow() {
                 >
                   {step}
                 </span>
-                {i < steps.length - 1 && <ArrowRight size={12} className="shrink-0 opacity-50" />}
+                {i < steps.length - 1 && (
+                  <ArrowRight size={12} className="shrink-0 opacity-50" />
+                )}
               </React.Fragment>
             ))}
           </div>
@@ -1609,16 +1956,25 @@ function CustomerFlow() {
 
 function Pricing() {
   return (
-    <section id="pricing" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28">
+    <section
+      id="pricing"
+      className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28"
+    >
       <Reveal>
-        <SectionHeading eyebrow="Pricing" title="Simple, transparent transaction pricing." />
+        <SectionHeading
+          eyebrow="Pricing"
+          title="Simple, transparent transaction pricing."
+        />
       </Reveal>
 
       <Reveal delay={0.08}>
         <div className="relative mt-8 max-w-lg overflow-hidden rounded-2xl border border-Ctex-blue/40 bg-gradient-to-br from-Ctex-blue/10 via-[var(--Ctex-surface)] to-[var(--Ctex-surface)] p-6 shadow-[0_24px_48px_-28px_rgba(11,104,173,0.55)] sm:mt-12 sm:p-8">
-          <p className="font-display text-xl font-semibold text-[var(--Ctex-text)] sm:text-2xl">Transaction fee</p>
+          <p className="font-display text-xl font-semibold text-[var(--Ctex-text)] sm:text-2xl">
+            Transaction fee
+          </p>
           <p className="mt-1.5 text-xs text-[var(--Ctex-text-muted)] sm:mt-2 sm:text-sm">
-            Configured by Ctex PAY per merchant. No setup fees, no monthly minimums.
+            Configured by Ctex PAY per merchant. No setup fees, no monthly
+            minimums.
           </p>
           <ul className="mt-5 space-y-2.5 text-xs text-[var(--Ctex-text-muted)] sm:mt-6 sm:space-y-3 sm:text-sm">
             {[
@@ -1647,7 +2003,10 @@ function Pricing() {
 
 function DocsCTA() {
   return (
-    <section id="docs" className="border-y border-[var(--Ctex-border)] bg-[var(--Ctex-surface)]">
+    <section
+      id="docs"
+      className="border-y border-[var(--Ctex-border)] bg-[var(--Ctex-surface)]"
+    >
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:gap-10 sm:px-6 sm:py-24 lg:grid-cols-2 lg:items-center">
         <Reveal>
           <Eyebrow>Documentation</Eyebrow>
@@ -1683,14 +2042,38 @@ function DocsCTA() {
 
 function FAQ() {
   const faqs = [
-    { q: "Do I need an SDK?", a: "No. Ctex PAY is designed around direct API integration." },
-    { q: "How do I authenticate API requests?", a: "Using your Ctex PAY API key, passed as a bearer token." },
-    { q: "Can I configure webhooks?", a: "Yes. Merchants can configure their webhook endpoint from their dashboard." },
-    { q: "How are payments verified?", a: "Ctex PAY verifies payment information before treating a transaction as successful." },
-    { q: "Can I withdraw my funds?", a: "Yes, eligible merchant funds can be withdrawn to supported bank accounts." },
-    { q: "Can I rotate my API keys?", a: "Yes, keys can be rotated at any time from your dashboard." },
-    { q: "Can I revoke an API key?", a: "Yes, revoked keys stop working immediately." },
-    { q: "Is Ctex PAY suitable for developers?", a: "Yes. The platform is designed with API-first integration in mind." },
+    {
+      q: "Do I need an SDK?",
+      a: "No. Ctex PAY is designed around direct API integration.",
+    },
+    {
+      q: "How do I authenticate API requests?",
+      a: "Using your Ctex PAY API key, passed as a bearer token.",
+    },
+    {
+      q: "Can I configure webhooks?",
+      a: "Yes. Merchants can configure their webhook endpoint from their dashboard.",
+    },
+    {
+      q: "How are payments verified?",
+      a: "Ctex PAY verifies payment information before treating a transaction as successful.",
+    },
+    {
+      q: "Can I withdraw my funds?",
+      a: "Yes, eligible merchant funds can be withdrawn to supported bank accounts.",
+    },
+    {
+      q: "Can I rotate my API keys?",
+      a: "Yes, keys can be rotated at any time from your dashboard.",
+    },
+    {
+      q: "Can I revoke an API key?",
+      a: "Yes, revoked keys stop working immediately.",
+    },
+    {
+      q: "Is Ctex PAY suitable for developers?",
+      a: "Yes. The platform is designed with API-first integration in mind.",
+    },
   ];
   const [open, setOpen] = useState(0);
 
@@ -1717,7 +2100,9 @@ function FAQ() {
                 aria-expanded={isOpen}
                 className="flex w-full items-center justify-between gap-3 py-4 text-left sm:gap-4 sm:py-5"
               >
-                <span className="text-sm font-medium text-[var(--Ctex-text)] sm:text-base">{f.q}</span>
+                <span className="text-sm font-medium text-[var(--Ctex-text)] sm:text-base">
+                  {f.q}
+                </span>
                 <ChevronDown
                   size={15}
                   className={`shrink-0 text-[var(--Ctex-text-muted)] transition-transform duration-200 ${
@@ -1734,7 +2119,9 @@ function FAQ() {
                     transition={{ duration: 0.18 }}
                     className="overflow-hidden"
                   >
-                    <p className="pb-4 text-xs leading-relaxed text-[var(--Ctex-text-muted)] sm:pb-5 sm:text-sm">{f.a}</p>
+                    <p className="pb-4 text-xs leading-relaxed text-[var(--Ctex-text-muted)] sm:pb-5 sm:text-sm">
+                      {f.a}
+                    </p>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1753,7 +2140,11 @@ function FAQ() {
 function FinalCTA() {
   return (
     <DarkBand>
-      <div aria-hidden className="pointer-events-none absolute inset-0" style={dotGrid} />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={dotGrid}
+      />
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-0 h-[420px] w-full max-w-[900px] -translate-x-1/2 bg-[radial-gradient(closest-side,hsl(205.56deg_88.04%_46%_/_0.35),transparent)]"
@@ -1764,7 +2155,8 @@ function FinalCTA() {
             Your payments. Your API. Your business.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-sm text-[var(--Ctex-text-muted)] sm:mt-5 sm:text-base">
-            Build your payment flow with infrastructure designed around developers.
+            Build your payment flow with infrastructure designed around
+            developers.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-2 sm:mt-10 sm:gap-3">
             <Button as={Link} to="/signup" variant="light">
@@ -1787,8 +2179,27 @@ function FinalCTA() {
 
 function Footer() {
   const columns = [
-    { title: "Product", links: ["Payments", "Transactions", "Customers", "Webhooks", "API Keys", "Payouts"] },
-    { title: "Developers", links: ["Documentation", "API Reference", "Integration Guide", "Webhooks", "Security"] },
+    {
+      title: "Product",
+      links: [
+        "Payments",
+        "Transactions",
+        "Customers",
+        "Webhooks",
+        "API Keys",
+        "Payouts",
+      ],
+    },
+    {
+      title: "Developers",
+      links: [
+        "Documentation",
+        "API Reference",
+        "Integration Guide",
+        "Webhooks",
+        "Security",
+      ],
+    },
     { title: "Company", links: ["About", "Contact", "Support"] },
     { title: "Legal", links: ["Privacy", "Terms"] },
   ];
@@ -1799,11 +2210,16 @@ function Footer() {
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-4 sm:gap-10">
           {columns.map((col) => (
             <div key={col.title}>
-              <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">{col.title}</p>
+              <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">
+                {col.title}
+              </p>
               <ul className="mt-3 space-y-2 sm:mt-4 sm:space-y-2.5">
                 {col.links.map((link) => (
                   <li key={link}>
-                    <a href="#" className="text-xs text-[var(--Ctex-text-muted)] hover:text-[var(--Ctex-accent)] sm:text-sm">
+                    <a
+                      href="#"
+                      className="text-xs text-[var(--Ctex-text-muted)] hover:text-[var(--Ctex-accent)] sm:text-sm"
+                    >
                       {link}
                     </a>
                   </li>
@@ -1814,8 +2230,14 @@ function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-[var(--Ctex-border)] pt-6 sm:mt-14 sm:flex-row sm:items-center sm:gap-4 sm:pt-8">
-          <img src={ImageLogo.Logo} alt="Ctex PAY" className="h-[20px] w-[100px] rounded-full" />
-          <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">© 2026 Ctex PAY. All rights reserved.</p>
+          <img
+            src={ImageLogo.Logo}
+            alt="Ctex PAY"
+            className="h-[20px] w-[100px] rounded-full"
+          />
+          <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">
+            © 2026 Ctex PAY. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>
