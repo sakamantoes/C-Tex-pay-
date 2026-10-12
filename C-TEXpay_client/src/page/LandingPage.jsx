@@ -1814,7 +1814,7 @@ function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-[var(--Ctex-border)] pt-6 sm:mt-14 sm:flex-row sm:items-center sm:gap-4 sm:pt-8">
-          <img src={ImageLogo.Logo} alt="Ctex PAY" className="h-[20px] w-[100px]" />
+          <img src={ImageLogo.Logo} alt="Ctex PAY" className="h-[20px] w-[100px] rounded-full" />
           <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">© 2026 Ctex PAY. All rights reserved.</p>
         </div>
       </div>
