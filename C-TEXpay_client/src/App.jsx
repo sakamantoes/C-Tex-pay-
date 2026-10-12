@@ -51,6 +51,7 @@ import PermissionGuard from "./components/guards/PermissionGuard.jsx";
 // Aliased imports — two different BusinessProfilePage files
 import MerchantBusinessProfilePage from "./page/MerchantDashboard/BusinessProfilePage.jsx";
 import UserBusinessProfilePage from "./page/UserDashboard/BusinessProfilePage.jsx";
+import SupportBot from "./components/SupportBot/SupportBot.jsx";
 
 /*
 |--------------------------------------------------------------------------
@@ -383,6 +384,7 @@ const App = () => {
         draggable
         pauseOnHover
       />
+       <SupportBot />
     </Router>
   );
 };
