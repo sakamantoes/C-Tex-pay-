@@ -636,7 +636,7 @@ function Navbar({ theme, setTheme }) {
           <img
             src={ImageLogo.Logo2}
             alt="Ctex PAY"
-            className="h-20 w-auto sm:h-30 md:h-30 lg:h-2"
+            className="h-20 w-auto sm:h-30 sm:w-auto md:h-30 md:w-auto lg:h-2 lg:w-[140px]"
           />
         </Link>
         </div>
@@ -1814,7 +1814,7 @@ function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-[var(--Ctex-border)] pt-6 sm:mt-14 sm:flex-row sm:items-center sm:gap-4 sm:pt-8">
-          <img src={ImageLogo.Logo} alt="Ctex PAY" className="h-12 w-auto" />
+          <img src={ImageLogo.Logo} alt="Ctex PAY" className="h-[20px] w-[100px]" />
           <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">© 2026 Ctex PAY. All rights reserved.</p>
         </div>
       </div>
