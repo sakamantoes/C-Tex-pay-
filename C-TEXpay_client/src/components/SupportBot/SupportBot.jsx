@@ -1089,7 +1089,7 @@ export default function SupportBot() {
 
           h-14 w-14 rounded-full
 
-          bg-gradient-to-br from-emerald-500 to-teal-600
+          bg-gradient-to-br from-blue-500 to-blue-600
 
           text-white shadow-lg shadow-emerald-500/30
 
@@ -1205,7 +1205,7 @@ export default function SupportBot() {
 
           {/* Header */}
 
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-3 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-600 text-white px-4 py-3 flex items-center justify-between">
 
             <div className="flex items-center gap-3">
 
@@ -1274,7 +1274,7 @@ export default function SupportBot() {
                   <div
                     className={`rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-line break-words ${
                       msg.role === "user"
-                        ? "bg-emerald-600 text-white rounded-br-sm"
+                        ? "bg-blue-600 text-white rounded-br-sm"
                         : "bg-white text-slate-800 border border-slate-200 rounded-bl-sm shadow-sm"
                     }`}
                   >
@@ -1335,9 +1335,9 @@ export default function SupportBot() {
 
                         text-xs px-3 py-1.5 rounded-full
 
-                        bg-white border border-emerald-300 text-emerald-700
+                        bg-white border border-blue-300 text-blue-700
 
-                        hover:bg-emerald-50 hover:border-emerald-400
+                        hover:bg-emerald-50 hover:border-blue-400
 
                         transition-colors duration-200
 
@@ -1385,7 +1385,7 @@ export default function SupportBot() {
 
                   px-3 py-2 text-sm text-slate-800
 
-                  focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400
+                  focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400
 
                   max-h-32
 
@@ -1405,11 +1405,11 @@ export default function SupportBot() {
 
                   h-10 w-10 rounded-xl
 
-                  bg-emerald-600 text-white
+                  bg-blue-600 text-white
 
                   flex items-center justify-center
 
-                  hover:bg-emerald-700
+                  hover:bg-blue-700
 
                   disabled:opacity-40 disabled:cursor-not-allowed
 
