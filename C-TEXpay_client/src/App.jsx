@@ -48,19 +48,13 @@ import MerchantNotificationsPage from "./page/MerchantDashboard/MerchantNotifica
 
 import PermissionGuard from "./components/guards/PermissionGuard.jsx";
 
-// Aliased imports — two different BusinessProfilePage files
 import MerchantBusinessProfilePage from "./page/MerchantDashboard/BusinessProfilePage.jsx";
 import UserBusinessProfilePage from "./page/UserDashboard/BusinessProfilePage.jsx";
 import SupportBot from "./components/SupportBot/SupportBot.jsx";
 
-/*
-|--------------------------------------------------------------------------
-| PUBLIC PATHS — never blocked by the verification guard
-|--------------------------------------------------------------------------
-| These are the paths a user can visit without being forced into the
-| email-verification flow. Includes all auth + landing pages.
-|--------------------------------------------------------------------------
-*/
+import PaymentLinksPage from "./page/MerchantDashboard/PaymentLinksPage.jsx";
+import PaymentLinkCheckoutPage from "./page/public/PaymentLinkCheckoutPage.jsx";
+
 const PUBLIC_PATHS = [
   "/",
   "/login",
@@ -70,36 +64,27 @@ const PUBLIC_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/accept-invitation",
+  "/pay",
 ];
 
 const MERCHANT_WORKSPACE_ROLES = [ROLES.USER, ROLES.MERCHANT];
 
 const isPublicPath = (pathname) =>
-  PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
-  );
+  PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 const DashboardRouter = () => {
   const { user, isAuthenticated } = useAuthStore();
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user?.role === ROLES.USER) {
     return <Navigate to="/user/dashboard/overview" replace />;
   }
-
   return <Navigate to={getDashboardPath(user)} replace />;
 };
 
 const AppRoutes = () => {
-  const {
-    initialized,
-    getMe,
-    verificationRequired,
-    verificationEmail,
-  } = useAuthStore();
+  const { initialized, getMe, verificationRequired, verificationEmail } =
+    useAuthStore();
   const location = useLocation();
   const hasBootstrappedSession = useRef(false);
 
@@ -109,19 +94,8 @@ const AppRoutes = () => {
     getMe();
   }, [getMe]);
 
-  if (!initialized) {
-    return <FullScreenLoader />;
-  }
+  if (!initialized) return <FullScreenLoader />;
 
-  /*
-  |--------------------------------------------------------------------------
-  | Verification guard
-  |--------------------------------------------------------------------------
-  | Only enforce the flow when the user tries to reach a PROTECTED page.
-  | Public pages (home, login, signup, etc.) are always reachable so the
-  | user is never trapped inside the verification flow.
-  |--------------------------------------------------------------------------
-  */
   if (verificationRequired && !isPublicPath(location.pathname)) {
     const email = verificationEmail
       ? `?email=${encodeURIComponent(verificationEmail)}`
@@ -135,7 +109,6 @@ const AppRoutes = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<RegisterPage />} />
 
-      {/* /dashboard — route dispatcher by role */}
       <Route
         path="/dashboard"
         element={
@@ -152,7 +125,7 @@ const AppRoutes = () => {
         }
       />
 
-      {/* USER DASHBOARD (nested) */}
+      {/* USER DASHBOARD */}
       <Route
         path="/user/dashboard"
         element={
@@ -191,7 +164,12 @@ const AppRoutes = () => {
         }
       />
 
-      {/* MERCHANT DASHBOARD */}
+      {/* ============================================================
+          MERCHANT DASHBOARD
+          Each page renders its own DashboardLayout with its own
+          navSections. We only guard by role + permission here.
+      ============================================================ */}
+
       <Route
         path="/merchant/dashboard"
         element={
@@ -302,6 +280,20 @@ const AppRoutes = () => {
         }
       />
 
+      <Route
+        path="/merchant/dashboard/payment-links"
+        element={
+          <ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}>
+            <PermissionGuard permission="payment_links.read">
+              <PaymentLinksPage />
+            </PermissionGuard>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Public checkout */}
+      <Route path="/pay/:slug" element={<PaymentLinkCheckoutPage />} />
+
       {/* ADMIN + SUPER ADMIN */}
       <Route
         path="/admin/dashboard"
@@ -311,7 +303,6 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/admin/fees"
         element={
@@ -320,7 +311,6 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/admin/transactions"
         element={
@@ -329,7 +319,6 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/super-admin/dashboard"
         element={
@@ -338,7 +327,6 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/super-admin/fees"
         element={
@@ -347,7 +335,6 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/super-admin/transactions"
         element={
@@ -357,7 +344,6 @@ const AppRoutes = () => {
         }
       />
 
-      {/* 404 */}
       <Route
         path="*"
         element={
@@ -384,7 +370,7 @@ const App = () => {
         draggable
         pauseOnHover
       />
-       <SupportBot />
+      <SupportBot />
     </Router>
   );
 };

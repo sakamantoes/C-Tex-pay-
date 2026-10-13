@@ -203,7 +203,7 @@ export const inviteMember = async (req, res) => {
 
       businessName =
         req.merchant.businessProfile?.businessName ||
-        "a C-TEX PAY business";
+        "a CTEX PAY business";
 
       /*
       |--------------------------------------------------------------------------
@@ -388,7 +388,7 @@ export const inviteMember = async (req, res) => {
         message: `
           <div style="font-family: Arial, sans-serif;">
             <h2>
-              You have been invited to join a business on C-TEX PAY
+              You have been invited to join a business on CTEX PAY
             </h2>
 
             <p>

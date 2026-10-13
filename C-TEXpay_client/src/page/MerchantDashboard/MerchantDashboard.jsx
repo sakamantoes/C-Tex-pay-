@@ -13,7 +13,6 @@ import { hasPermission } from "../../utils/permissions";
 /*
 |--------------------------------------------------------------------------
 | NAV CONFIG
-            permission: "settings.read",
 |--------------------------------------------------------------------------
 | Each item can declare a `permission` key. If the user doesn't have it,
 | the item is hidden automatically.
@@ -153,10 +152,14 @@ const buildNav = () => [
 |--------------------------------------------------------------------------
 | DASHBOARD
 |--------------------------------------------------------------------------
+| Two modes:
+|   1. Overview — no `children`. Renders the overview dashboard content.
+|   2. Layout shell — `children` present. Renders the shared DashboardLayout
+|      with the sidebar/header and places `children` in the main area.
+|--------------------------------------------------------------------------
 */
-const MerchantDashboard = () => {
+const MerchantDashboard = ({ children, subtitle, title }) => {
   const navigate = useNavigate();
-
   const { user } = useAuthStore();
 
   const {
@@ -181,6 +184,7 @@ const MerchantDashboard = () => {
 
   const { members, isLoading: membersLoading, getMembers } =
     useMerchantMemberStore();
+
   const {
     transactions: recentTransactions,
     summary: transactionSummary,
@@ -189,34 +193,52 @@ const MerchantDashboard = () => {
     getSummary,
   } = useTransactionStore();
 
+  const isOverview = !children;
+
   /*
   |--------------------------------------------------------------------------
-  | Bootstrap: fetch everything in parallel
+  | Bootstrap merchant + membership (needed for both modes)
   |--------------------------------------------------------------------------
   */
   useEffect(() => {
     getMyMerchant();
     getMyMembership();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Overview-only data bootstrap
+  |--------------------------------------------------------------------------
+  */
+  useEffect(() => {
+    if (!isOverview) return;
+    if (!permissions || permissions.length === 0) return;
 
     if (hasPermission(permissions, "customers.read")) {
       getCustomers({ page: 1, limit: 5 });
     }
-
     if (hasPermission(permissions, "api_keys.read")) {
       getApiKeys();
     }
-
     if (hasPermission(permissions, "team.read")) {
       getMembers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isOverview, permissions]);
 
   useEffect(() => {
+    if (!isOverview) return;
     if (!hasPermission(permissions, "transactions.read")) return;
+
     getSummary();
-    getTransactions({ page: 1, limit: 5, sortBy: "createdAt", direction: "DESC" });
-  }, [permissions, getSummary, getTransactions]);
+    getTransactions({
+      page: 1,
+      limit: 5,
+      sortBy: "createdAt",
+      direction: "DESC",
+    });
+  }, [isOverview, permissions, getSummary, getTransactions]);
 
   /*
   |--------------------------------------------------------------------------
@@ -255,7 +277,7 @@ const MerchantDashboard = () => {
 
   /*
   |--------------------------------------------------------------------------
-  | Derived stats
+  | Derived stats (used by the overview mode and header)
   |--------------------------------------------------------------------------
   */
   const stats = useMemo(() => {
@@ -263,13 +285,9 @@ const MerchantDashboard = () => {
       (c) => c.status === "ACTIVE"
     ).length;
 
-    const activeApiKeys = apiKeys.filter(
-      (k) => k.status === "ACTIVE"
-    ).length;
+    const activeApiKeys = apiKeys.filter((k) => k.status === "ACTIVE").length;
 
-    const totalMembers = members.filter(
-      (m) => m.status === "ACTIVE"
-    ).length;
+    const totalMembers = members.filter((m) => m.status === "ACTIVE").length;
 
     return {
       merchantName: businessProfile?.businessName || "Your Business",
@@ -306,7 +324,7 @@ const MerchantDashboard = () => {
     if (hasPermission(permissions, "payment_links.create")) {
       actions.push({
         label: "Create payment link",
-        onClick: () => navigate("/merchant/dashboard/payment-links/new"),
+        onClick: () => navigate("/merchant/dashboard/payment-links"),
       });
     }
 
@@ -341,6 +359,47 @@ const MerchantDashboard = () => {
     return actions;
   }, [permissions, navigate]);
 
+  const profileName = user
+    ? `${user.firstName} ${user.lastName}`.trim()
+    : "Merchant Admin";
+  const profileRole = roles[0]?.name || "Member";
+
+  /*
+  |--------------------------------------------------------------------------
+  | LAYOUT SHELL MODE
+  |--------------------------------------------------------------------------
+  | Renders the shared dashboard chrome and slots `children` into main.
+  | Also surfaces the merchant error banner if applicable.
+  */
+  if (!isOverview) {
+    return (
+      <DashboardLayout
+        title={title || stats.merchantName}
+        subtitle={subtitle || "Workspace"}
+        navSections={navSections}
+        profileName={profileName}
+        profileRole={profileRole}
+      >
+        {merchantError && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500"
+          >
+            {merchantError}
+          </motion.div>
+        )}
+
+        {children}
+      </DashboardLayout>
+    );
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | OVERVIEW MODE
+  |--------------------------------------------------------------------------
+  */
   const isLoading =
     merchantLoading || customersLoading || apiKeysLoading || membersLoading;
 
@@ -349,10 +408,8 @@ const MerchantDashboard = () => {
       title={stats.merchantName}
       subtitle="Overview dashboard"
       navSections={navSections}
-      profileName={
-        user ? `${user.firstName} ${user.lastName}`.trim() : "Merchant Admin"
-      }
-      profileRole={roles[0]?.name || "Member"}
+      profileName={profileName}
+      profileRole={profileRole}
     >
       {/* Error banner */}
       {merchantError && (
@@ -405,8 +462,12 @@ const MerchantDashboard = () => {
         <section className="mt-6 overflow-hidden rounded-2xl border border-ctex-border bg-ctex-surface shadow-lg shadow-black/10">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ctex-border px-5 py-4">
             <div>
-              <h3 className="text-lg font-semibold text-ctex-text">Recent transactions</h3>
-              <p className="mt-1 text-xs text-ctex-text-muted">Latest payments in this merchant workspace</p>
+              <h3 className="text-lg font-semibold text-ctex-text">
+                Recent transactions
+              </h3>
+              <p className="mt-1 text-xs text-ctex-text-muted">
+                Latest payments in this merchant workspace
+              </p>
             </div>
             <button
               type="button"
@@ -429,18 +490,50 @@ const MerchantDashboard = () => {
               </thead>
               <tbody className="divide-y divide-ctex-border">
                 {transactionsLoading && recentTransactions.length === 0 ? (
-                  <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-ctex-text-muted">Loading recent transactions…</td></tr>
-                ) : recentTransactions.length === 0 ? (
-                  <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-ctex-text-muted">No transactions yet.</td></tr>
-                ) : recentTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-ctex-elevated/30">
-                    <td className="whitespace-nowrap px-5 py-3 text-sm font-medium text-ctex-text">{transaction.paymentReference}</td>
-                    <td className="px-5 py-3 text-sm text-ctex-text">{transaction.customer?.name || "Guest"}</td>
-                    <td className="whitespace-nowrap px-5 py-3 text-sm text-ctex-text">{formatMoneyMinor(transaction.amount, transaction.currency)}</td>
-                    <td className="px-5 py-3 text-xs text-ctex-text-muted">{transaction.status}</td>
-                    <td className="whitespace-nowrap px-5 py-3 text-xs text-ctex-text-muted">{formatDashboardDate(transaction.createdAt)}</td>
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-5 py-8 text-center text-sm text-ctex-text-muted"
+                    >
+                      Loading recent transactions…
+                    </td>
                   </tr>
-                ))}
+                ) : recentTransactions.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-5 py-8 text-center text-sm text-ctex-text-muted"
+                    >
+                      No transactions yet.
+                    </td>
+                  </tr>
+                ) : (
+                  recentTransactions.map((transaction) => (
+                    <tr
+                      key={transaction.id}
+                      className="hover:bg-ctex-elevated/30"
+                    >
+                      <td className="whitespace-nowrap px-5 py-3 text-sm font-medium text-ctex-text">
+                        {transaction.paymentReference}
+                      </td>
+                      <td className="px-5 py-3 text-sm text-ctex-text">
+                        {transaction.customer?.name || "Guest"}
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-3 text-sm text-ctex-text">
+                        {formatMoneyMinor(
+                          transaction.amount,
+                          transaction.currency
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-ctex-text-muted">
+                        {transaction.status}
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-3 text-xs text-ctex-text-muted">
+                        {formatDashboardDate(transaction.createdAt)}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -511,9 +604,7 @@ const MerchantDashboard = () => {
         {/* API keys summary */}
         <div className="rounded-2xl border border-ctex-border bg-ctex-surface p-5 shadow-lg shadow-black/10">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-ctex-text">
-              API keys
-            </h3>
+            <h3 className="text-lg font-semibold text-ctex-text">API keys</h3>
             {hasPermission(permissions, "api_keys.read") && (
               <button
                 type="button"
@@ -598,9 +689,7 @@ function StatCard({ title, value, detail, loading }) {
         </>
       ) : (
         <>
-          <h3 className="mt-3 text-3xl font-semibold text-ctex-text">
-            {value}
-          </h3>
+          <h3 className="mt-3 text-3xl font-semibold text-ctex-text">{value}</h3>
           <p className="mt-2 text-xs text-ctex-text-muted">{detail}</p>
         </>
       )}

@@ -64,10 +64,10 @@ const buildVerificationUrl = (rawToken, email) =>
 
 const buildVerificationEmail = ({ firstName, verificationUrl }) => `
   <div style="font-family: Arial, sans-serif;">
-    <h2>Verify your C-TEX PAY account</h2>
+    <h2>Verify your CTEX PAY account</h2>
     <p>Hello ${firstName},</p>
     <p>
-      Please verify your email address to activate your C-TEX PAY account.
+      Please verify your email address to activate your CTEX PAY account.
     </p>
     <p>
       <a
@@ -129,7 +129,7 @@ const issueAndSendVerificationEmail = async ({ user, transaction }) => {
   // Email is always outside the transaction — SMTP is not transactional.
   await sendMail({
     to: user.email,
-    subject: "Verify your C-TEX PAY account",
+    subject: "Verify your CTEX PAY account",
     message: buildVerificationEmail({
       firstName: user.firstName,
       verificationUrl,
@@ -774,12 +774,12 @@ export const forgotPassword = async (req, res) => {
 
       await sendMail({
         to: user.email,
-        subject: "Reset your C-TEX PAY password",
+        subject: "Reset your CTEX PAY password",
         message: `
           <div style="font-family: Arial, sans-serif;">
             <h2>Password Reset</h2>
             <p>Hello ${user.firstName},</p>
-            <p>We received a request to reset your C-TEX PAY password.</p>
+            <p>We received a request to reset your CTEX PAY password.</p>
             <p>
               <a
                 href="${resetUrl}"

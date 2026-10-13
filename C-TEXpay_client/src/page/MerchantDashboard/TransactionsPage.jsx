@@ -333,7 +333,7 @@ export default function TransactionsPage() {
             >
               <div className="flex items-start justify-between gap-3 border-b border-ctex-border pb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-ctex-text-muted">C-TEX PAY transaction</p>
+                  <p className="text-xs uppercase tracking-wide text-ctex-text-muted">CTEX PAY transaction</p>
                   <h2 id="transaction-detail-title" className="mt-1 break-all text-lg font-semibold text-ctex-text">
                     {selectedTransaction?.paymentReference || "Transaction details"}
                   </h2>

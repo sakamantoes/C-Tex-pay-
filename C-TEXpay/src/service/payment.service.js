@@ -18,6 +18,7 @@ import {
 import { enqueueSuccessfulPaymentNotifications } from "./merchantNotification.service.js";
 import { calculateAndRecordFees } from "./fee.service.js";
 import { postPaymentSettlement } from "./ledger.service.js";
+import { markLinkConsumedIfNeeded } from "./paymentLink.service.js";
 
 /* =========================================================
  * CONSTANTS
@@ -1201,6 +1202,16 @@ export async function verifyPayment({
 
       if (hookResult.created) {
         merchantWebhookEvent = hookResult.event;
+      }
+
+      /*
+       * Payment Link consumption — if this payment originated from a
+       * single-use link, mark it consumed. Idempotent — safe against
+       * duplicate webhooks and concurrent success events because it's
+       * inside the same transaction as the status change.
+       */
+      if (lockedPayment.paymentLinkId) {
+        await markLinkConsumedIfNeeded({ paymentId: lockedPayment.id });
       }
 
       try {

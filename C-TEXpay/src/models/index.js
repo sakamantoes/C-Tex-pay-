@@ -34,6 +34,7 @@ import LedgerEntry from "./LedgerEntry.js";
 import Payout from "./Payout.js";
 import ReconciliationRun from "./ReconciliationRun.js";
 import ReconciliationDiscrepancy from "./ReconciliationDiscrepancy.js";
+import PaymentLink from "./PaymentLink.js";
 
 User.hasMany(RefreshToken, {
   foreignKey: "userId",
@@ -564,6 +565,25 @@ ReconciliationDiscrepancy.belongsTo(User, {
   as: "resolvedByUser",
 });
 
+// ============= PAYMENT LINK ASSOCIATIONS =============
+Merchant.hasMany(PaymentLink, {
+  foreignKey: "merchantId",
+  as: "paymentLinks",
+});
+PaymentLink.belongsTo(Merchant, {
+  foreignKey: "merchantId",
+  as: "merchant",
+});
+
+PaymentLink.hasMany(Payment, {
+  foreignKey: "paymentLinkId",
+  as: "payments",
+});
+Payment.belongsTo(PaymentLink, {
+  foreignKey: "paymentLinkId",
+  as: "paymentLink",
+});
+
 export {
   User,
   RefreshToken,
@@ -600,4 +620,5 @@ export {
   Payout,
   ReconciliationRun,
   ReconciliationDiscrepancy,
+  PaymentLink,
 };

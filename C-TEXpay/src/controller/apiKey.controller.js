@@ -609,7 +609,7 @@ export const getApiKeyUsage = async (req, res) => {
 export const testApiKey = async (req, res) => {
   return res.status(200).json({
     success: true,
-    message: "C-TEX PAY API key authentication successful",
+    message: "CTEX PAY API key authentication successful",
     data: {
       apiKeyId: req.apiKey.id,
       merchantId: req.merchant.id,

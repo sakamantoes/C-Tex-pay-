@@ -30,6 +30,12 @@ const Payment = sequelize.define(
       allowNull: false,
       unique: true,
     },
+    paymentLinkId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: { model: "payment_links", key: "id" },
+      comment: "Set when the payment originated from a Payment Link",
+    },
     merchantReference: {
       type: DataTypes.STRING(255),
       allowNull: true,
@@ -59,7 +65,7 @@ const Payment = sequelize.define(
         "SUCCESS",
         "FAILED",
         "EXPIRED",
-        "CANCELLED"
+        "CANCELLED",
       ),
       allowNull: false,
       defaultValue: "PENDING",
@@ -72,7 +78,7 @@ const Payment = sequelize.define(
       type: DataTypes.JSON,
       allowNull: true,
     },
-      paymentInstructions: {
+    paymentInstructions: {
       type: DataTypes.JSON,
       allowNull: true,
       comment: "Transfer instructions for ACCOUNT_TRANSFER payments",
@@ -84,7 +90,8 @@ const Payment = sequelize.define(
     requestHash: {
       type: DataTypes.STRING(64),
       allowNull: true,
-      comment: "SHA-256 of canonical request payload for idempotency conflict detection",
+      comment:
+        "SHA-256 of canonical request payload for idempotency conflict detection",
     },
     expiresAt: {
       type: DataTypes.DATE,
@@ -124,6 +131,7 @@ const Payment = sequelize.define(
         unique: true,
         name: "payments_merchant_idempotency_unique",
       },
+      { fields: ["paymentLinkId"] },
       {
         fields: ["merchantId", "paymentReference"],
         name: "payments_merchant_reference_idx",
@@ -148,7 +156,7 @@ const Payment = sequelize.define(
         fields: ["status"],
       },
     ],
-  }
+  },
 );
 
 export default Payment;

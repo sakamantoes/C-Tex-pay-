@@ -8,6 +8,7 @@ import feePermissionSeed from "./seeders/20261003-fee-permissions.js";
 import ledgerPermissionSeed from "./seeders/20261005-ledger-permissions.js";
 import payoutPermissionSeed from "./seeders/20261005-payout-permissions.js";
 import reconciliationPermissionSeed from "./seeders/20261006-reconciliation-permissions.js";
+import paymentLinkPermissionSeed from "./seeders/20261013-payment-link-permissions.js";
 import { initializeSocketServer } from "./realtime/socket.js";
 import {
   startMerchantNotificationWorker,
@@ -113,6 +114,7 @@ async function startServer() {
     await ledgerPermissionSeed.seed();
     await payoutPermissionSeed.seed();
     await reconciliationPermissionSeed.seed();
+    await paymentLinkPermissionSeed.seed();
     // eslint-disable-next-line no-console
     console.log("[startup] Permission seed:", permissionSeed.message, {
       inserted: permissionSeed.inserted,
