@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BadgeCheck,
   CalendarClock,
+  Check,
   Loader2,
   Lock,
   Mail,
@@ -17,11 +18,13 @@ import CheckoutHero from "./CheckoutHero ";
 const MIN_NAIRA = 50;
 const MAX_NAIRA = 10_000_000;
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const CARD =
-  "rounded-3xl border border-ctex-border bg-ctex-surface shadow-[0_24px_70px_-40px_rgba(11,18,32,0.35)]";
+  "relative overflow-hidden rounded-3xl border border-ctex-border bg-ctex-surface shadow-[0_24px_70px_-40px_rgba(11,18,32,0.35)]";
 
 const INPUT_CLASS =
-  "w-full rounded-xl border border-ctex-border bg-ctex-surface py-3 pl-10 pr-3.5 text-sm text-ctex-text placeholder:text-ctex-text-muted/60 transition hover:ring-1 hover:ring-ctex-blue/30 focus:outline-none focus:ring-2 focus:ring-ctex-blue";
+  "w-full rounded-xl border border-ctex-border bg-ctex-surface py-3 pl-10 pr-10 text-sm text-ctex-text placeholder:text-ctex-text-muted/60 transition duration-200 hover:border-ctex-blue/40 focus:border-ctex-blue focus:outline-none focus:ring-4 focus:ring-ctex-blue/15";
 
 function formatKoboAsNaira(kobo) {
   const n = Number(kobo);
@@ -56,7 +59,7 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
     if (!customer.firstName.trim()) return "First name is required";
     if (!customer.lastName.trim()) return "Last name is required";
     if (!customer.email.trim()) return "Email is required";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) {
+    if (!EMAIL_RE.test(customer.email.trim())) {
       return "Please enter a valid email address";
     }
     if (isCustom) {
@@ -85,25 +88,41 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
 
   const displayedError = localError || error;
 
+  // Display-only: drives the small "valid" tick inside each field.
+  const amountValid = (() => {
+    const n = Number(amountNaira);
+    return Number.isFinite(n) && n >= MIN_NAIRA && n <= MAX_NAIRA;
+  })();
+  const firstValid = customer.firstName.trim().length > 0;
+  const lastValid = customer.lastName.trim().length > 0;
+  const emailValid = EMAIL_RE.test(customer.email.trim());
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-5 lg:items-start lg:gap-8">
       {/* Left: hero + order summary */}
       <aside className="space-y-6 lg:col-span-2 lg:sticky lg:top-6">
-        <CheckoutHero
-          tone="blue"
-          icon={ShieldCheck}
-          artBadge={Lock}
-          pill={
-            <>
-              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              Secure checkout
-            </>
-          }
-          title="Complete your payment"
-          description="Make a quick and secure payment to continue with your order."
-        />
+        <div className="animate-ctex-rise">
+          <CheckoutHero
+            tone="blue"
+            icon={ShieldCheck}
+            artBadge={Lock}
+            pill={
+              <>
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                Secure checkout
+              </>
+            }
+            title="Complete your payment"
+            description="Make a quick and secure payment to continue with your order."
+          />
+        </div>
 
-        <section className={`${CARD} p-5 sm:p-6`}>
+        <section
+          className={`${CARD} animate-ctex-rise p-5 sm:p-6`}
+          style={{ animationDelay: "120ms" }}
+        >
+          <TopAccent />
+
           <div className="flex items-center gap-3">
             <IconTile>
               <ShoppingBag className="h-5 w-5" aria-hidden="true" />
@@ -120,7 +139,7 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
 
           {/* Merchant branding */}
           {link.logoUrl || link.businessName ? (
-            <div className="mt-5 flex items-center gap-3 rounded-2xl border border-ctex-border p-3.5">
+            <div className="mt-5 flex items-center gap-3 rounded-2xl border border-ctex-border bg-ctex-elevated/50 p-3.5">
               {link.logoUrl ? (
                 <img
                   src={link.logoUrl}
@@ -162,12 +181,16 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
             ) : null}
           </div>
 
-          <div className="mt-5 rounded-2xl bg-ctex-elevated p-4 ring-1 ring-ctex-border">
+          {/* Total — the number re-animates whenever it changes */}
+          <div className="relative mt-5 overflow-hidden rounded-2xl bg-ctex-blue/[0.06] p-4 ring-1 ring-ctex-blue/20">
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-semibold text-ctex-text">
                 Total amount
               </span>
-              <span className="break-words text-right font-display text-2xl font-bold tracking-tight text-ctex-blue tabular-nums">
+              <span
+                key={amountPreview}
+                className="animate-ctex-tick break-words text-right font-display text-2xl font-bold tracking-tight text-ctex-blue tabular-nums"
+              >
                 {amountPreview}
               </span>
             </div>
@@ -196,7 +219,12 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
       </aside>
 
       {/* Right: form */}
-      <section className={`${CARD} p-5 sm:p-8 lg:col-span-3`}>
+      <section
+        className={`${CARD} animate-ctex-rise p-5 sm:p-8 lg:col-span-3`}
+        style={{ animationDelay: "220ms" }}
+      >
+        <TopAccent />
+
         <div className="flex items-center gap-3">
           <IconTile>
             <User className="h-5 w-5" aria-hidden="true" />
@@ -216,6 +244,8 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
             <FormField
               label="Amount (NGN)"
               required
+              valid={amountValid}
+              delay={320}
               leading={<span className="text-sm font-bold">₦</span>}
             >
               <input
@@ -237,6 +267,8 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
             <FormField
               label="First name"
               required
+              valid={firstValid}
+              delay={360}
               leading={<User className="h-4 w-4" aria-hidden="true" />}
             >
               <input
@@ -255,6 +287,8 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
             <FormField
               label="Last name"
               required
+              valid={lastValid}
+              delay={400}
               leading={<User className="h-4 w-4" aria-hidden="true" />}
             >
               <input
@@ -274,6 +308,8 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
           <FormField
             label="Email address"
             required
+            valid={emailValid}
+            delay={440}
             leading={<Mail className="h-4 w-4" aria-hidden="true" />}
           >
             <input
@@ -291,6 +327,7 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
 
           <FormField
             label="Phone number (optional)"
+            delay={480}
             leading={<Phone className="h-4 w-4" aria-hidden="true" />}
           >
             <input
@@ -307,8 +344,9 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
 
           {displayedError ? (
             <div
+              key={displayedError}
               role="alert"
-              className="flex items-start gap-2.5 rounded-xl bg-red-500/10 px-3.5 py-3 text-sm text-red-700 ring-1 ring-red-500/30 dark:text-red-300"
+              className="animate-ctex-shake flex items-start gap-2.5 rounded-xl bg-red-500/10 px-3.5 py-3 text-sm text-red-700 ring-1 ring-red-500/30 dark:text-red-300"
             >
               <AlertCircle
                 className="mt-0.5 h-4 w-4 flex-shrink-0"
@@ -321,8 +359,13 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
           <button
             type="submit"
             disabled={submitting}
-            className="group mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-ctex-blue px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-ctex-blue/30 transition hover:bg-ctex-blue-light focus:outline-none focus:ring-4 focus:ring-ctex-blue/30 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
+            className="group relative mt-1 flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-ctex-blue px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-ctex-blue/30 transition duration-200 hover:-translate-y-0.5 hover:bg-ctex-blue-light hover:shadow-xl hover:shadow-ctex-blue/35 focus:outline-none focus:ring-4 focus:ring-ctex-blue/30 active:translate-y-0 active:scale-[0.99] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
           >
+            {/* Light sweep on hover */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 left-0 w-1/4 -translate-x-[150%] -skew-x-12 bg-white/25 blur-sm group-hover:animate-ctex-shine group-disabled:hidden"
+            />
             {submitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -333,7 +376,7 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
                 <Lock className="h-4 w-4 opacity-80" aria-hidden="true" />
                 Pay {amountPreview}
                 <ArrowRight
-                  className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                  className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
                   aria-hidden="true"
                 />
               </>
@@ -353,6 +396,16 @@ export default function CheckoutForm({ link, submitting, error, onSubmit }) {
   );
 }
 
+/* Thin brand line across the top edge of each card */
+function TopAccent() {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-ctex-blue/60 to-transparent"
+    />
+  );
+}
+
 function IconTile({ children }) {
   return (
     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ctex-blue/10 text-ctex-blue ring-1 ring-ctex-blue/15">
@@ -361,20 +414,33 @@ function IconTile({ children }) {
   );
 }
 
-function FormField({ label, required, leading, children }) {
+function FormField({ label, required, leading, valid, delay = 0, children }) {
   return (
-    <label className="group block">
-      <span className="mb-1.5 block text-xs font-semibold text-ctex-text">
+    <label
+      className="group block animate-ctex-rise"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <span className="mb-1.5 block text-xs font-semibold text-ctex-text transition-colors group-focus-within:text-ctex-blue">
         {label}
         {required ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>
       <div className="relative">
         {leading ? (
-          <span className="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-center text-ctex-text-muted transition-colors group-focus-within:text-ctex-blue">
+          <span className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-center text-ctex-text-muted transition-colors group-focus-within:text-ctex-blue">
             {leading}
           </span>
         ) : null}
         {children}
+        {valid ? (
+          <span
+            aria-hidden="true"
+            className="animate-ctex-pop pointer-events-none absolute inset-y-0 right-3 flex items-center"
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <Check className="h-3 w-3" strokeWidth={3} />
+            </span>
+          </span>
+        ) : null}
       </div>
     </label>
   );
