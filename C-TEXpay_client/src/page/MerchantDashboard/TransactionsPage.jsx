@@ -158,6 +158,34 @@ export default function TransactionsPage() {
         </p>
       </div>
 
+      {/* Merchant branding header */}
+      {businessProfile?.logoUrl || businessProfile?.businessName ? (
+        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-ctex-border bg-ctex-surface p-4">
+          {businessProfile.logoUrl ? (
+            <img
+              src={businessProfile.logoUrl}
+              alt={businessProfile.businessName || "Business logo"}
+              className="h-12 w-12 flex-shrink-0 rounded-lg object-cover ring-1 ring-ctex-border"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          ) : (
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-ctex-elevated text-sm font-semibold text-ctex-text-muted ring-1 ring-ctex-border">
+              {(businessProfile.businessName || "B").trim().charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-ctex-text">
+              {businessProfile.businessName || "Your business"}
+            </div>
+            <div className="text-xs text-ctex-text-muted">
+              Transactions for this merchant
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <form onSubmit={applyFilters} className="mb-4 rounded-2xl border border-ctex-border bg-ctex-surface p-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Field label="Payment reference" name="paymentReference" value={filters.paymentReference} onChange={updateFilter} placeholder="CTEXPAY_…" />

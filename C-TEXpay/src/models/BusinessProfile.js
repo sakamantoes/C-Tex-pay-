@@ -47,6 +47,11 @@ const BusinessProfile = sequelize.define(
       type: DataTypes.STRING(100),
       allowNull: true,
     },
+    logoUrl: {
+  type: DataTypes.STRING(500),
+  allowNull: true,
+  validate: { urlOrEmpty },
+},
     email: {
       type: DataTypes.STRING(255),
       allowNull: true,

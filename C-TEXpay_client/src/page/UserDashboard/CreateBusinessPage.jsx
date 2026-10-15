@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuthStore } from "../../store/auth.store";
 import { useMerchantStore } from "../../store/merchant.store";
+import LogoUploader from "../../components/media/LogoUploader"; // NEW
 
 const initialForm = {
   businessName: "",
@@ -16,6 +17,7 @@ const initialForm = {
   city: "",
   state: "",
   postalCode: "",
+  logoUrl: "", // NEW
 };
 
 export default function CreateBusinessPage() {
@@ -33,6 +35,10 @@ export default function CreateBusinessPage() {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleLogoChange = (url) => {
+    setForm((current) => ({ ...current, logoUrl: url }));
   };
 
   const handleSubmit = async (event) => {
@@ -57,6 +63,7 @@ export default function CreateBusinessPage() {
       city: form.city.trim() || undefined,
       state: form.state.trim() || undefined,
       postalCode: form.postalCode.trim() || undefined,
+      logoUrl: form.logoUrl || undefined, // NEW
     };
 
     const result = await createMerchant(payload);
@@ -106,6 +113,17 @@ export default function CreateBusinessPage() {
         onSubmit={handleSubmit}
         className="rounded-2xl border border-ctex-border bg-ctex-surface p-5 shadow-lg shadow-black/10 sm:p-6"
       >
+        {/* NEW — Logo section */}
+        <div className="mb-6 border-b border-ctex-border pb-6">
+          <LogoUploader
+            value={form.logoUrl}
+            onChange={handleLogoChange}
+            disabled={isSubmitting || isLoading}
+            size="lg"
+            label="Business logo (optional)"
+          />
+        </div>
+
         <div className="grid gap-5 md:grid-cols-2">
           <div className="md:col-span-2">
             <Field

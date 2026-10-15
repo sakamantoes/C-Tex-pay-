@@ -4,6 +4,7 @@ import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import { useAuthStore } from "../../store/auth.store";
 import { useMerchantStore } from "../../store/merchant.store";
 import { hasPermission } from "../../utils/permissions";
+import LogoUploader from "../../components/media/LogoUploader"; // NEW
 
 const navSections = [
   {
@@ -29,12 +30,6 @@ const navSections = [
   },
 ];
 
-/*
-|--------------------------------------------------------------------------
-| Field definitions — MUST match BusinessProfile model exactly
-|--------------------------------------------------------------------------
-| name           | label            | required | type
-*/
 const fields = [
   ["businessName", "Business name", true, "text"],
   ["businessType", "Business type", false, "text"],
@@ -44,20 +39,11 @@ const fields = [
   ["country", "Country", false, "text"],
   ["state", "State", false, "text"],
   ["city", "City", false, "text"],
-  ["address", "Address", false, "text"],   // 👈 backend field is `address`, not `addressLine1`
+  ["address", "Address", false, "text"],
 ];
 
 const emptyForm = Object.fromEntries(fields.map(([name]) => [name, ""]));
 
-/*
-|--------------------------------------------------------------------------
-| Normalize a website URL:
-| "www.example.com"  → "https://www.example.com"
-| "example.com"      → "https://example.com"
-| "https://x.com"    → "https://x.com" (unchanged)
-| ""                 → ""  (kept empty)
-|--------------------------------------------------------------------------
-*/
 function normalizeUrl(value) {
   const v = (value || "").trim();
   if (!v) return "";
@@ -82,6 +68,7 @@ export default function MerchantBusinessProfilePage() {
 
   const [form, setForm] = useState(emptyForm);
   const [description, setDescription] = useState("");
+  const [logoUrl, setLogoUrl] = useState(""); // NEW
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -98,6 +85,7 @@ export default function MerchantBusinessProfilePage() {
       ),
     }));
     setDescription(businessProfile.description || "");
+    setLogoUrl(businessProfile.logoUrl || ""); // NEW
   }, [businessProfile]);
 
   const canUpdate = hasPermission(permissions, "merchants.update");
@@ -119,7 +107,6 @@ export default function MerchantBusinessProfilePage() {
     event.preventDefault();
     if (!canUpdate) return;
 
-    // Build the payload with normalized values
     const payload = {};
 
     for (const [key, value] of Object.entries(form)) {
@@ -127,23 +114,25 @@ export default function MerchantBusinessProfilePage() {
 
       if (key === "website") {
         payload.website = normalizeUrl(trimmed);
-        // If empty after normalize, omit so backend leaves it alone
         if (!payload.website) delete payload.website;
         continue;
       }
 
-      // Omit empty strings so backend doesn't overwrite existing values
       if (trimmed === "") continue;
       payload[key] = trimmed;
     }
 
-    // Description is separate state
     const desc = description.trim();
     if (desc) payload.description = desc;
 
     if (!payload.businessName) {
       toast.error("Business name is required.");
       return;
+    }
+
+    // Logo — send "" to explicitly clear, or omit if unchanged
+    if (logoUrl !== (businessProfile?.logoUrl || "")) {
+      payload.logoUrl = logoUrl || "";
     }
 
     setIsSaving(true);
@@ -186,6 +175,17 @@ export default function MerchantBusinessProfilePage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* NEW — Logo */}
+          <div className="rounded-xl border border-ctex-border bg-ctex-elevated/30 p-4">
+            <LogoUploader
+              value={logoUrl}
+              onChange={setLogoUrl}
+              disabled={!canUpdate || busy}
+              size="lg"
+              label="Business logo"
+            />
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {fields.map(([name, label, required, type]) => (
               <label

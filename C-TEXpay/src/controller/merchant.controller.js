@@ -26,6 +26,7 @@ export const createMerchant = async (req, res) => {
       city,
       address,
       description,
+      logoUrl,
     } = req.body;
 
     // Membership in someone else's merchant must not block account creation.
@@ -79,6 +80,7 @@ export const createMerchant = async (req, res) => {
         city: city || null,
         address: address || null,
         description: description || null,
+         logoUrl: logoUrl || null,
       },
       { transaction }
     );
@@ -335,6 +337,7 @@ export const updateBusinessProfile = async (req, res) => {
     if (address !== undefined) updateData.address = address;
     if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
     if (description !== undefined) updateData.description = description;
+    if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
 
     if (Object.keys(updateData).length === 0) {
       await transaction.rollback();

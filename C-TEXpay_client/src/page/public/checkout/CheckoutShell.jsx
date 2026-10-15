@@ -1,48 +1,59 @@
-import { Lock, ShieldCheck } from "lucide-react";
+import { BadgeCheck, Lock, ShieldCheck } from "lucide-react";
+import { ImageLogo } from "../../../utils/image";
+
+const LOGO_STYLE = { maxWidth: "none" };
 
 export default function CheckoutShell({ children }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 px-4 py-8 sm:py-12">
-      {/* Top brand bar */}
-      <header className="mx-auto mb-6 flex max-w-3xl items-center justify-between">
-        <BrandMark />
-        <div className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200/70 backdrop-blur">
-          <Lock className="h-3 w-3 text-emerald-600" aria-hidden="true" />
-          Secure payment
-        </div>
-      </header>
+    <div className="relative min-h-screen overflow-hidden bg-ctex-bg px-4 pb-10 pt-8 sm:px-6 sm:pb-14 sm:pt-10">
+      {/* Background: soft blue washes + fine grid */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(30,120,190,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(30,120,190,0.06)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-[-240px] h-[460px] w-[900px] -translate-x-1/2 rounded-full bg-ctex-blue/15 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-40 bottom-[-200px] h-[420px] w-[520px] rounded-full bg-ctex-blue-light/10 blur-3xl"
+      />
 
-      {/* Main content */}
-      <main className="mx-auto max-w-3xl">{children}</main>
+      <div className="relative mx-auto max-w-6xl">
+        {/* Main content */}
+        <main>{children}</main>
 
-      {/* Footer trust signals */}
-      <footer className="mx-auto mt-8 max-w-3xl">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <ShieldCheck
-              className="h-3.5 w-3.5 text-slate-400"
-              aria-hidden="true"
+        {/* Footer trust signals */}
+        <footer className="mt-10 sm:mt-12">
+          <ul className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs font-medium text-ctex-text-muted">
+            <TrustItem icon={ShieldCheck} label="Secure payments" />
+            <TrustItem icon={Lock} label="Encrypted connection" />
+            <TrustItem icon={BadgeCheck} label="Trusted platform" />
+          </ul>
+
+          <p className="mt-4 flex flex-wrap items-center justify-center gap-1 text-center text-xs text-ctex-text-muted/80">
+            <span>Protected by</span>
+            <img
+              src={ImageLogo.Logo2}
+              alt="C-TEX PAY"
+              className="inline-block h-3.5 w-[60px] align-middle"
             />
-            <span>
-              Protected by C-TEX PAY · Your payment details are never shared
-              with third parties
-            </span>
-          </div>
-        </div>
-      </footer>
+            <span>. Your payment details are never shared with third parties.</span>
+          </p>
+        </footer>
+      </div>
     </div>
   );
 }
 
-function BrandMark() {
+function TrustItem({ icon: Icon, label }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-500 shadow-sm">
-        <span className="text-sm font-bold text-white">C</span>
-      </div>
-      <span className="text-base font-semibold tracking-tight text-slate-900">
-        C-TEX <span className="text-indigo-600">PAY</span>
+    <li className="flex items-center gap-2">
+      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-ctex-blue/10 text-ctex-blue">
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
       </span>
-    </div>
+      <span>{label}</span>
+    </li>
   );
 }

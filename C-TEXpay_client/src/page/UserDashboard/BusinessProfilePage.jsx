@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { Image as ImageIcon } from "lucide-react";
 import { useMerchantStore } from "../../store/merchant.store";
 
 export default function UserBusinessProfilePage() {
@@ -46,9 +47,7 @@ export default function UserBusinessProfilePage() {
   if (!displayProfile) {
     return (
       <div className="rounded-2xl border border-dashed border-ctex-border bg-ctex-surface/50 px-6 py-16 text-center">
-        <p className="text-sm font-medium text-ctex-text">
-          No business yet
-        </p>
+        <p className="text-sm font-medium text-ctex-text">No business yet</p>
         <p className="mx-auto mt-2 max-w-sm text-xs text-ctex-text-muted">
           {memberships.length > 0
             ? "You have team access in another workspace. Create your own merchant account to manage a separate business."
@@ -64,30 +63,33 @@ export default function UserBusinessProfilePage() {
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Invited member (read-only) — show business profile as reference,
-  | but no edit capabilities
-  |--------------------------------------------------------------------------
-  */
   const isOwner = ownsMerchant;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="rounded-2xl border border-ctex-border bg-ctex-surface p-5 shadow-lg shadow-black/10 sm:p-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-ctex-blue">
-              {isOwner ? "Business profile" : "Business you belong to"}
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-ctex-text">
-              {displayProfile.businessName}
-            </h2>
-            <p className="mt-1 text-sm text-ctex-text-muted">
-              {displayProfile.businessType || "—"} ·{" "}
-              {displayProfile.country || "—"}
-            </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            {/* NEW — Logo */}
+            <BusinessLogo
+              logoUrl={displayProfile.logoUrl}
+              businessName={displayProfile.businessName}
+              size="lg"
+            />
+
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-ctex-blue">
+                {isOwner ? "Business profile" : "Business you belong to"}
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-ctex-text">
+                {displayProfile.businessName}
+              </h2>
+              <p className="mt-1 text-sm text-ctex-text-muted">
+                {displayProfile.businessType || "—"} ·{" "}
+                {displayProfile.country || "—"}
+              </p>
+            </div>
           </div>
 
           {!isOwner && (
@@ -111,6 +113,34 @@ export default function UserBusinessProfilePage() {
           <Info label="Description" value={displayProfile.description} />
         </dl>
 
+        {/* NEW — Logo reference row for visibility when logo is missing or present */}
+        <div className="mt-6 flex items-center gap-4 rounded-xl border border-ctex-border bg-ctex-elevated/40 p-4">
+          <BusinessLogo
+            logoUrl={displayProfile.logoUrl}
+            businessName={displayProfile.businessName}
+            size="md"
+          />
+          <div className="min-w-0">
+            <div className="text-xs uppercase tracking-wide text-ctex-text-muted">
+              Business logo
+            </div>
+            <div className="mt-1 text-sm font-medium text-ctex-text">
+              {displayProfile.logoUrl
+                ? "Uploaded"
+                : "No logo uploaded yet"}
+            </div>
+            {isOwner && !displayProfile.logoUrl ? (
+              <Link
+                to="/merchant/dashboard/business"
+                className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-ctex-blue hover:text-ctex-blue-light"
+              >
+                <ImageIcon className="h-3 w-3" aria-hidden="true" />
+                Upload a logo
+              </Link>
+            ) : null}
+          </div>
+        </div>
+
         {isOwner && (
           <div className="mt-6 flex justify-end">
             <Link
@@ -128,6 +158,47 @@ export default function UserBusinessProfilePage() {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Reusable logo cell
+|--------------------------------------------------------------------------
+| Shows the uploaded logo, or a branded initial fallback when there is
+| no logo. Never throws if the image fails to load — falls back to
+| the initial.
+*/
+function BusinessLogo({ logoUrl, businessName, size = "md" }) {
+  const dims = {
+    sm: "h-10 w-10 text-sm",
+    md: "h-14 w-14 text-base",
+    lg: "h-20 w-20 text-2xl",
+  }[size] || "h-14 w-14 text-base";
+
+  const initial = (businessName || "B").trim().charAt(0).toUpperCase();
+
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt={`${businessName || "Business"} logo`}
+        className={`${dims} flex-shrink-0 rounded-xl object-cover ring-1 ring-ctex-border`}
+        onError={(e) => {
+          // Fall back to the initial block if the image 404s
+          e.currentTarget.outerHTML = `<div class="${dims} flex flex-shrink-0 items-center justify-center rounded-xl bg-ctex-blue/10 font-semibold text-ctex-blue ring-1 ring-ctex-border">${initial}</div>`;
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${dims} flex flex-shrink-0 items-center justify-center rounded-xl bg-ctex-blue/10 font-semibold text-ctex-blue ring-1 ring-ctex-border`}
+      aria-label={`${businessName || "Business"} logo placeholder`}
+    >
+      {initial}
     </div>
   );
 }

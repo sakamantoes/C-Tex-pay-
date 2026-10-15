@@ -6,7 +6,7 @@ import {
   Payment,
   Merchant,
   Customer,
-  PaymentStatusHistory,
+  BusinessProfile
 } from "../models/index.js";
 import { createPayment } from "./payment.service.js";
 
@@ -99,6 +99,10 @@ export function toMerchantLink(link, extras = {}) {
 export function toPublicLink(link) {
   if (!link) return null;
   const d = link.toJSON ? link.toJSON() : link;
+
+   const merchant = d.merchant || null;
+  const businessProfile = merchant?.businessProfile || null;
+
   return {
     title: d.title,
     description: d.description,
@@ -108,6 +112,8 @@ export function toPublicLink(link) {
     currency: d.currency,
     status: d.status,
     expiresAt: d.expiresAt,
+        businessName: businessProfile?.businessName || null,
+    logoUrl: businessProfile?.logoUrl || null,
   };
 }
 
@@ -394,7 +400,23 @@ export async function deactivatePaymentLink({ merchantId, linkId }) {
  * ======================================================= */
 
 export async function getPublicPaymentLink({ slug }) {
-  const link = await PaymentLink.findOne({ where: { slug } });
+  const link = await PaymentLink.findOne({
+    where: { slug },
+    include: [
+      {
+        model: Merchant,
+        as: "merchant",
+        attributes: ["id"],
+        include: [
+          {
+            model: BusinessProfile,
+            as: "businessProfile",
+            attributes: ["businessName", "logoUrl"],
+          },
+        ],
+      },
+    ],
+  });
   if (!link) {
     throw new PaymentLinkError("Payment link not found", "NOT_FOUND", 404);
   }
