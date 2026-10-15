@@ -6,6 +6,36 @@ import {
   toPublicPayment,
 } from "../service/payment.service.js";
 
+import { generateCheckoutToken } from "../utils/checkoutToken.js";
+import envConfig from "../config/constant.js";
+
+/*
+|--------------------------------------------------------------------------
+| Hosted checkout URL helper
+|--------------------------------------------------------------------------
+| Attaches a secure, transaction-scoped checkout URL to a public payment
+| payload. The token is stateless (HMAC over the payment reference), so
+| nothing is persisted. See `src/utils/checkoutToken.js`.
+|--------------------------------------------------------------------------
+*/
+
+function withCheckoutUrl(paymentData) {
+  if (!paymentData || !paymentData.paymentReference) {
+    return paymentData;
+  }
+
+  const token = generateCheckoutToken(paymentData.paymentReference);
+  const base = (envConfig.FRONTEND_URL || "").replace(/\/$/, "");
+  const checkoutUrl = base
+    ? `${base}/checkout/${token}`
+    : `/checkout/${token}`;
+
+  return {
+    ...paymentData,
+    checkoutUrl,
+  };
+}
+
 /*
 |--------------------------------------------------------------------------
 | Status mapping helper
@@ -277,6 +307,10 @@ function sendSequelizeValidationError(res, error) {
 |--------------------------------------------------------------------------
 | API key authentication
 | Permission: payments.create
+|
+| Response includes `checkoutUrl` — a secure, tokenized URL that takes
+| the customer directly to the hosted transfer-instructions page,
+| bypassing CheckoutForm.
 |--------------------------------------------------------------------------
 */
 
@@ -294,26 +328,24 @@ export const createPayment = async (req, res) => {
       paymentMethod,
     } = req.body;
 
-    const idempotencyKey =
-      req.headers["idempotency-key"] || null;
+    const idempotencyKey = req.headers["idempotency-key"] || null;
 
     console.log("Payment initialization requested", {
       merchantId,
       idempotencyKey,
     });
 
-    const { payment, replayed } =
-      await createPaymentService({
-        merchantId,
-        amount,
-        currency,
-        customerId,
-        merchantReference: reference || null,
-        description,
-        metadata,
-        paymentMethod,
-        idempotencyKey,
-      });
+    const { payment, replayed } = await createPaymentService({
+      merchantId,
+      amount,
+      currency,
+      customerId,
+      merchantReference: reference || null,
+      description,
+      metadata,
+      paymentMethod,
+      idempotencyKey,
+    });
 
     if (replayed) {
       console.log("Idempotency replay detected", {
@@ -323,9 +355,8 @@ export const createPayment = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        message:
-          "Payment already initialized (idempotent replay)",
-        data: toPublicPayment(payment),
+        message: "Payment already initialized (idempotent replay)",
+        data: withCheckoutUrl(toPublicPayment(payment)),
       });
     }
 
@@ -338,43 +369,30 @@ export const createPayment = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Payment initialized successfully",
-      data: toPublicPayment(payment),
+      data: withCheckoutUrl(toPublicPayment(payment)),
     });
   } catch (error) {
-    const mapped =
-      mapErrorToResponse(error, "initialize");
+    const mapped = mapErrorToResponse(error, "initialize");
 
     if (mapped) {
       if (mapped.status === 409) {
-        console.warn(
-          "Idempotency conflict detected",
-          {
-            merchantId: req.merchant?.id,
-          }
-        );
+        console.warn("Idempotency conflict detected", {
+          merchantId: req.merchant?.id,
+        });
       }
 
       return sendMappedError(res, mapped);
     }
 
-    if (
-      error.name ===
-      "SequelizeValidationError"
-    ) {
-      return sendSequelizeValidationError(
-        res,
-        error
-      );
+    if (error.name === "SequelizeValidationError") {
+      return sendSequelizeValidationError(res, error);
     }
 
-    console.error(
-      "Payment initialization failed",
-      {
-        merchantId: req.merchant?.id,
-        error: error.message,
-        stack: error.stack,
-      }
-    );
+    console.error("Payment initialization failed", {
+      merchantId: req.merchant?.id,
+      error: error.message,
+      stack: error.stack,
+    });
 
     return res.status(500).json({
       success: false,
@@ -389,6 +407,11 @@ export const createPayment = async (req, res) => {
 |--------------------------------------------------------------------------
 | API key authentication
 | Permission: payments.read
+|
+| Note: verifyPayment and getPayment intentionally do NOT attach a
+| checkoutUrl. Only freshly created payments (and idempotent replays)
+| need the checkout URL — verification and retrieval are merchant-side
+| operations where the customer is not being redirected.
 |--------------------------------------------------------------------------
 */
 
@@ -396,21 +419,14 @@ export const verifyPayment = async (req, res) => {
   try {
     const merchantId = req.merchant.id;
 
-    const { paymentReference } =
-      req.params;
+    const { paymentReference } = req.params;
 
-    console.log(
-      "Payment verification requested",
-      {
-        merchantId,
-        paymentReference,
-      }
-    );
+    console.log("Payment verification requested", {
+      merchantId,
+      paymentReference,
+    });
 
-    const {
-      payment,
-      alreadyVerified,
-    } = await verifyPaymentService({
+    const { payment, alreadyVerified } = await verifyPaymentService({
       merchantId,
       paymentReference,
     });
@@ -445,28 +461,23 @@ export const verifyPayment = async (req, res) => {
           break;
 
         case "PENDING":
-          message =
-            "Payment is still pending";
+          message = "Payment is still pending";
           break;
 
         case "FAILED":
-          message =
-            "Payment failed";
+          message = "Payment failed";
           break;
 
         case "EXPIRED":
-          message =
-            "Payment has expired";
+          message = "Payment has expired";
           break;
 
         case "CANCELLED":
-          message =
-            "Payment has been cancelled";
+          message = "Payment has been cancelled";
           break;
 
         default:
-          message =
-            "Payment status retrieved successfully";
+          message = "Payment status retrieved successfully";
       }
     }
 
@@ -476,23 +487,18 @@ export const verifyPayment = async (req, res) => {
       data: toPublicPayment(payment),
     });
   } catch (error) {
-    const mapped =
-      mapErrorToResponse(error, "verify");
+    const mapped = mapErrorToResponse(error, "verify");
 
     if (mapped) {
       return sendMappedError(res, mapped);
     }
 
-    console.error(
-      "Payment verification failed",
-      {
-        merchantId: req.merchant?.id,
-        paymentReference:
-          req.params?.paymentReference,
-        error: error.message,
-        stack: error.stack,
-      }
-    );
+    console.error("Payment verification failed", {
+      merchantId: req.merchant?.id,
+      paymentReference: req.params?.paymentReference,
+      error: error.message,
+      stack: error.stack,
+    });
 
     return res.status(500).json({
       success: false,
@@ -513,14 +519,12 @@ export const getPayment = async (req, res) => {
   try {
     const merchantId = req.merchant.id;
 
-    const { paymentReference } =
-      req.params;
+    const { paymentReference } = req.params;
 
-    const payment =
-      await getPaymentForMerchant({
-        merchantId,
-        paymentReference,
-      });
+    const payment = await getPaymentForMerchant({
+      merchantId,
+      paymentReference,
+    });
 
     if (!payment) {
       return res.status(404).json({
@@ -534,10 +538,7 @@ export const getPayment = async (req, res) => {
       data: toPublicPayment(payment),
     });
   } catch (error) {
-    console.error(
-      "Get payment failed",
-      error
-    );
+    console.error("Get payment failed", error);
 
     return res.status(500).json({
       success: false,
@@ -560,68 +561,40 @@ export const listPayments = async (req, res) => {
 
     const query = req.query;
 
-    const result =
-      await listPaymentsForMerchant({
-        merchantId,
-        page: query.page,
-        limit: query.limit,
-        status: query.status,
-        customerId: query.customerId,
-        merchantReference:
-          query.merchantReference,
-        paymentReference:
-          query.paymentReference,
-        search: query.search,
-        createdFrom:
-          query.createdFrom,
-        createdTo:
-          query.createdTo,
-        sortBy: query.sortBy,
-        sortDir: query.sortDir,
-      });
+    const result = await listPaymentsForMerchant({
+      merchantId,
+      page: query.page,
+      limit: query.limit,
+      status: query.status,
+      customerId: query.customerId,
+      merchantReference: query.merchantReference,
+      paymentReference: query.paymentReference,
+      search: query.search,
+      createdFrom: query.createdFrom,
+      createdTo: query.createdTo,
+      sortBy: query.sortBy,
+      sortDir: query.sortDir,
+    });
 
     return res.status(200).json({
       success: true,
       data: {
-        payments:
-          result.payments.map(
-            toPublicPayment
-          ),
-        pagination:
-          result.pagination,
+        payments: result.payments.map(toPublicPayment),
+        pagination: result.pagination,
       },
     });
   } catch (error) {
-    const mapped =
-      mapErrorToResponse(
-        error,
-        "initialize"
-      );
+    const mapped = mapErrorToResponse(error, "initialize");
 
-    if (
-      mapped &&
-      mapped.status < 500
-    ) {
-      return sendMappedError(
-        res,
-        mapped
-      );
+    if (mapped && mapped.status < 500) {
+      return sendMappedError(res, mapped);
     }
 
-    if (
-      error.name ===
-      "SequelizeValidationError"
-    ) {
-      return sendSequelizeValidationError(
-        res,
-        error
-      );
+    if (error.name === "SequelizeValidationError") {
+      return sendSequelizeValidationError(res, error);
     }
 
-    console.error(
-      "List payments failed",
-      error
-    );
+    console.error("List payments failed", error);
 
     return res.status(500).json({
       success: false,

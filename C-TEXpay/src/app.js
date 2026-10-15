@@ -25,6 +25,7 @@ import reconciliationRoutes from "./routes/reconciliation.routes.js";
 import xixapayWebhookRoutes from "./webhooks/xixapay.webhook.routes.js";
 import paymentLinkRoutes from "./routes/paymentLink.routes.js";
 import publicPaymentLinkRoutes from "./routes/publicPaymentLink.routes.js";
+import publicCheckoutRoutes from "./routes/publicCheckout.routes.js";
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.use("/api/v1/admin/reconciliations", reconciliationRoutes);
 app.use("/api/v1/webhooks", xixapayWebhookRoutes);
 app.use("/api/v1/payment-links", paymentLinkRoutes);
 app.use("/api/v1/public/payment-links", publicPaymentLinkRoutes);
+app.use("/api/v1/public/checkout", publicCheckoutRoutes);
 
 app.get("/", (req, res) => {
   res.json({

@@ -54,6 +54,8 @@ import SupportBot from "./components/SupportBot/SupportBot.jsx";
 
 import PaymentLinksPage from "./page/MerchantDashboard/PaymentLinksPage.jsx";
 import PaymentLinkCheckoutPage from "./page/public/PaymentLinkCheckoutPage.jsx";
+import DirectCheckoutPage from "./page/public/DirectCheckoutPage.jsx";
+
 
 const PUBLIC_PATHS = [
   "/",
@@ -65,6 +67,7 @@ const PUBLIC_PATHS = [
   "/reset-password",
   "/accept-invitation",
   "/pay",
+"/checkout",  
 ];
 
 const MERCHANT_WORKSPACE_ROLES = [ROLES.USER, ROLES.MERCHANT];
@@ -293,6 +296,7 @@ const AppRoutes = () => {
 
       {/* Public checkout */}
       <Route path="/pay/:slug" element={<PaymentLinkCheckoutPage />} />
+      <Route path="/checkout/:token" element={<DirectCheckoutPage />} />
 
       {/* ADMIN + SUPER ADMIN */}
       <Route
