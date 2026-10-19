@@ -11,6 +11,7 @@ import sequelize from "../config/database.js";
 import { MerchantInvitation, Notification } from "../models/index.js";
 
 import { sendMail } from "../service/mail.service.js";
+import { escapeHtml, renderBrandedEmail } from "../service/emailTemplate.service.js";
 import envConfig from "../config/constant.js";
 
 /*
@@ -66,34 +67,20 @@ const buildVerificationUrl = (rawToken, email, invitationToken) => {
   return `${envConfig.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(email)}${invitationContext}`;
 };
 
-const buildVerificationEmail = ({ firstName, verificationUrl }) => `
-  <div style="font-family: Arial, sans-serif;">
-    <h2>Verify your CTEX PAY account</h2>
-    <p>Hello ${firstName},</p>
-    <p>
-      Please verify your email address to activate your CTEX PAY account.
-    </p>
-    <p>
-      <a
-        href="${verificationUrl}"
-        style="
-          display:inline-block;
-          padding:12px 20px;
-          background:#000;
-          color:#fff;
-          text-decoration:none;
-          border-radius:6px;
-        "
-      >
-        Verify Email
-      </a>
-    </p>
-    <p>This verification link expires in 30 minutes.</p>
-    <p>
-      If you did not request this, you can safely ignore this email.
-    </p>
-  </div>
-`;
+const buildVerificationEmail = ({ firstName, verificationUrl }) =>
+  renderBrandedEmail({
+    preheader: "Verify your email address to activate your C-TEX PAY account.",
+    title: "Verify your email",
+    contentHtml: `
+      <p style="margin:0 0 14px">Hello ${escapeHtml(firstName || "there")},</p>
+      <p style="margin:0 0 14px">Please confirm your email address to activate your C-TEX PAY account and get started.</p>
+      <p style="margin:0;color:#60748b;font-size:13px">This secure link expires in 30 minutes.</p>
+      <p style="margin:18px 0 0;color:#60748b;font-size:13px">If you did not create a C-TEX PAY account, you can ignore this email.</p>
+    `,
+    actionLabel: "Verify email address",
+    actionUrl: verificationUrl,
+    footerText: "You received this email because an account was created using this address.",
+  });
 
 /**
  * Issue a fresh verification token for a user and email it.
@@ -816,32 +803,18 @@ export const forgotPassword = async (req, res) => {
       await sendMail({
         to: user.email,
         subject: "Reset your CTEX PAY password",
-        message: `
-          <div style="font-family: Arial, sans-serif;">
-            <h2>Password Reset</h2>
-            <p>Hello ${user.firstName},</p>
-            <p>We received a request to reset your CTEX PAY password.</p>
-            <p>
-              <a
-                href="${resetUrl}"
-                style="
-                  display:inline-block;
-                  padding:12px 20px;
-                  background:#000;
-                  color:#fff;
-                  text-decoration:none;
-                  border-radius:6px;
-                "
-              >
-                Reset Password
-              </a>
-            </p>
-            <p>This link expires in 15 minutes.</p>
-            <p>
-              If you did not request this, you can safely ignore this email.
-            </p>
-          </div>
-        `,
+        message: renderBrandedEmail({
+          preheader: "Use the secure link to reset your C-TEX PAY password.",
+          title: "Reset your password",
+          contentHtml: `
+            <p style="margin:0 0 14px">Hello ${escapeHtml(user.firstName || "there")},</p>
+            <p style="margin:0 0 14px">We received a request to reset the password for your C-TEX PAY account.</p>
+            <p style="margin:0;color:#60748b;font-size:13px">This secure link expires in 15 minutes. If you did not request a password reset, you can ignore this email.</p>
+          `,
+          actionLabel: "Reset password",
+          actionUrl: resetUrl,
+          footerText: "For your security, C-TEX PAY will never ask you to share your password or this link.",
+        }),
       });
     });
 

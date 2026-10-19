@@ -14,6 +14,7 @@ import {
   NOTIFICATION_TYPES,
 } from "./notification.service.js";
 import { sendMail } from "./mail.service.js";
+import { escapeHtml, renderBrandedEmail } from "./emailTemplate.service.js";
 
 const MAX_EMAIL_ATTEMPTS = 5;
 const EMAIL_BATCH_SIZE = 20;
@@ -29,20 +30,6 @@ let workerRun = null;
 | Helpers
 |--------------------------------------------------------------------------
 */
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(
-    /[&<>"']/g,
-    (character) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[character],
-  );
-}
 
 /**
  * Coerce a payload field to a plain object.
@@ -338,29 +325,29 @@ function renderFeeBreakdownRows(fees) {
 
   return `
     <tr>
-      <td colspan="2" style="padding:16px 0 6px 0;border-top:1px solid #ecf0f1">
-        <strong style="color:#17202a">Fee breakdown</strong>
+      <td colspan="2" style="padding:16px 0 6px 0;border-top:1px solid #e2eaf3">
+        <strong style="color:#103b68">Fee breakdown</strong>
       </td>
     </tr>
     <tr>
-      <td style="padding:4px 16px 4px 0;color:#566573">Gross amount</td>
-      <td style="color:#17202a">${currency} ${gross}</td>
+      <td style="padding:5px 16px 5px 0;color:#61748a">Gross amount</td>
+      <td style="color:#243b53">${currency} ${gross}</td>
     </tr>
     <tr>
-      <td style="padding:4px 16px 4px 0;color:#566573">C-TEX PAY service fee</td>
-      <td style="color:#17202a">${currency} ${service}</td>
+      <td style="padding:5px 16px 5px 0;color:#61748a">C-TEX PAY service fee</td>
+      <td style="color:#243b53">${currency} ${service}</td>
     </tr>
     <tr>
-      <td style="padding:4px 16px 4px 0;color:#566573">Provider fee (${treatment})</td>
-      <td style="color:#17202a">${currency} ${provider}</td>
+      <td style="padding:5px 16px 5px 0;color:#61748a">Provider fee (${treatment})</td>
+      <td style="color:#243b53">${currency} ${provider}</td>
     </tr>
     <tr>
-      <td style="padding:8px 16px 4px 0;border-top:1px solid #ecf0f1"><strong style="color:#17202a">Total fee</strong></td>
-      <td style="padding-top:8px;border-top:1px solid #ecf0f1"><strong style="color:#17202a">${currency} ${total}</strong></td>
+      <td style="padding:8px 16px 4px 0;border-top:1px solid #e2eaf3"><strong style="color:#243b53">Total fee</strong></td>
+      <td style="padding-top:8px;border-top:1px solid #e2eaf3"><strong style="color:#243b53">${currency} ${total}</strong></td>
     </tr>
     <tr>
-      <td style="padding:4px 16px 4px 0"><strong style="color:#17202a">Net to you</strong></td>
-      <td><strong style="color:#16a085">${currency} ${net}</strong></td>
+      <td style="padding:5px 16px 5px 0"><strong style="color:#103b68">Net to you</strong></td>
+      <td><strong style="color:#0867ad">${currency} ${net}</strong></td>
     </tr>
   `;
 }
@@ -383,42 +370,38 @@ function renderEmail({ payload }) {
 
   const feeRows = renderFeeBreakdownRows(payload.fees);
 
-  const message = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#17202a;max-width:600px">
-      <h2 style="margin-bottom:8px">Payment received</h2>
-      <p style="margin-top:0">
-        Your C-TEX PAY merchant account received a successful payment.
-      </p>
-
-      <table style="border-collapse:collapse;margin-top:16px">
+  const message = renderBrandedEmail({
+    preheader: `Payment ${safeString(payload.paymentReference, "C-TEX PAY")} was received successfully.`,
+    title: "Payment received",
+    contentHtml: `
+      <p style="margin:0 0 20px">Your merchant account received a successful payment. Here are the transaction details:</p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;border:1px solid #e2eaf3;border-radius:8px;background-color:#fbfdff">
         <tr>
-          <td style="padding:4px 16px 4px 0;color:#566573"><strong>Amount</strong></td>
-          <td style="color:#17202a"><strong>${amount}</strong></td>
+          <td style="padding:10px 14px;color:#61748a;border-bottom:1px solid #e8eef5"><strong>Amount</strong></td>
+          <td align="right" style="padding:10px 14px;color:#103b68;border-bottom:1px solid #e8eef5"><strong>${amount}</strong></td>
         </tr>
         <tr>
-          <td style="padding:4px 16px 4px 0;color:#566573"><strong>Payment reference</strong></td>
-          <td style="color:#17202a">${reference}</td>
+          <td style="padding:10px 14px;color:#61748a;border-bottom:1px solid #e8eef5"><strong>Payment reference</strong></td>
+          <td align="right" style="padding:10px 14px;color:#243b53;border-bottom:1px solid #e8eef5">${reference}</td>
         </tr>
         <tr>
-          <td style="padding:4px 16px 4px 0;color:#566573"><strong>Merchant reference</strong></td>
-          <td style="color:#17202a">${merchantReference}</td>
+          <td style="padding:10px 14px;color:#61748a;border-bottom:1px solid #e8eef5"><strong>Merchant reference</strong></td>
+          <td align="right" style="padding:10px 14px;color:#243b53;border-bottom:1px solid #e8eef5">${merchantReference}</td>
         </tr>
         <tr>
-          <td style="padding:4px 16px 4px 0;color:#566573"><strong>Currency</strong></td>
-          <td style="color:#17202a">${currency}</td>
+          <td style="padding:10px 14px;color:#61748a;border-bottom:1px solid #e8eef5"><strong>Currency</strong></td>
+          <td align="right" style="padding:10px 14px;color:#243b53;border-bottom:1px solid #e8eef5">${currency}</td>
         </tr>
         <tr>
-          <td style="padding:4px 16px 4px 0;color:#566573"><strong>Status</strong></td>
-          <td style="color:#17202a">${status}</td>
+          <td style="padding:10px 14px;color:#61748a"><strong>Status</strong></td>
+          <td align="right" style="padding:10px 14px;color:#0867ad"><strong>${status}</strong></td>
         </tr>
         ${feeRows}
       </table>
-
-      <p style="margin-top:24px;font-size:12px;color:#7f8c8d">
-        You received this email because payment notifications are enabled on your C-TEX PAY merchant account.
-      </p>
-    </div>
-  `;
+      <p style="margin:20px 0 0;color:#718096;font-size:13px">You received this notification because payment emails are enabled for your merchant account.</p>
+    `,
+    footerText: "Transaction information is provided for your C-TEX PAY merchant account.",
+  });
 
   return { subject, message };
 }

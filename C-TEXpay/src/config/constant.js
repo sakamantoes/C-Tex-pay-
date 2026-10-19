@@ -16,6 +16,8 @@ const envConfig = {
 
   //for redirict
   FRONTEND_URL: process.env.FRONTEND_URL,
+  EMAIL_LOGO_URL:
+    process.env.EMAIL_LOGO_URL || "https://www.ctex.online/Logo-email.png",
 
   //socket config
   SOCKET_CORS_ORIGINS: process.env.SOCKET_CORS_ORIGINS,

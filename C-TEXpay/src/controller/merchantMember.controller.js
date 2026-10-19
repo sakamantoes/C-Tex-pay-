@@ -12,6 +12,7 @@ import sequelize from "../config/database.js";
 import crypto from "crypto";
 
 import { sendMail } from "../service/mail.service.js";
+import { escapeHtml, renderBrandedEmail } from "../service/emailTemplate.service.js";
 import { createNotification } from "../service/notification.service.js";
 import envConfig from "../config/constant.js";
 
@@ -442,31 +443,17 @@ export const inviteMember = async (req, res) => {
         to: normalizedEmail,
 
         subject: `Invitation to join ${businessName}`,
-
-        message: `
-          <div style="font-family: Arial, sans-serif;">
-            <h2>
-              You have been invited to join a business on CTEX PAY
-            </h2>
-
-            <p>
-              You have been invited to join
-              <strong>${businessName}</strong>
-              as
-              <strong>${roleName}</strong>.
-            </p>
-
-            <p>
-              <a href="${invitationUrl}">
-                Accept invitation
-              </a>
-            </p>
-
-            <p>
-              This invitation expires in 7 days.
-            </p>
-          </div>
-        `,
+        message: renderBrandedEmail({
+          preheader: `You have been invited to join ${businessName} on C-TEX PAY.`,
+          title: "You’re invited to a team workspace",
+          contentHtml: `
+            <p style="margin:0 0 14px">You have been invited to join <strong style="color:#103b68">${escapeHtml(businessName)}</strong> as <strong style="color:#103b68">${escapeHtml(roleName)}</strong>.</p>
+            <p style="margin:0;color:#60748b;font-size:13px">This invitation expires in 7 days. If you were not expecting it, you can ignore this email.</p>
+          `,
+          actionLabel: "Accept invitation",
+          actionUrl: invitationUrl,
+          footerText: "This invitation was sent by a C-TEX PAY merchant team administrator.",
+        }),
       });
     } catch (emailError) {
       /*
