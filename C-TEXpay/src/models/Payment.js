@@ -34,6 +34,8 @@ const Payment = sequelize.define(
       type: DataTypes.UUID,
       allowNull: true,
       references: { model: "payment_links", key: "id" },
+      onUpdate: "CASCADE",
+      onDelete: "SET NULL",
       comment: "Set when the payment originated from a Payment Link",
     },
     merchantReference: {
@@ -131,7 +133,10 @@ const Payment = sequelize.define(
         unique: true,
         name: "payments_merchant_idempotency_unique",
       },
-      { fields: ["paymentLinkId"] },
+      {
+        fields: ["paymentLinkId"],
+        name: "payments_payment_link_id",
+      },
       {
         fields: ["merchantId", "paymentReference"],
         name: "payments_merchant_reference_idx",

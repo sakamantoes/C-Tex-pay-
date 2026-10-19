@@ -98,11 +98,20 @@ async function startServer() {
     | alter:true is intentionally disabled in production. In production,
     | schema changes must go through migrations, never through sync().
     */
-    await sequelize.sync({
-      logging: false,
-    });
-    // eslint-disable-next-line no-console
-    console.log("[startup] Database synchronized");
+    const isProductionRuntime =
+      process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+    if (isProductionRuntime) {
+      // Sequelize sync reconciles indexes even when alter is false. Production
+      // schema changes must be applied explicitly before the service starts.
+      console.log("[startup] Production schema sync skipped; apply migrations before deploy");
+    } else {
+      await sequelize.sync({
+        logging: false,
+        alter: false,
+      });
+      // eslint-disable-next-line no-console
+      console.log("[startup] Database synchronized");
+    }
 
     /*
     |----------------------------------------------------------------------
