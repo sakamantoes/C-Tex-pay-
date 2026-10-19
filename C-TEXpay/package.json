@@ -12,6 +12,7 @@
     "migrate:payment-link-payment-reference": "node ./src/scripts/repair-payment-link-payment-reference.js",
     "migrate:payout-fee-snapshot": "node ./src/scripts/migrate-payout-fee-snapshot.js",
     "migrate:merchant-redirect-urls": "node ./src/scripts/migrate-merchant-redirect-urls.js",
+    "bootstrap:empty-production-schema": "node ./src/scripts/bootstrap-empty-production-schema.js",
     "test": "node --test src/tests/**/*.test.js"
   },
   "keywords": [],

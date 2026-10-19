@@ -1,12 +1,22 @@
 export async function up(queryInterface, Sequelize) {
-  await queryInterface.changeColumn(
+  const columns = await queryInterface.describeTable(
     "merchant_notification_deliveries",
-    "nextAttemptAt",
-    {
-      type: Sequelize.DATE,
-      allowNull: true,
-    }
   );
+  if (!columns.nextAttemptAt) {
+    throw new Error(
+      "merchant_notification_deliveries.nextAttemptAt is required before this migration runs",
+    );
+  }
+  if (columns.nextAttemptAt.allowNull !== true) {
+    await queryInterface.changeColumn(
+      "merchant_notification_deliveries",
+      "nextAttemptAt",
+      {
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
+    );
+  }
 }
 
 export async function down(queryInterface, Sequelize) {
