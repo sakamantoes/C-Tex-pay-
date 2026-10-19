@@ -33,6 +33,7 @@ const app = express();
 // Webhooks MUST be mounted BEFORE express.json() so their raw body
 // is preserved for signature verification.
 app.use("/api/v1/webhooks", webhookRoutes);
+app.use("/api/v1/webhooks", xixapayWebhookRoutes);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -83,7 +84,6 @@ app.use("/api/v1/admin/ledger", adminLedgerRoutes);
 app.use("/api/v1/payouts", payoutRoutes);
 app.use("/api/v1/admin/payouts", adminPayoutRoutes);
 app.use("/api/v1/admin/reconciliations", reconciliationRoutes);
-app.use("/api/v1/webhooks", xixapayWebhookRoutes);
 app.use("/api/v1/payment-links", paymentLinkRoutes);
 app.use("/api/v1/public/payment-links", publicPaymentLinkRoutes);
 app.use("/api/v1/public/checkout", publicCheckoutRoutes);

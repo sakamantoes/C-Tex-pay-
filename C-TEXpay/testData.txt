@@ -52,3 +52,6 @@ admin {
     "email": "superadmin@ctexpay.local",
     "password": "ChooseAStrongPasswordHere123!"
   }
+
+  ctex_test_saka_75e827e9384cba6b9f515b994cb06ea0350c89b29c5ea35d881ffb5e74599395
+  cid=6e73b53b-0481-4290-9387-f14dacdf8264
