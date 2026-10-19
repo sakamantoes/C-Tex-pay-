@@ -12,6 +12,12 @@ import api from "./api";
 */
 
 export const merchantMemberService = {
+  previewInvitation: async (token) => {
+    const { data } = await api.get("/merchant-members/invitations/preview", {
+      params: { token },
+    });
+    return data;
+  },
   /*
   |--------------------------------------------------------------------------
   | INVITATIONS (team.manage)

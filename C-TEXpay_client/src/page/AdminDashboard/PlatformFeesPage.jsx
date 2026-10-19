@@ -82,8 +82,10 @@ export default function PlatformFeesPage({ basePath = "/admin" }) {
     title: "Platform",
     items: [
       { key: "dashboard", label: "Dashboard", icon: "dashboard", path: `${basePath}/dashboard` },
+      { key: "merchants", label: "Merchants", icon: "business", path: `${basePath}/merchants` },
       { key: "payments", label: "Transactions", icon: "transactions", path: `${basePath}/transactions` },
       { key: "fees", label: "Fee configuration", icon: "fees", path: `${basePath}/fees` },
+      { key: "audit-logs", label: "Audit logs", icon: "security", path: `${basePath}/audit-logs` },
     ],
   }], [basePath]);
 

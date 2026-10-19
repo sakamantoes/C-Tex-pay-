@@ -234,9 +234,13 @@ export function toMonnifyInitializeRequest(paymentContext) {
     paymentMethods: ["ACCOUNT_TRANSFER"],
   };
 
-  // Monnify's field name is `metaData` (capital D). Only sent when non-empty.
-  if (metadata && Object.keys(metadata).length > 0) {
-    request.metaData = metadata;
+  // The merchant's returnUrl belongs to the C-TEX hosted checkout flow.
+  // Monnify's redirectUrl is a separate callback for its hosted checkout.
+  const providerMetadata = { ...(metadata || {}) };
+  delete providerMetadata.returnUrl;
+
+  if (Object.keys(providerMetadata).length > 0) {
+    request.metadata = providerMetadata;
   }
 
   if (redirectUrl) {

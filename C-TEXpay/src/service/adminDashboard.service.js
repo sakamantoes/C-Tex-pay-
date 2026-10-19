@@ -1,8 +1,8 @@
 import { fn, col } from "sequelize";
-import { Merchant, Payment } from "../models/index.js";
+import { Merchant, Payment, User } from "../models/index.js";
 
 export async function getPlatformDashboardSummary() {
-  const [paymentStatusRows, successfulVolume, merchantStatusRows] = await Promise.all([
+  const [paymentStatusRows, successfulVolume, merchantStatusRows, totalUsers] = await Promise.all([
     Payment.findAll({
       attributes: ["status", [fn("COUNT", col("id")), "total"]],
       group: ["status"],
@@ -14,6 +14,7 @@ export async function getPlatformDashboardSummary() {
       group: ["status"],
       raw: true,
     }),
+    User.count(),
   ]);
 
   const paymentsByStatus = Object.fromEntries(
@@ -25,6 +26,7 @@ export async function getPlatformDashboardSummary() {
 
   return {
     currency: "NGN",
+    users: { total: totalUsers },
     merchants: {
       total: Object.values(merchantsByStatus).reduce((sum, value) => sum + value, 0),
       active: merchantsByStatus.ACTIVE || 0,

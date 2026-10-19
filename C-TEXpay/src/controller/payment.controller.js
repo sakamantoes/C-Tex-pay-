@@ -7,6 +7,11 @@ import {
 } from "../service/payment.service.js";
 
 import { generateCheckoutToken } from "../utils/checkoutToken.js";
+import {
+  validateMerchantUrl,
+  isAllowedReturnUrl,
+} from "../utils/urlValidator.js";
+import { getRedirectUrlsForMerchant } from "../service/merchantSetting.service.js";
 import envConfig from "../config/constant.js";
 
 /*
@@ -330,9 +335,64 @@ export const createPayment = async (req, res) => {
 
     const idempotencyKey = req.headers["idempotency-key"] || null;
 
+    /*
+    |----------------------------------------------------------------------
+    | Optional returnUrl validation
+    |----------------------------------------------------------------------
+    | A merchant may supply a per-payment returnUrl. It must be a well-
+    | formed URL AND must exactly match one of the merchant's configured
+    | redirect URLs (success / failure / cancel). Anything else is
+    | rejected — no open redirect.
+    |
+    | The validated returnUrl is passed to createPaymentService, which
+    | merges it into metadata. It also participates in the idempotency
+    | request hash, so re-using the same Idempotency-Key with a different
+    | returnUrl returns 409 Conflict.
+    */
+    const requestedReturnUrl = req.body.returnUrl || null;
+
+    let validatedReturnUrl = null;
+    if (requestedReturnUrl) {
+      const result = validateMerchantUrl(requestedReturnUrl);
+      if (!result.valid) {
+        console.warn("Payment return URL rejected", {
+          merchantId,
+          stage: "C-TEX_VALIDATION",
+          reason: result.reason,
+        });
+        return res.status(400).json({
+          success: false,
+          message: "returnUrl is not a valid URL",
+        });
+      }
+
+      const allowlist = await getRedirectUrlsForMerchant({ merchantId });
+      const allowed = [
+        allowlist.success,
+        allowlist.failure,
+        allowlist.cancel,
+      ].filter(Boolean);
+
+      if (!isAllowedReturnUrl(result.url, allowed)) {
+        console.warn("Payment return URL rejected", {
+          merchantId,
+          stage: "MERCHANT_ALLOWLIST",
+          reason: "URL_NOT_CONFIGURED",
+        });
+        return res.status(400).json({
+          success: false,
+          message:
+            "returnUrl must match one of the merchant's configured redirect URLs",
+        });
+      }
+
+      validatedReturnUrl = result.url;
+    }
+
     console.log("Payment initialization requested", {
       merchantId,
       idempotencyKey,
+      hasReturnUrl: Boolean(validatedReturnUrl),
     });
 
     const { payment, replayed } = await createPaymentService({
@@ -345,6 +405,7 @@ export const createPayment = async (req, res) => {
       metadata,
       paymentMethod,
       idempotencyKey,
+      returnUrl: validatedReturnUrl,
     });
 
     if (replayed) {

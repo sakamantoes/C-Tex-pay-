@@ -18,6 +18,8 @@ import MerchantDashboard from "./page/MerchantDashboard/MerchantDashboard.jsx";
 import AdminDashboard from "./page/AdminDashboard/AdminDashboard.jsx";
 import PlatformFeesPage from "./page/AdminDashboard/PlatformFeesPage.jsx";
 import PlatformTransactionsPage from "./page/AdminDashboard/PlatformTransactionsPage.jsx";
+import PlatformMerchantsPage from "./page/AdminDashboard/PlatformMerchantsPage.jsx";
+import PlatformAuditLogsPage from "./page/AdminDashboard/PlatformAuditLogsPage.jsx";
 import SuperAdminDashboard from "./page/SuperAdminDashboard/SuperAdminDashboard.jsx";
 
 import { useAuthStore } from "./store/auth.store";
@@ -51,6 +53,7 @@ import PermissionGuard from "./components/guards/PermissionGuard.jsx";
 import MerchantBusinessProfilePage from "./page/MerchantDashboard/BusinessProfilePage.jsx";
 import UserBusinessProfilePage from "./page/UserDashboard/BusinessProfilePage.jsx";
 import SupportBot from "./components/SupportBot/SupportBot.jsx";
+import SuspendedAccountModal from "./components/SuspendedAccountModal.jsx";
 
 import PaymentLinksPage from "./page/MerchantDashboard/PaymentLinksPage.jsx";
 import PaymentLinkCheckoutPage from "./page/public/PaymentLinkCheckoutPage.jsx";
@@ -323,6 +326,9 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      <Route path="/admin/merchants" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><PlatformMerchantsPage platformRole="ADMIN" /></ProtectedRoute>} />
+      <Route path="/admin/merchants/:merchantId" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><PlatformMerchantsPage platformRole="ADMIN" /></ProtectedRoute>} />
+      <Route path="/admin/audit-logs" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><PlatformAuditLogsPage platformRole="ADMIN" /></ProtectedRoute>} />
       <Route
         path="/super-admin/dashboard"
         element={
@@ -347,6 +353,9 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      <Route path="/super-admin/merchants" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformMerchantsPage platformRole="SUPER_ADMIN" /></ProtectedRoute>} />
+      <Route path="/super-admin/merchants/:merchantId" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformMerchantsPage platformRole="SUPER_ADMIN" /></ProtectedRoute>} />
+      <Route path="/super-admin/audit-logs" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformAuditLogsPage platformRole="SUPER_ADMIN" /></ProtectedRoute>} />
 
       <Route
         path="*"
@@ -374,6 +383,7 @@ const App = () => {
         draggable
         pauseOnHover
       />
+      <SuspendedAccountModal />
       <SupportBot />
     </Router>
   );

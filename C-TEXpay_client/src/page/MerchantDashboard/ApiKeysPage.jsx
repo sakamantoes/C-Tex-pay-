@@ -53,12 +53,11 @@ export default function ApiKeysPage() {
   }, [getApiKeys, getMyMembership, getPermissions, permissions.length]);
 
   const canCreate = hasPermission(permissions, "api_keys.create");
+  const canRead = hasPermission(permissions, "api_keys.read");
+  const canRevoke = hasPermission(permissions, "api_keys.revoke");
   const canManage =
     hasPermission(permissions, "api_keys.manage") ||
     roles.some((role) => role.name === "OWNER");
-
-  // Only owners can reveal secrets (backend enforces this too)
-  const isOwner = roles.some((role) => role.name === "OWNER");
 
   const displayName = useMemo(
     () => `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Merchant Admin",
@@ -124,6 +123,15 @@ export default function ApiKeysPage() {
     else toast.error(result.message || "Unable to revoke API key.");
   };
 
+  const copyNewKey = async () => {
+    try {
+      await navigator.clipboard.writeText(newlyCreatedKey);
+      toast.success("API key copied.");
+    } catch {
+      toast.error("Clipboard access failed. Select and copy the key manually.");
+    }
+  };
+
   return (
     <DashboardLayout
       title={businessProfile?.businessName || "Merchant"}
@@ -145,7 +153,7 @@ export default function ApiKeysPage() {
             </div>
             <button
               type="button"
-              onClick={() => navigator.clipboard?.writeText(newlyCreatedKey)}
+              onClick={copyNewKey}
               className="rounded-xl border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-500"
             >
               Copy key
@@ -290,8 +298,8 @@ export default function ApiKeysPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {/* Reveal — owner-only, ACTIVE keys only */}
-                      {isOwner && key.status === "ACTIVE" && (
+                      {/* Reading/revealing keys requires api_keys.read and password confirmation. */}
+                      {canRead && key.status === "ACTIVE" && (
                         <button
                           type="button"
                           disabled={isLoading}
@@ -312,15 +320,17 @@ export default function ApiKeysPage() {
                           >
                             Rotate
                           </button>
-                          <button
-                            type="button"
-                            disabled={key.status !== "ACTIVE" || isLoading}
-                            onClick={() => handleRevoke(key.id)}
-                            className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-500 disabled:opacity-50"
-                          >
-                            Revoke
-                          </button>
                         </>
+                      )}
+                      {canRevoke && (
+                        <button
+                          type="button"
+                          disabled={key.status !== "ACTIVE" || isLoading}
+                          onClick={() => handleRevoke(key.id)}
+                          className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-500 disabled:opacity-50"
+                        >
+                          Revoke
+                        </button>
                       )}
                     </div>
                   </div>

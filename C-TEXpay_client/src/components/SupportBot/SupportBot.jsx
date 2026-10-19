@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { SUPPORT_WHATSAPP_URL } from "../../constants/support.js";
 
 // Replace this placeholder with your official WhatsApp Business number.
 // Use international format without "+" or spaces, e.g. "2348012345678".
-const SUPPORT_WHATSAPP_NUMBER = "2349074705972";
-const SUPPORT_WHATSAPP_URL = `https://wa.me/${SUPPORT_WHATSAPP_NUMBER}?text=${encodeURIComponent(
-  "Hello C-TEX PAY Support, I need help with: "
-)}`;
+const supportWhatsAppUrl = SUPPORT_WHATSAPP_URL("Hello C-TEX PAY Support, I need help with: ");
 
 /*
 
@@ -1283,7 +1281,7 @@ export default function SupportBot() {
 
                   {msg.role === "bot" && msg.showWhatsApp && (
                     <a
-                      href={SUPPORT_WHATSAPP_URL}
+                      href={supportWhatsAppUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label="Contact C-TEX PAY support on WhatsApp"

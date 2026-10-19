@@ -1,163 +1,127 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { motion } from "framer-motion";
 import AuthLayout from "../components/auth/AuthLayout";
 import { useAuthStore } from "../store/auth.store";
 import { useMerchantMemberStore } from "../store/merchantMember.store";
 import { getDashboardPath } from "../utils/role";
 
-const getSafeRedirect = (token) => {
-  const destination = `/accept-invitation?token=${encodeURIComponent(token)}`;
-  return `/login?redirect=${encodeURIComponent(destination)}`;
+const invitationPath = (token) => `/accept-invitation?token=${encodeURIComponent(token)}`;
+const loginPath = (token, email = "") => {
+  const params = new URLSearchParams({ redirect: invitationPath(token) });
+  if (email) params.set("email", email);
+  return `/login?${params.toString()}`;
 };
 
 export default function AcceptInvitationPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token")?.trim() || "";
-  const { isAuthenticated, user, getMe } = useAuthStore();
-  const acceptInvitation = useMerchantMemberStore(
-    (state) => state.acceptInvitation
-  );
-  const [status, setStatus] = useState(token ? "checking" : "invalid");
-  const [message, setMessage] = useState(
-    token ? "Checking your invitation…" : "This invitation link is missing its token."
-  );
-  const hasSubmitted = useRef(false);
+  const { isAuthenticated, user, getMe, logout } = useAuthStore();
+  const previewInvitation = useMerchantMemberStore((state) => state.previewInvitation);
+  const acceptInvitation = useMerchantMemberStore((state) => state.acceptInvitation);
+  const [invitation, setInvitation] = useState(null);
+  const [status, setStatus] = useState(token ? "loading" : "invalid");
+  const [message, setMessage] = useState(token ? "Validating your invitation…" : "This invitation link is missing its token.");
 
   useEffect(() => {
-    if (!token || !isAuthenticated || hasSubmitted.current) return;
-
-    hasSubmitted.current = true;
-    setStatus("accepting");
-    setMessage("Joining your team securely…");
-
-    (async () => {
-      const result = await acceptInvitation({ token });
-
+    let active = true;
+    if (!token) return undefined;
+    previewInvitation(token).then((result) => {
+      if (!active) return;
       if (!result.success) {
-        setStatus("error");
-        setMessage(result.message || "This invitation could not be accepted.");
+        setStatus(result.code === "INVITATION_EXPIRED" ? "expired" : "invalid");
+        setMessage(result.message);
         return;
       }
-
-      await getMe();
-      setStatus("success");
-      setMessage("You have joined the team successfully.");
-    })();
-  }, [acceptInvitation, getMe, isAuthenticated, token]);
-
-  const handleContinue = () => {
-    navigate(getDashboardPath(useAuthStore.getState().user || user), {
-      replace: true,
+      if (result.data.status === "ACCEPTED") {
+        setStatus("accepted");
+        setMessage("This invitation has already been accepted.");
+        return;
+      }
+      setInvitation(result.data);
+      setStatus("ready");
+      setMessage("");
     });
+    return () => { active = false; };
+  }, [previewInvitation, token]);
+
+  const correctIdentity = isAuthenticated && invitation &&
+    user?.emailVerified === true &&
+    user?.email?.trim().toLowerCase() === invitation.email?.trim().toLowerCase();
+  const wrongIdentity = isAuthenticated && invitation && !correctIdentity;
+
+  const handleAccept = async () => {
+    if (!correctIdentity || status !== "ready") return;
+    setStatus("accepting");
+    const result = await acceptInvitation({ token });
+    if (!result.success) {
+      setStatus("error");
+      setMessage(result.message || "This invitation could not be accepted.");
+      return;
+    }
+    await getMe();
+    setStatus("success");
+    setMessage(result.data?.message || "You have joined the team successfully.");
   };
 
-  const isBusy = status === "checking" || status === "accepting";
+  const switchAccount = async () => {
+    await logout();
+    navigate(loginPath(token, invitation?.email), { replace: true });
+  };
+  const continueToDashboard = () => navigate(getDashboardPath(useAuthStore.getState().user || user), { replace: true });
+
+  const title = status === "success" ? "Invitation accepted"
+    : status === "accepted" ? "Invitation already accepted"
+    : status === "expired" || status === "invalid" ? "Invitation unavailable"
+    : "Accept your invitation";
 
   return (
-    <AuthLayout
-      title={
-        status === "success"
-          ? "Invitation accepted"
-          : status === "error" || status === "invalid"
-          ? "Invitation unavailable"
-          : "Accept your invitation"
-      }
-      subtitle={
-        isBusy
-          ? message
-          : status === "success"
-          ? message
-          : "This team invitation may be expired, invalid, or linked to another account."
-      }
-      footer={
-        status !== "success" && (
+    <AuthLayout title={title} subtitle={message || "Review the invitation and accept it to join the team."}
+      footer={<><Link to="/">Return to C-TEX PAY</Link></>}>
+      <div className="space-y-4 text-center">
+        {(status === "loading" || status === "accepting") && <span className="mx-auto block h-8 w-8 animate-spin rounded-full border-2 border-ctex-blue/30 border-t-ctex-blue" />}
+
+        {invitation && status !== "loading" && (
+          <div className="rounded-xl border border-ctex-border bg-ctex-elevated/60 p-4 text-left text-sm">
+            <p>You were invited to join <strong>{invitation.merchantName}</strong>.</p>
+            <p className="mt-1">Role: <strong>{invitation.roleName}</strong></p>
+            <p className="mt-1 break-all">Invitation email: <strong>{invitation.email}</strong></p>
+          </div>
+        )}
+
+        {status === "ready" && !isAuthenticated && invitation.nextStep === "REGISTER" && (
           <>
-            Need help? <Link to="/">Return to C-TEX PAY</Link>
+            <p className="text-sm text-ctex-text-muted">An account is required. Create one with the invited email; you will review and accept the invitation after email verification.</p>
+            <Link to={`/signup?invitationToken=${encodeURIComponent(token)}&email=${encodeURIComponent(invitation.email)}`} className="flex h-11 w-full items-center justify-center rounded-xl bg-ctex-blue px-4 text-sm font-semibold text-white">Register account</Link>
           </>
-        )
-      }
-    >
-      <div className="flex flex-col items-center gap-5 text-center">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className={`flex h-20 w-20 items-center justify-center rounded-3xl ${
-            status === "success"
-              ? "bg-emerald-500/10 text-emerald-500"
-              : status === "error" || status === "invalid"
-              ? "bg-red-500/10 text-red-500"
-              : "bg-ctex-blue/10 text-ctex-blue"
-          }`}
-        >
-          {isBusy ? (
-            <span className="h-8 w-8 animate-spin rounded-full border-2 border-ctex-blue/30 border-t-ctex-blue" />
-          ) : status === "success" ? (
-            <CheckIcon className="h-9 w-9" />
-          ) : (
-            <AlertIcon className="h-9 w-9" />
-          )}
-        </motion.div>
-
-        {status === "success" && (
-          <button
-            type="button"
-            onClick={handleContinue}
-            className="h-11 w-full rounded-xl bg-ctex-blue px-4 text-sm font-semibold text-white transition hover:bg-ctex-blue-light focus:outline-none focus:ring-2 focus:ring-ctex-blue/30"
-          >
-            Continue to dashboard
-          </button>
         )}
 
-        {(status === "error" || status === "invalid") && (
-          <div className="w-full space-y-3">
-            <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500">
-              {message}
-            </p>
-            {token && (
-              <Link
-                to={getSafeRedirect(token)}
-                className="flex h-11 w-full items-center justify-center rounded-xl border border-ctex-border bg-ctex-surface text-sm font-medium text-ctex-text transition hover:border-ctex-blue/50 hover:bg-ctex-elevated"
-              >
-                Sign in with another account
-              </Link>
-            )}
+        {status === "ready" && !isAuthenticated && invitation.nextStep === "LOGIN" && (
+          <>
+            <p className="text-sm text-ctex-text-muted">Sign in with the invited account. You will review and explicitly accept the invitation afterward.</p>
+            <Link to={loginPath(token, invitation.email)} className="flex h-11 w-full items-center justify-center rounded-xl bg-ctex-blue px-4 text-sm font-semibold text-white">Log in</Link>
+          </>
+        )}
+
+        {status === "ready" && !isAuthenticated && invitation.nextStep === "ACCOUNT_UNAVAILABLE" && (
+          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-sm text-amber-700">This account cannot accept invitations right now. Please contact C-TEX PAY support for help.</p>
+        )}
+
+        {correctIdentity && status === "ready" && (
+          <button type="button" onClick={handleAccept} className="h-11 w-full rounded-xl bg-ctex-blue px-4 text-sm font-semibold text-white">Accept invitation</button>
+        )}
+
+        {wrongIdentity && status === "ready" && (
+          <div className="space-y-3">
+            <p className="text-sm text-amber-600">You are signed in as {user?.email}. This invitation is for {invitation.email}. Switch accounts to continue.</p>
+            <button type="button" onClick={switchAccount} className="h-11 w-full rounded-xl border border-ctex-border text-sm font-medium">Switch account</button>
           </div>
         )}
 
-        {!isAuthenticated && status !== "invalid" && (
-          <div className="w-full space-y-3">
-            <p className="text-sm text-ctex-text-muted">
-              Sign in with the account that received this invitation to continue.
-            </p>
-            <Link
-              to={getSafeRedirect(token)}
-              className="flex h-11 w-full items-center justify-center rounded-xl bg-ctex-blue px-4 text-sm font-semibold text-white transition hover:bg-ctex-blue-light"
-            >
-              Sign in to accept
-            </Link>
-          </div>
-        )}
+        {status === "success" && <button type="button" onClick={continueToDashboard} className="h-11 w-full rounded-xl bg-ctex-blue px-4 text-sm font-semibold text-white">Continue to dashboard</button>}
+        {status === "error" && correctIdentity && <button type="button" onClick={() => { setStatus("ready"); setMessage(""); }} className="h-11 w-full rounded-xl border border-ctex-border text-sm font-medium">Try again</button>}
+        {status === "accepted" && isAuthenticated && <button type="button" onClick={continueToDashboard} className="h-11 w-full rounded-xl border border-ctex-border text-sm font-medium">Continue to dashboard</button>}
       </div>
     </AuthLayout>
-  );
-}
-
-function CheckIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m5 12 4 4L19 6" />
-    </svg>
-  );
-}
-
-function AlertIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 9v4" />
-      <path d="M12 17h.01" />
-      <path d="M10.3 3.7 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" />
-    </svg>
   );
 }

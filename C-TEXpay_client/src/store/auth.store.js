@@ -30,6 +30,7 @@ export const useAuthStore = create(
       initialized: false,
       verificationRequired: false,
       verificationEmail: null,
+      accountSuspensionNotice: false,
 
       /*
       |--------------------------------------------------------------------------
@@ -54,10 +55,10 @@ export const useAuthStore = create(
       | LOGIN
       |--------------------------------------------------------------------------
       */
-    login: async ({ email, password }) => {
+    login: async ({ email, password, invitationToken }) => {
   set({ isLoading: true, error: null });
   try {
-    const res = await authService.login({ email, password });
+    const res = await authService.login({ email, password, invitationToken });
     const nextUser = res?.data?.user;
 
     /*
@@ -92,6 +93,7 @@ export const useAuthStore = create(
       error: null,
       verificationRequired: false,
       verificationEmail: null,
+      accountSuspensionNotice: false,
     });
 
     if (nextUser) {
@@ -105,6 +107,22 @@ export const useAuthStore = create(
     const responseEmail = err.response?.data?.data?.email || email;
     const message =
       err.response?.data?.message || "Login failed";
+
+    if (
+      status === 403 &&
+      (code === "ACCOUNT_SUSPENDED" || message === "Your account has been suspended")
+    ) {
+      set({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+        verificationRequired: false,
+        verificationEmail: null,
+        accountSuspensionNotice: true,
+      });
+      return { success: false, accountSuspended: true, message };
+    }
 
     /*
     | Backend rejected login because the email is not verified.
@@ -149,6 +167,7 @@ export const useAuthStore = create(
           error: null,
           verificationRequired: false,
           verificationEmail: null,
+          accountSuspensionNotice: false,
         });
       },
 
@@ -202,15 +221,24 @@ export const useAuthStore = create(
     const status = err.response?.status;
     const message = err.response?.data?.message;
     const code = err.response?.data?.code;
-    const requiresVerification =
+    const accountSuspended = status === 403 && (
+      code === "ACCOUNT_SUSPENDED" || message === "Your account has been suspended"
+    );
+    const requiresVerification = !accountSuspended && (
       (status === 403 && message === "Your account is not active") ||
-      code === "EMAIL_NOT_VERIFIED";
+      code === "EMAIL_NOT_VERIFIED"
+    );
 
     const email =
       err.response?.data?.data?.email ||
       get().user?.email ||
       get().verificationEmail ||
       null;
+
+    if (accountSuspended) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+    }
 
     set({
       user: null,
@@ -219,6 +247,7 @@ export const useAuthStore = create(
       initialized: true,
       verificationRequired: requiresVerification,
       verificationEmail: requiresVerification ? email : null,
+      accountSuspensionNotice: accountSuspended,
       error: requiresVerification ? null : message || null,
     });
   }
@@ -260,10 +289,10 @@ export const useAuthStore = create(
         }
       },
 
-      resendVerification: async (email) => {
+      resendVerification: async (email, invitationToken) => {
         set({ isLoading: true, error: null });
         try {
-          const res = await authService.resendVerification(email);
+          const res = await authService.resendVerification(email, invitationToken);
           set({ isLoading: false });
           return { success: true, message: res.message };
         } catch (err) {
@@ -295,6 +324,8 @@ export const useAuthStore = create(
       },
 
       clearError: () => set({ error: null }),
+
+      clearAccountSuspensionNotice: () => set({ accountSuspensionNotice: false }),
 
       requireEmailVerification: (email) =>
         set({

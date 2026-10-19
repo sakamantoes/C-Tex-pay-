@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import { useAuthStore } from "../../store/auth.store";
 import { useMerchantStore } from "../../store/merchant.store";
+import { SUPPORT_WHATSAPP_URL } from "../../constants/support";
 import { useCustomerStore } from "../../store/customer.store";
 import { useApiKeyStore } from "../../store/apiKey.store";
 import { useMerchantMemberStore } from "../../store/merchantMember.store";
@@ -169,8 +170,8 @@ const MerchantDashboard = ({ children, subtitle, title }) => {
     roles,
     isLoading: merchantLoading,
     error: merchantError,
-    getMyMerchant,
-    getMyMembership,
+    memberships,
+    selectedMerchantId,
   } = useMerchantStore();
 
   const {
@@ -200,11 +201,10 @@ const MerchantDashboard = ({ children, subtitle, title }) => {
   | Bootstrap merchant + membership (needed for both modes)
   |--------------------------------------------------------------------------
   */
-  useEffect(() => {
-    getMyMerchant();
-    getMyMembership();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const selectedMembership = memberships.find(
+    (item) => item.merchantId === selectedMerchantId,
+  );
+  const merchantSuspended = selectedMembership?.merchantStatus === "SUSPENDED";
 
   /*
   |--------------------------------------------------------------------------
@@ -364,6 +364,27 @@ const MerchantDashboard = ({ children, subtitle, title }) => {
     : "Merchant Admin";
   const profileRole = roles[0]?.name || "Member";
 
+  if (merchantSuspended) {
+    return (
+      <main className="min-h-screen bg-ctex-bg px-6 py-16 text-ctex-text">
+        <section className="mx-auto max-w-xl rounded-2xl border border-red-500/30 bg-red-500/5 p-8 text-center shadow-xl">
+          <h1 className="text-2xl font-semibold">Merchant workspace suspended</h1>
+          <p className="mt-3 text-ctex-text-muted">
+            This merchant account is suspended. Merchant operations are unavailable while the account is restricted.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <a className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white" href={SUPPORT_WHATSAPP_URL("Hello C-TEX PAY Support, please help me with a suspended merchant workspace.")} target="_blank" rel="noreferrer">
+              Contact support on WhatsApp
+            </a>
+            <button className="rounded-lg border border-ctex-border px-4 py-2" onClick={() => navigate("/user/dashboard/overview")}>
+              Return to user dashboard
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   /*
   |--------------------------------------------------------------------------
   | LAYOUT SHELL MODE
@@ -448,14 +469,15 @@ const MerchantDashboard = ({ children, subtitle, title }) => {
           detail={`${stats.roleCount} roles · ${stats.permissionCount} permissions`}
           loading={membersLoading}
         />
-        {hasPermission(permissions, "transactions.read") && (
-          <StatCard
-            title="Successful volume"
-            value={formatMoneyMinor(transactionSummary?.successfulNetMinor)}
-            detail={`${transactionSummary?.successfulTransactions ?? 0} successful · ${transactionSummary?.totalTransactions ?? 0} total`}
-            loading={transactionsLoading && !transactionSummary}
-          />
-        )}
+       {hasPermission(permissions, "transactions.read") && (
+  <StatCard
+    title="Successful volume"
+    value={formatMoneyMinor(transactionSummary?.successfulNetMinor)}
+    detail={`${transactionSummary?.successfulTransactions ?? 0} successful · ${transactionSummary?.totalTransactions ?? 0} total`}
+    loading={transactionsLoading && !transactionSummary}
+    compact
+  />
+)}
       </div>
 
       {hasPermission(permissions, "transactions.read") && (
@@ -677,9 +699,9 @@ export default MerchantDashboard;
 |--------------------------------------------------------------------------
 */
 
-function StatCard({ title, value, detail, loading }) {
+function StatCard({ title, value, detail, loading, compact = false }) {
   return (
-    <div className="rounded-2xl border border-ctex-border bg-ctex-surface p-5 shadow-lg shadow-black/10">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-ctex-border bg-ctex-surface p-5 shadow-lg shadow-black/10">
       <p className="text-sm text-ctex-text-muted">{title}</p>
 
       {loading ? (
@@ -689,7 +711,17 @@ function StatCard({ title, value, detail, loading }) {
         </>
       ) : (
         <>
-          <h3 className="mt-3 text-3xl font-semibold text-ctex-text">{value}</h3>
+          <h3
+            className={[
+              "mt-3 whitespace-nowrap font-semibold leading-tight text-ctex-text",
+              compact
+                ? "text-lg sm:text-xl xl:text-lg 2xl:text-xl"
+                : "text-3xl",
+            ].join(" ")}
+            title={typeof value === "string" ? value : undefined}
+          >
+            {value}
+          </h3>
           <p className="mt-2 text-xs text-ctex-text-muted">{detail}</p>
         </>
       )}

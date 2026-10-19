@@ -24,6 +24,10 @@ const TERMINAL_STATUSES = new Set([
  * and redirect the customer here. Bypasses CheckoutForm entirely —
  * the payment already exists, we just need to show the instructions.
  *
+ * When the payment reaches a terminal state AND the backend returned
+ * a redirectUrl, the customer is automatically sent back to the
+ * merchant's configured destination after a short delay.
+ *
  * Route: /checkout/:token
  */
 export default function DirectCheckoutPage() {
@@ -36,6 +40,7 @@ export default function DirectCheckoutPage() {
 
   const pollTimerRef = useRef(null);
   const pollStartedAtRef = useRef(null);
+  const redirectHandledRef = useRef(false);
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -64,10 +69,7 @@ export default function DirectCheckoutPage() {
           return;
         }
 
-        if (
-          Date.now() - pollStartedAtRef.current >
-          POLL_TIMEOUT_MS
-        ) {
+        if (Date.now() - pollStartedAtRef.current > POLL_TIMEOUT_MS) {
           stopPolling();
         }
       } catch {
@@ -80,6 +82,7 @@ export default function DirectCheckoutPage() {
     setPhase("loading");
     setError(null);
     stopPolling();
+    redirectHandledRef.current = false;
 
     try {
       const result = await checkoutService.getByToken(token);
@@ -106,6 +109,36 @@ export default function DirectCheckoutPage() {
     return () => stopPolling();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Auto-redirect when payment reaches a terminal state
+  |--------------------------------------------------------------------------
+  | Only redirects when:
+  |   - paymentData.redirectUrl is present (backend returned one)
+  |   - the status is terminal (SUCCESS / FAILED / EXPIRED / CANCELLED)
+  |   - we haven't already triggered a redirect for this page view
+  |
+  | Delay gives the customer a moment to see the confirmation before
+  | being sent back to the merchant's site.
+  */
+  useEffect(() => {
+    if (redirectHandledRef.current) return;
+    if (!paymentData?.redirectUrl) return;
+
+    const isTerminal = TERMINAL_STATUSES.has(paymentData.status);
+    if (!isTerminal) return;
+
+    redirectHandledRef.current = true;
+
+    const delay = paymentData.status === "SUCCESS" ? 2500 : 1500;
+
+    const t = setTimeout(() => {
+      window.location.href = paymentData.redirectUrl;
+    }, delay);
+
+    return () => clearTimeout(t);
+  }, [paymentData]);
 
   /* -------- Render states -------- */
 
@@ -173,6 +206,7 @@ export default function DirectCheckoutPage() {
         link={synthesizedLink}
         checkout={synthesizedCheckout}
         paymentStatus={synthesizedStatus}
+        redirectUrl={paymentData?.redirectUrl || null}
       />
     </CheckoutShell>
   );

@@ -42,7 +42,13 @@ export default function PermissionGuard({
     membership,
     isLoading,
     getMyMembership,
+    memberships,
+    selectedMerchantId,
   } = useMerchantStore();
+  const selectedMembership = memberships.find(
+    (item) => item.merchantId === selectedMerchantId,
+  );
+  const merchantSuspended = selectedMembership?.merchantStatus === "SUSPENDED";
 
   /*
   |--------------------------------------------------------------------------
@@ -51,11 +57,20 @@ export default function PermissionGuard({
   | If someone deep-links to a protected page, permissions may not be loaded.
   */
   useEffect(() => {
-    if (!membership && !isLoading) {
+    if (!membership && !isLoading && !merchantSuspended) {
       getMyMembership();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [merchantSuspended]);
+
+  // Keep the user inside the workspace shell so it can render its restricted
+  // access screen. Deep links to merchant operations return to that screen.
+  if (merchantSuspended) {
+    if (permission || anyOf || allOf) {
+      return <Navigate to="/merchant/dashboard" replace state={{ from: location }} />;
+    }
+    return children;
+  }
 
   /*
   |--------------------------------------------------------------------------

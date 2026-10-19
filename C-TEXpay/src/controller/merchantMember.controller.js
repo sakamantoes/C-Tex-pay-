@@ -4,6 +4,7 @@ import {
   MerchantMemberRole,
   User,
   MerchantInvitation,
+  Merchant,
   Notification,
 } from "../models/index.js";
 
@@ -22,6 +23,63 @@ import envConfig from "../config/constant.js";
 
 const hashToken = (token) =>
   crypto.createHash("sha256").update(token).digest("hex");
+
+// Public, read-only preview. The unguessable invitation token is the capability;
+// never look up invitees using an email supplied by the caller.
+export const previewMemberInvitation = async (req, res) => {
+  try {
+    const invitation = await MerchantInvitation.findOne({
+      where: { token: hashToken(req.query.token) },
+      include: [
+        {
+          model: Merchant,
+          as: "merchant",
+          attributes: ["id"],
+          include: [{ association: "businessProfile", attributes: ["businessName"] }],
+        },
+        { model: Role, as: "role", attributes: ["name"] },
+      ],
+    });
+
+    if (!invitation) {
+      return res.status(404).json({ success: false, code: "INVITATION_INVALID", message: "This invitation link is invalid." });
+    }
+    if (invitation.acceptedAt) {
+      return res.status(200).json({ success: true, data: { status: "ACCEPTED" } });
+    }
+    if (new Date(invitation.expiresAt) <= new Date()) {
+      return res.status(410).json({ success: false, code: "INVITATION_EXPIRED", message: "This invitation has expired." });
+    }
+
+    const recipient = await User.findOne({
+      where: { email: invitation.email },
+      attributes: ["id", "status", "emailVerified"],
+    });
+    const nextStep = !recipient
+      ? "REGISTER"
+      : recipient.status === "ACTIVE" || recipient.status === "PENDING"
+      ? "LOGIN"
+      : "ACCOUNT_UNAVAILABLE";
+
+    // Return only an action hint, never user ID, status, or account details.
+    // This minimum signal is available only with the unguessable invite token.
+    const businessProfile = invitation.merchant?.businessProfile;
+    return res.status(200).json({
+      success: true,
+      data: {
+        status: "PENDING",
+        email: invitation.email,
+        merchantName: businessProfile?.businessName || "a C-TEX PAY business",
+        roleName: invitation.role?.name || "team member",
+        expiresAt: invitation.expiresAt,
+        nextStep,
+      },
+    });
+  } catch (error) {
+    console.error("Invitation preview failed:", { requestId: req.requestId, message: error.message });
+    return res.status(500).json({ success: false, message: "Unable to load this invitation." });
+  }
+};
 
 /**
  * Count ACTIVE owners of a merchant.
@@ -551,8 +609,7 @@ export const acceptMemberInvitation = async (
           if (
             !invitation ||
             invitation.acceptedAt ||
-            new Date(invitation.expiresAt) <=
-              new Date()
+            new Date(invitation.expiresAt) <= new Date()
           ) {
             const error = new Error(
               "Invitation is invalid or expired"
@@ -582,6 +639,16 @@ export const acceptMemberInvitation = async (
             throw error;
           }
 
+          if (req.user.status !== "ACTIVE" || req.user.emailVerified !== true) {
+            const error = new Error(
+              req.user.emailVerified !== true
+                ? "Verify your email address before accepting this invitation."
+                : "Your account is not eligible to accept this invitation. Contact support."
+            );
+            error.statusCode = 403;
+            throw error;
+          }
+
           /*
           |--------------------------------------------------------------------------
           | Find existing membership
@@ -608,16 +675,11 @@ export const acceptMemberInvitation = async (
           |--------------------------------------------------------------------------
           */
 
-          if (
-            member &&
-            member.status !== "REMOVED"
-          ) {
-            const error = new Error(
-              "You are already a member of this merchant"
-            );
+          const alreadyMember = Boolean(member && member.status === "ACTIVE");
 
-            error.statusCode = 409;
-
+          if (member && member.status === "SUSPENDED") {
+            const error = new Error("Your membership is suspended. Contact the merchant administrator.");
+            error.statusCode = 403;
             throw error;
           }
 
@@ -627,7 +689,7 @@ export const acceptMemberInvitation = async (
           |--------------------------------------------------------------------------
           */
 
-          if (member) {
+          if (member && !alreadyMember) {
             await member.update(
               {
                 status: "ACTIVE",
@@ -638,7 +700,7 @@ export const acceptMemberInvitation = async (
                 transaction,
               }
             );
-          } else {
+          } else if (!member) {
             /*
             |--------------------------------------------------------------------------
             | Create membership
@@ -670,8 +732,8 @@ export const acceptMemberInvitation = async (
           |--------------------------------------------------------------------------
           */
 
-          await MerchantMemberRole.findOrCreate(
-            {
+          if (!alreadyMember) {
+            await MerchantMemberRole.findOrCreate({
               where: {
                 merchantMemberId: member.id,
                 roleId: invitation.roleId,
@@ -683,8 +745,8 @@ export const acceptMemberInvitation = async (
               },
 
               transaction,
-            }
-          );
+            });
+          }
 
           /*
           |--------------------------------------------------------------------------
@@ -750,6 +812,7 @@ export const acceptMemberInvitation = async (
               invitation.merchantId,
 
             roleId: invitation.roleId,
+            alreadyMember,
           };
         }
       );
@@ -763,8 +826,9 @@ export const acceptMemberInvitation = async (
     return res.status(200).json({
       success: true,
 
-      message:
-        "Invitation accepted successfully",
+      message: result.alreadyMember
+        ? "You already belong to this team. Your membership was left unchanged."
+        : "Invitation accepted successfully",
 
       data: result,
     });

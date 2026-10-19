@@ -151,7 +151,7 @@ const DashboardLayout = ({
   );
 
   // ---- Auth + merchant stores (for logout) ----
-  const { logout, isLoading: authLoading } = useAuthStore();
+  const { logout, isLoading: authLoading, user } = useAuthStore();
   const {
     clearMerchant,
     memberships,
@@ -185,7 +185,38 @@ const DashboardLayout = ({
     return () => socket.disconnect();
   }, [getMyNotifications, addNotification, addNotifications]);
 
-  const index = useMemo(() => buildIndex(navSections), [navSections]);
+  // Invited users keep their USER role while working in a merchant workspace.
+  // Keep a route back to their personal dashboard available on every merchant
+  // page, including the mobile drawer.
+  const effectiveNavSections = useMemo(() => {
+    const sections = navSections || [];
+    if (
+      user?.role !== "USER" ||
+      !location.pathname.startsWith("/merchant/dashboard")
+    ) {
+      return sections;
+    }
+
+    return [
+      ...sections,
+      {
+        title: "Personal account",
+        items: [
+          {
+            key: "personal-dashboard",
+            label: "Personal dashboard",
+            icon: "profile",
+            path: "/user/dashboard/overview",
+          },
+        ],
+      },
+    ];
+  }, [location.pathname, navSections, user?.role]);
+
+  const index = useMemo(
+    () => buildIndex(effectiveNavSections),
+    [effectiveNavSections]
+  );
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -195,14 +226,14 @@ const DashboardLayout = ({
   );
 
   const [manualSelectedKey, setManualSelectedKey] = useState(
-    () => urlKey || navSections?.[0]?.items?.[0]?.key || "dashboard"
+    () => urlKey || effectiveNavSections?.[0]?.items?.[0]?.key || "dashboard"
   );
 
   const selectedKey = urlKey || manualSelectedKey;
 
   const [expanded, setExpanded] = useState(() => {
     const map = {};
-    navSections?.forEach((section) => {
+    effectiveNavSections?.forEach((section) => {
       (section.items || []).forEach((item) => {
         if (item.children?.length) {
           map[item.key] = true;
@@ -330,7 +361,7 @@ const DashboardLayout = ({
       </div>
 
       <nav className="space-y-4 overflow-y-auto pb-4">
-        {(navSections || []).map((section) => (
+        {effectiveNavSections.map((section) => (
           <div key={section.title} className="space-y-2">
             <p className="px-2 text-[10px] font-medium uppercase tracking-[0.2em] text-ctex-text-muted">
               {section.title}
@@ -608,7 +639,7 @@ const DashboardLayout = ({
               </div>
 
               <nav className="flex-1 space-y-4 overflow-y-auto pb-4">
-                {(navSections || []).map((section) => (
+                {effectiveNavSections.map((section) => (
                   <div key={section.title} className="space-y-2">
                     <p className="px-2 text-[10px] font-medium uppercase tracking-[0.2em] text-ctex-text-muted">
                       {section.title}

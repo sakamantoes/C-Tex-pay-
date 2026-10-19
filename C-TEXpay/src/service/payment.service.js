@@ -19,6 +19,7 @@ import { enqueueSuccessfulPaymentNotifications } from "./merchantNotification.se
 import { calculateAndRecordFees } from "./fee.service.js";
 import { postPaymentSettlement } from "./ledger.service.js";
 import { markLinkConsumedIfNeeded } from "./paymentLink.service.js";
+import { normalizeMetadata } from "../utils/normalizeMetadata.js";
 
 /* =========================================================
  * CONSTANTS
@@ -452,7 +453,7 @@ export function toPublicPayment(payment, feeRecord = null) {
     paymentMethod: data.paymentMethod,
     status: data.status,
     description: data.description,
-    metadata: data.metadata,
+    metadata: normalizeMetadata(data.metadata),
     paymentInstructions: normalizePaymentInstructions(data.paymentInstructions),
     expiresAt: data.expiresAt,
     fees: toFeeBreakdown(feeRecord ?? data.feeRecord ?? null),
@@ -511,6 +512,7 @@ export async function createPayment({
   description = null,
   metadata = null,
   idempotencyKey,
+  returnUrl = null,
 }) {
   if (!merchantId) {
     throwErr("merchantId is required", "MERCHANT_REQUIRED", 400);
@@ -527,6 +529,21 @@ export async function createPayment({
   assertMetadata(metadata);
   assertIdempotencyKey(idempotencyKey);
 
+  /*
+   * Merge returnUrl into metadata so it's persisted on the Payment and
+   * visible to the checkout flow. This keeps a single source of truth
+   * and avoids adding a new column.
+   *
+   * IMPORTANT: returnUrl is NOT part of the merchant's requestHash by
+   * default — but we DO include it here so a re-used Idempotency-Key
+   * with a different returnUrl is caught as a conflict. If you want to
+   * allow returnUrl to vary per retry, remove it from this hash input.
+   */
+  const mergedMetadata =
+    returnUrl !== null && returnUrl !== undefined
+      ? { ...(metadata || {}), returnUrl }
+      : metadata;
+
   const requestHash = createRequestHash({
     merchantId,
     customerId,
@@ -535,7 +552,7 @@ export async function createPayment({
     paymentMethod,
     merchantReference,
     description,
-    metadata,
+    metadata: mergedMetadata,
   });
 
   /* -------------------------------------------------------
@@ -632,7 +649,7 @@ export async function createPayment({
           paymentMethod,
           status: "PENDING",
           description,
-          metadata,
+          metadata: mergedMetadata,
           paymentInstructions: null,
           idempotencyKey,
           requestHash,
@@ -741,7 +758,7 @@ export async function createPayment({
       currency: payment.currency,
       customer: customerContext,
       description: payment.description,
-      metadata: payment.metadata,
+      metadata: normalizeMetadata(payment.metadata),
     });
   } catch (error) {
     console.error("Payment provider initialization failed", {
@@ -808,7 +825,7 @@ export async function createPayment({
         currency: payment.currency,
         customer: customerContext,
         description: payment.description,
-        metadata: payment.metadata,
+        metadata: normalizeMetadata(payment.metadata),
       });
     } catch (error) {
       console.error("Bank transfer initialization failed", {

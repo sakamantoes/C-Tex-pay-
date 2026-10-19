@@ -11,6 +11,8 @@ export default function VerifyEmailSentPage() {
   // Read email from either router state (from register redirect)
   // or query string (?email=...) for direct visits / reloads.
   const routeEmail = location.state?.email || searchParams.get("email") || "";
+  const invitationToken = searchParams.get("invitationToken") || "";
+  const redirect = searchParams.get("redirect") || "";
   const hasRouteEmail = Boolean(routeEmail);
 
   const { resendVerification, isLoading, error, clearError } = useAuthStore();
@@ -26,7 +28,7 @@ export default function VerifyEmailSentPage() {
 
     clearError();
     setResendSuccess(false);
-    const res = await resendVerification(normalizedEmail);
+    const res = await resendVerification(normalizedEmail, invitationToken || undefined);
     if (res.success) {
       setResendSuccess(true);
       // auto-hide success after 4s
@@ -149,7 +151,9 @@ export default function VerifyEmailSentPage() {
           </button>
 
           <Link
-            to="/login"
+            to={redirect.startsWith("/accept-invitation?")
+              ? `/login?redirect=${encodeURIComponent(redirect)}`
+              : "/login"}
             className="text-xs font-medium text-ctex-text-muted transition hover:text-ctex-blue hover:underline"
           >
             Back to sign in

@@ -91,7 +91,6 @@ router.patch(
 router.get(
   "/me/membership",
   protect,
-  requireMerchant,
   getMyMembership
 );
 

@@ -10,6 +10,7 @@ import {
   removeRoleFromMember,
   removeMember,
   inviteMember,
+  previewMemberInvitation,
   acceptMemberInvitation,
   getMyNotifications,
   markNotificationRead,
@@ -63,6 +64,13 @@ router.delete(
 
 
 router.delete("/notifications", protect, deleteAllNotifications);
+
+// Public preview is read-only; acceptance remains protected below.
+router.get(
+  "/invitations/preview",
+  validate(z.object({ token: z.string().trim().min(1) }), "query"),
+  previewMemberInvitation,
+);
 
 // Accept an invitation as the authenticated invited user
 router.post(

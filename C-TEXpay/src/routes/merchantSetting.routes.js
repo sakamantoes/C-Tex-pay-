@@ -4,10 +4,14 @@ import { requireMerchant } from "../middleware/merchant.middleware.js";
 import { requirePermission } from "../middleware/permission.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
-  getMerchantSettingsController,
-  updateMerchantSettingsController,
+  getSettings,
+  updateSettings,
+  updateUrls,
 } from "../controller/merchantSetting.controller.js";
-import { updateMerchantSettingsSchema } from "../validation/merchantSetting.validation.js";
+import {
+  updateMerchantSettingsSchema,
+  updateMerchantUrlsSchema,
+} from "../validation/merchantSetting.validation.js";
 
 const router = Router();
 
@@ -16,7 +20,7 @@ router.get(
   protect,
   requireMerchant,
   requirePermission("settings.read"),
-  getMerchantSettingsController,
+  getSettings
 );
 
 router.patch(
@@ -25,7 +29,16 @@ router.patch(
   requireMerchant,
   requirePermission("settings.update"),
   validate(updateMerchantSettingsSchema),
-  updateMerchantSettingsController,
+  updateSettings
+);
+
+router.patch(
+  "/urls",
+  protect,
+  requireMerchant,
+  requirePermission("settings.update"),
+  validate(updateMerchantUrlsSchema),
+  updateUrls
 );
 
 export default router;

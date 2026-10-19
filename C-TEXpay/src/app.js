@@ -26,6 +26,7 @@ import xixapayWebhookRoutes from "./webhooks/xixapay.webhook.routes.js";
 import paymentLinkRoutes from "./routes/paymentLink.routes.js";
 import publicPaymentLinkRoutes from "./routes/publicPaymentLink.routes.js";
 import publicCheckoutRoutes from "./routes/publicCheckout.routes.js";
+import adminMerchantRoutes from "./routes/adminMerchant.routes.js";
 
 const app = express();
 
@@ -75,6 +76,7 @@ app.use("/api/v1/merchant-webhooks", merchantWebhookRoutes);
 app.use("/api/v1/merchant-settings", merchantSettingRoutes);
 app.use("/api/v1/admin/payments", adminPaymentRoutes);
 app.use("/api/v1/admin/dashboard", adminDashboardRoutes);
+app.use("/api/v1/admin", adminMerchantRoutes);
 app.use("/api/v1/fees", feeRoutes);
 app.use("/api/v1/ledger", ledgerRoutes);
 app.use("/api/v1/admin/ledger", adminLedgerRoutes);

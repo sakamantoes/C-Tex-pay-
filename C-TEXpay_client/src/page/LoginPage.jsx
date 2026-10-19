@@ -13,8 +13,7 @@ export default function LoginPage() {
   const location = useLocation();
   const { login, isLoading, error, clearError } = useAuthStore();
 
-  const [form, setForm] = useState({ email: "", password: "" });
-  const [localError, setLocalError] = useState("");
+  const requestedEmail = new URLSearchParams(location.search).get("email") || "";
 
   // Read one-shot state flags passed by other flows
   const justVerified = location.state?.verified;
@@ -29,6 +28,11 @@ export default function LoginPage() {
     requestedRedirect?.startsWith("/") && !requestedRedirect.startsWith("//")
       ? requestedRedirect
       : null;
+  const requestedInvitationToken = redirectTo?.startsWith("/accept-invitation?")
+    ? new URLSearchParams(redirectTo.split("?")[1]).get("token") || ""
+    : "";
+  const [form, setForm] = useState({ email: requestedEmail, password: "" });
+  const [localError, setLocalError] = useState("");
 
   const handleChange = (e) => {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -45,7 +49,7 @@ export default function LoginPage() {
 
     const email = form.email.trim().toLowerCase();
 
-    const res = await login({ email, password: form.password });
+    const res = await login({ email, password: form.password, invitationToken: requestedInvitationToken || undefined });
 
     /*
     |--------------------------------------------------------------------------
@@ -67,10 +71,11 @@ export default function LoginPage() {
     if (res.requiresEmailVerification) {
       const targetEmail = res.email || email;
       toast.info("Please verify your email to continue.");
-      navigate(
-        `/verify-email-sent?email=${encodeURIComponent(targetEmail)}`,
-        { replace: true }
-      );
+      const verifyParams = new URLSearchParams({ email: targetEmail });
+      if (redirectTo?.startsWith("/accept-invitation?")) {
+        verifyParams.set("redirect", redirectTo);
+      }
+      navigate(`/verify-email-sent?${verifyParams.toString()}`, { replace: true });
       return;
     }
 
@@ -79,7 +84,9 @@ export default function LoginPage() {
     | Any other failure — surface the message
     |--------------------------------------------------------------------------
     */
-    toast.error(res.message || "Login failed. Please try again.");
+    if (!res.accountSuspended) {
+      toast.error(res.message || "Login failed. Please try again.");
+    }
   };
 
   const displayError = localError || error;
@@ -92,7 +99,9 @@ export default function LoginPage() {
         <>
           New to C-TEX PAY?{" "}
           <Link
-            to="/signup"
+            to={redirectTo?.startsWith("/accept-invitation?")
+              ? `/signup?invitationToken=${encodeURIComponent(new URLSearchParams(redirectTo.split("?")[1]).get("token") || "")}&email=${encodeURIComponent(requestedEmail)}`
+              : "/signup"}
             className="font-medium text-ctex-blue hover:text-ctex-blue-light hover:underline"
           >
             Create one

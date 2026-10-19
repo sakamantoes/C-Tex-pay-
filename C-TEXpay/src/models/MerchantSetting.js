@@ -31,6 +31,18 @@ const MerchantSetting = sequelize.define(
       allowNull: true,
       validate: { isEmail: true },
     },
+    successRedirectUrl: {
+  type: DataTypes.STRING(500),
+  allowNull: true,
+},
+failureRedirectUrl: {
+  type: DataTypes.STRING(500),
+  allowNull: true,
+},
+cancelRedirectUrl: {
+  type: DataTypes.STRING(500),
+  allowNull: true,
+},
   },
   {
     tableName: "merchant_settings",

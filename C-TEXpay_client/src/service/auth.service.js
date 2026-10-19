@@ -20,8 +20,8 @@ export const authService = {
    * Login user
    * POST /auth/login
    */
-  login: async ({ email, password }) => {
-    const { data } = await api.post("/auth/login", { email, password });
+  login: async ({ email, password, invitationToken }) => {
+    const { data } = await api.post("/auth/login", { email, password, invitationToken });
 
     // Persist tokens
     if (data?.data?.accessToken) {
@@ -54,8 +54,8 @@ export const authService = {
     return { success: true };
   },
 
-  resendVerification: async (email) => {
-  const { data } = await api.post("/auth/resend-verification", { email });
+  resendVerification: async (email, invitationToken) => {
+  const { data } = await api.post("/auth/resend-verification", { email, invitationToken });
   return data;
 },
 

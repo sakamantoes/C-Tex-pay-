@@ -29,6 +29,43 @@ function statusClass(status) {
   return "bg-red-500/10 text-red-500";
 }
 
+/*
+|--------------------------------------------------------------------------
+| Payment type badge
+|--------------------------------------------------------------------------
+| Derived server-side from paymentLinkId + metadata.source.
+| Rendered as a small label alongside the payment reference.
+*/
+const PAYMENT_TYPE_LABELS = {
+  PAYMENT_LINK: {
+    label: "Payment link",
+    className: "bg-ctex-blue/10 text-ctex-blue",
+  },
+  DIRECT_CHECKOUT: {
+    label: "Hosted checkout",
+    className: "bg-indigo-500/10 text-indigo-500",
+  },
+  API: {
+    label: "API",
+    className: "bg-violet-500/10 text-violet-500",
+  },
+  BANK_TRANSFER: {
+    label: "Bank transfer",
+    className: "bg-ctex-elevated text-ctex-text-muted",
+  },
+};
+
+function PaymentTypeBadge({ type }) {
+  const config = PAYMENT_TYPE_LABELS[type] || PAYMENT_TYPE_LABELS.BANK_TRANSFER;
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${config.className}`}
+    >
+      {config.label}
+    </span>
+  );
+}
+
 export default function TransactionsPage() {
   const [searchParams] = useSearchParams();
   const initialPaymentReference = searchParams.get("paymentReference") || "";
@@ -238,6 +275,7 @@ export default function TransactionsPage() {
             <thead className="bg-ctex-elevated/60 text-left text-xs text-ctex-text-muted">
               <tr>
                 <Th>Payment</Th>
+                <Th>Type</Th>
                 <Th>Customer</Th>
                 <Th>Amount</Th>
                 <Th>Status</Th>
@@ -247,10 +285,10 @@ export default function TransactionsPage() {
             </thead>
             <tbody className="divide-y divide-ctex-border">
               {isLoading && transactions.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-ctex-text-muted">Loading transactions…</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-ctex-text-muted">Loading transactions…</td></tr>
               )}
               {!isLoading && transactions.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-ctex-text-muted">No transactions match these filters.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-ctex-text-muted">No transactions match these filters.</td></tr>
               )}
               {transactions.map((transaction) => (
                 <tr key={transaction.id} className="hover:bg-ctex-elevated/30">
@@ -259,6 +297,9 @@ export default function TransactionsPage() {
                     <span className="mt-1 block text-xs text-ctex-text-muted">
                       {transaction.merchantReference || "No merchant reference"}
                     </span>
+                  </Td>
+                  <Td>
+                    <PaymentTypeBadge type={transaction.type} />
                   </Td>
                   <Td>
                     <span className="text-ctex-text">{transaction.customer?.name || "Guest"}</span>
@@ -360,11 +401,16 @@ export default function TransactionsPage() {
               exit={{ y: 12, scale: 0.98 }}
             >
               <div className="flex items-start justify-between gap-3 border-b border-ctex-border pb-4">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs uppercase tracking-wide text-ctex-text-muted">CTEX PAY transaction</p>
                   <h2 id="transaction-detail-title" className="mt-1 break-all text-lg font-semibold text-ctex-text">
                     {selectedTransaction?.paymentReference || "Transaction details"}
                   </h2>
+                  {selectedTransaction?.type ? (
+                    <div className="mt-2">
+                      <PaymentTypeBadge type={selectedTransaction.type} />
+                    </div>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -383,6 +429,7 @@ export default function TransactionsPage() {
                   <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                     <Detail label="Payment reference" value={selectedTransaction.paymentReference} />
                     <Detail label="Merchant reference" value={selectedTransaction.merchantReference || "—"} />
+                    <Detail label="Type" value={selectedTransaction.type || "BANK_TRANSFER"} />
                     <Detail label="Amount" value={formatMoney(selectedTransaction.amount, selectedTransaction.currency)} />
                     <Detail label="Status" value={selectedTransaction.status} />
                     <Detail label="Payment method" value={selectedTransaction.paymentMethod} />

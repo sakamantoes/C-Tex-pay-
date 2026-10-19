@@ -275,7 +275,10 @@ export const useMerchantStore = create((set, get) => ({
         isLoading: false,
       });
 
-      if (nextSelection) await get().getMyMembership();
+      const selected = memberships.find((item) => item.merchantId === nextSelection);
+      if (nextSelection && selected?.merchantStatus === "ACTIVE") {
+        await get().getMyMembership();
+      }
       return { success: true, data: res };
     } catch (err) {
       const message = err.response?.data?.message || "Failed to load memberships";

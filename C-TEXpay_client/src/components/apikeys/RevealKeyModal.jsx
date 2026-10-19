@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useApiKeyStore } from "../../store/apiKey.store";
 
@@ -12,15 +12,15 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
   const [copied, setCopied] = useState(false);
 
   // Reset when opened
-  useEffect(() => {
-    if (!open) return;
+  const handleClose = useCallback(() => {
     setPassword("");
     setShowPassword(false);
     setLocalError("");
     setCopied(false);
     clearError();
     clearRevealedKey();
-  }, [open, clearError, clearRevealedKey]);
+    onClose();
+  }, [clearError, clearRevealedKey, onClose]);
 
   // Escape closes
   useEffect(() => {
@@ -28,13 +28,7 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
     const onKey = (e) => e.key === "Escape" && handleClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const handleClose = () => {
-    clearRevealedKey();
-    onClose();
-  };
+  }, [open, handleClose]);
 
   const handleReveal = async (e) => {
     e.preventDefault();
@@ -50,10 +44,11 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
     if (!revealedKey?.key) return;
     try {
       await navigator.clipboard.writeText(revealedKey.key);
+      setLocalError("");
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* clipboard not available */
+      setLocalError("Clipboard access failed. Select and copy the key manually.");
     }
   };
 
@@ -122,6 +117,12 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
                       {revealedKey.key}
                     </p>
                   </div>
+
+                  {localError && (
+                    <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500">
+                      {localError}
+                    </p>
+                  )}
 
                   <div className="flex items-center justify-end gap-2">
                     <button

@@ -34,9 +34,15 @@ export const createPaymentSchema = z
       .optional(),
     metadata: z.record(z.any()).optional().nullable(),
     paymentMethod: z.enum(["ACCOUNT_TRANSFER"]).optional(),
+    returnUrl: z
+      .string()
+      .trim()
+      .url("returnUrl must be a valid URL")
+      .max(500, "returnUrl must not exceed 500 characters")
+      .optional()
+      .nullable(),
   })
   .strict();
-
 /*
 |--------------------------------------------------------------------------
 | Param: payment reference

@@ -5,6 +5,7 @@ import {
   requireMerchantOwner,
 } from "../middleware/merchant.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
+import { requirePermission } from "../middleware/permission.middleware.js";
 import {
   authenticateApiKey,
   recordApiKeyUsage,
@@ -41,7 +42,7 @@ router.post(
   "/",
   protect,
   requireMerchant,
-  requireMerchantOwner,
+  requirePermission("api_keys.create"),
   validate(createApiKeySchema),
   createApiKey
 );
@@ -51,6 +52,7 @@ router.get(
   "/",
   protect,
   requireMerchant,
+  requirePermission("api_keys.read"),
   validate(getApiKeysQuerySchema, "query"),
   getApiKeys
 );
@@ -60,6 +62,7 @@ router.get(
   "/:id",
   protect,
   requireMerchant,
+  requirePermission("api_keys.read"),
   validate(apiKeyIdParamSchema, "params"),
   getApiKey
 );
@@ -69,7 +72,7 @@ router.post(
   "/:id/reveal",
   protect,
   requireMerchant,
-  requireMerchantOwner,
+  requirePermission("api_keys.read"),
   validate(apiKeyIdParamSchema, "params"),
   validate(revealApiKeySchema),
   revealApiKey
@@ -80,6 +83,7 @@ router.get(
   "/:id/permissions",
   protect,
   requireMerchant,
+  requirePermission("api_keys.read"),
   validate(apiKeyIdParamSchema, "params"),
   getApiKeyPermissions
 );
@@ -119,7 +123,7 @@ router.post(
   "/:id/revoke",
   protect,
   requireMerchant,
-  requireMerchantOwner,
+  requirePermission("api_keys.revoke"),
   validate(apiKeyIdParamSchema, "params"),
   revokeApiKey
 );
@@ -129,6 +133,7 @@ router.get(
   "/:id/usage",
   protect,
   requireMerchant,
+  requirePermission("api_keys.read"),
   validate(apiKeyIdParamSchema, "params"),
   validate(usageQuerySchema, "query"),
   getApiKeyUsage

@@ -9,11 +9,13 @@ export const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email("Please provide a valid email address"),
   phone: z.string().trim().min(1, "Phone number cannot be empty").max(30).optional(),
   password,
+  invitationToken: z.string().trim().min(1).max(256).optional(),
 });
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email("Please provide a valid email address"),
   password: z.string().min(1, "Password is required"),
+  invitationToken: z.string().trim().min(1).max(256).optional(),
 });
 
 export const refreshTokenSchema = z.object({
@@ -56,4 +58,5 @@ export const changePasswordSchema = z
 
   export const resendVerificationSchema = z.object({
   email: z.string().trim().toLowerCase().email("Please provide a valid email address"),
+  invitationToken: z.string().trim().min(1).max(256).optional(),
 });

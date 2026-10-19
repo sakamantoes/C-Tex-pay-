@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { Merchant, MerchantMember } from "../../models/index.js";
-import { getMyMemberships } from "../../controller/merchant.controller.js";
+import { getMyMembership, getMyMemberships } from "../../controller/merchant.controller.js";
 import {
   requireMerchant,
   requireOwnedMerchant,
@@ -127,6 +127,7 @@ test("membership discovery returns assigned permissions without merchant profile
       merchant: {
         id: teamMerchantId,
         ownerId: "another-user",
+        status: "ACTIVE",
         businessProfile: { businessName: "Private business data" },
       },
       roles: [
@@ -145,10 +146,104 @@ test("membership discovery returns assigned permissions without merchant profile
 
     assert.equal(result.response.statusCode, 200);
     assert.equal(memberships[0].isOwner, false);
+    assert.equal(memberships[0].merchantStatus, "ACTIVE");
     assert.deepEqual(memberships[0].roles, [{ id: "role-1", name: "Analyst" }]);
     assert.deepEqual(memberships[0].permissions, ["transactions.read"]);
     assert.equal("merchant" in memberships[0], false);
     assert.equal(JSON.stringify(memberships).includes("Private business data"), false);
+  } finally {
+    MerchantMember.findAll = originalFindAll;
+  }
+});
+
+test("membership endpoint identifies an active membership on a suspended merchant", async () => {
+  const originalFindAll = MerchantMember.findAll;
+  MerchantMember.findAll = async () => [{
+    id: "suspended-owner-membership",
+    merchantId: ownedMerchantId,
+    status: "ACTIVE",
+    merchant: { id: ownedMerchantId, ownerId: userId, status: "SUSPENDED" },
+    roles: [{ id: "owner-role", permissions: [{ key: "payments.create" }] }],
+  }];
+
+  try {
+    const result = await invoke(getMyMembership, {
+      user: { id: userId },
+      get: () => undefined,
+    });
+    assert.equal(result.response.statusCode, 403);
+    assert.equal(result.response.body.code, "MERCHANT_SUSPENDED");
+    assert.deepEqual(result.response.body.data, {
+      merchantId: ownedMerchantId,
+      merchantStatus: "SUSPENDED",
+    });
+    assert.equal(JSON.stringify(result.response.body).includes("payments.create"), false);
+  } finally {
+    MerchantMember.findAll = originalFindAll;
+  }
+});
+
+test("team membership on a suspended merchant is reported as suspended, not missing", async () => {
+  const originalFindAll = MerchantMember.findAll;
+  MerchantMember.findAll = async () => [{
+    id: "suspended-team-membership",
+    merchantId: teamMerchantId,
+    status: "ACTIVE",
+    merchant: { id: teamMerchantId, ownerId: "another-user", status: "SUSPENDED" },
+    roles: [],
+  }];
+
+  try {
+    const result = await invoke(getMyMembership, {
+      user: { id: userId },
+      get: (header) => header.toLowerCase() === "x-merchant-id" ? teamMerchantId : undefined,
+    });
+    assert.equal(result.response.statusCode, 403);
+    assert.equal(result.response.body.code, "MERCHANT_SUSPENDED");
+    assert.equal(result.response.body.data.merchantId, teamMerchantId);
+  } finally {
+    MerchantMember.findAll = originalFindAll;
+  }
+});
+
+test("membership endpoint preserves the no-membership case", async () => {
+  const originalFindAll = MerchantMember.findAll;
+  MerchantMember.findAll = async () => [];
+
+  try {
+    const result = await invoke(getMyMembership, {
+      user: { id: userId },
+      get: () => undefined,
+    });
+    assert.equal(result.response.statusCode, 404);
+    assert.equal(result.response.body.message, "Membership not found");
+  } finally {
+    MerchantMember.findAll = originalFindAll;
+  }
+});
+
+test("membership endpoint still returns the existing success shape for an active merchant", async () => {
+  const originalFindAll = MerchantMember.findAll;
+  MerchantMember.findAll = async () => [{
+    id: "active-membership",
+    merchantId: ownedMerchantId,
+    status: "ACTIVE",
+    merchant: { id: ownedMerchantId, ownerId: userId, status: "ACTIVE" },
+    roles: [{
+      id: "role-1",
+      name: "Operator",
+      permissions: [{ key: "transactions.read" }],
+    }],
+  }];
+
+  try {
+    const result = await invoke(getMyMembership, {
+      user: { id: userId },
+      get: () => undefined,
+    });
+    assert.equal(result.response.statusCode, 200);
+    assert.equal(result.response.body.data.membership.merchantStatus, "ACTIVE");
+    assert.deepEqual(result.response.body.data.permissions, ["transactions.read"]);
   } finally {
     MerchantMember.findAll = originalFindAll;
   }

@@ -8,6 +8,7 @@ import {
   CreditCard,
   ReceiptText,
   CalendarDays,
+  ArrowRight,
 } from "lucide-react";
 import { ImageLogo } from "../../../utils/image";
 
@@ -143,6 +144,17 @@ const PENDING_CONFIG = {
 };
 
 /* ------------------------------------------------------------------ */
+/* Redirect delay (matches DirectCheckoutPage's setTimeout values)    */
+/* ------------------------------------------------------------------ */
+
+const REDIRECT_DELAY_MS = {
+  SUCCESS: 2500,
+  FAILED: 1500,
+  EXPIRED: 1500,
+  CANCELLED: 1500,
+};
+
+/* ------------------------------------------------------------------ */
 /* Component                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -150,6 +162,7 @@ export default function PaymentStatusView({
   link,
   checkout,
   paymentStatus,
+  redirectUrl,
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -190,6 +203,40 @@ export default function PaymentStatusView({
     const t = setTimeout(() => setMounted(true), 60);
     return () => clearTimeout(t);
   }, []);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Redirect countdown
+  |--------------------------------------------------------------------------
+  | When a redirectUrl is provided and the status is terminal, we show
+  | a live countdown that matches the delay DirectCheckoutPage uses
+  | before calling window.location.href. This keeps the UI honest —
+  | no "Redirecting automatically…" lie if the timing is off.
+  */
+  const totalDelayMs = REDIRECT_DELAY_MS[status] || 0;
+  const showRedirect = Boolean(redirectUrl) && totalDelayMs > 0;
+  const [secondsLeft, setSecondsLeft] = useState(
+    Math.ceil(totalDelayMs / 1000)
+  );
+
+  useEffect(() => {
+    if (!showRedirect) return undefined;
+
+    setSecondsLeft(Math.ceil(totalDelayMs / 1000));
+    const startedAt = Date.now();
+
+    const id = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const remaining = Math.max(
+        0,
+        Math.ceil((totalDelayMs - elapsed) / 1000)
+      );
+      setSecondsLeft(remaining);
+      if (remaining <= 0) clearInterval(id);
+    }, 250);
+
+    return () => clearInterval(id);
+  }, [showRedirect, totalDelayMs, redirectUrl]);
 
   async function handleCopyReference() {
     if (!reference) return;
@@ -428,6 +475,32 @@ export default function PaymentStatusView({
                   "This page will reflect the status once confirmation is available."}
             </p>
           </div>
+
+          {/* Return to merchant */}
+          {showRedirect ? (
+            <div
+              className="animate-ctex-rise mt-6 border-t border-dashed border-ctex-border pt-5 text-center"
+              style={{ animationDelay: "740ms" }}
+            >
+              <a
+                href={redirectUrl}
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-ctex-blue px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-ctex-blue/25 transition hover:bg-ctex-blue-light focus:outline-none focus:ring-2 focus:ring-ctex-blue focus:ring-offset-2"
+              >
+                Return to merchant
+                <ArrowRight
+                  className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </a>
+              <p className="mt-2 text-xs text-ctex-text-muted">
+                {secondsLeft > 0
+                  ? `Redirecting automatically in ${secondsLeft} second${
+                      secondsLeft === 1 ? "" : "s"
+                    }…`
+                  : "Redirecting now…"}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {/* Branded footer */}

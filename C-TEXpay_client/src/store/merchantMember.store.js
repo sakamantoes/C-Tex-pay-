@@ -132,6 +132,19 @@ export const useMerchantMemberStore = create((set, get) => ({
     }
   },
 
+  previewInvitation: async (token) => {
+    try {
+      const res = await merchantMemberService.previewInvitation(token);
+      return { success: true, data: res.data };
+    } catch (err) {
+      return {
+        success: false,
+        code: err.response?.data?.code,
+        message: err.response?.data?.message || "Unable to load this invitation.",
+      };
+    }
+  },
+
   acceptInvitation: async (payload) => {
     try {
       const res = await merchantMemberService.acceptMemberInvitation(payload);

@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Merchant, Payment } from "../../models/index.js";
+import { Merchant, Payment, User } from "../../models/index.js";
 import { getPlatformDashboardSummary } from "../../service/adminDashboard.service.js";
 
 test("platform dashboard summary aggregates payment and merchant status data", async () => {
   const originalPaymentFindAll = Payment.findAll;
   const originalPaymentSum = Payment.sum;
   const originalMerchantFindAll = Merchant.findAll;
+  const originalUserCount = User.count;
 
   Payment.findAll = async () => [
     { status: "SUCCESS", total: "4" },
@@ -18,11 +19,13 @@ test("platform dashboard summary aggregates payment and merchant status data", a
     { status: "ACTIVE", total: "3" },
     { status: "PENDING", total: "1" },
   ];
+  User.count = async () => 12;
 
   try {
     const summary = await getPlatformDashboardSummary();
     assert.deepEqual(summary, {
       currency: "NGN",
+      users: { total: 12 },
       merchants: { total: 4, active: 3, pending: 1, suspended: 0, inactive: 0 },
       transactions: {
         total: 7,
@@ -38,5 +41,6 @@ test("platform dashboard summary aggregates payment and merchant status data", a
     Payment.findAll = originalPaymentFindAll;
     Payment.sum = originalPaymentSum;
     Merchant.findAll = originalMerchantFindAll;
+    User.count = originalUserCount;
   }
 });

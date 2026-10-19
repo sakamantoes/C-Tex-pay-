@@ -43,14 +43,17 @@ export default function PlatformDashboard({ platformRole }) {
     title: "Platform",
     items: [
       { key: "dashboard", label: "Dashboard", icon: "dashboard", path: `${basePath}/dashboard` },
+      { key: "merchants", label: "Merchants", icon: "business", path: `${basePath}/merchants` },
       { key: "transactions", label: "Transactions", icon: "transactions", path: `${basePath}/transactions` },
       { key: "fees", label: "Fee configuration", icon: "fees", path: `${basePath}/fees` },
+      { key: "audit-logs", label: "Audit logs", icon: "security", path: `${basePath}/audit-logs` },
     ],
   }], [basePath]);
 
   const displayName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || platformRole;
   const cards = [
     { label: "Merchants", value: summary?.merchants.total ?? "—", detail: `${summary?.merchants.active ?? 0} active · ${summary?.merchants.pending ?? 0} pending` },
+    { label: "Registered users", value: summary?.users.total ?? "—", detail: "All registered platform accounts" },
     { label: "Transactions", value: summary?.transactions.total ?? "—", detail: `${summary?.transactions.successful ?? 0} successful · ${summary?.transactions.failed ?? 0} failed` },
     { label: "Successful volume", value: summary ? formatMoneyMinor(summary.transactions.successfulVolumeMinor, summary.currency) : "—", detail: `${summary?.transactions.successful ?? 0} successful payments` },
     { label: "Pending transactions", value: summary?.transactions.pending ?? "—", detail: "Across all merchant accounts" },

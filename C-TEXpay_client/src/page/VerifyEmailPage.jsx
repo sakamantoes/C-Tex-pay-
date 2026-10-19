@@ -11,9 +11,16 @@ export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token");
+  const invitationToken = searchParams.get("invitationToken") || "";
+  const invitationRedirect = invitationToken
+    ? `/accept-invitation?token=${encodeURIComponent(invitationToken)}`
+    : null;
+  const loginDestination = invitationRedirect
+    ? `/login?redirect=${encodeURIComponent(invitationRedirect)}`
+    : "/login";
 
-  const [status, setStatus] = useState("verifying"); // verifying | success | error
-  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState(token ? "verifying" : "error"); // verifying | success | error
+  const [message, setMessage] = useState(token ? "" : "Missing verification token.");
   const [countdown, setCountdown] = useState(REDIRECT_DELAY_SECONDS);
 
   const called = useRef(false);
@@ -28,8 +35,6 @@ export default function VerifyEmailPage() {
     called.current = true;
 
     if (!token) {
-      setStatus("error");
-      setMessage("Missing verification token.");
       return;
     }
 
@@ -56,9 +61,6 @@ export default function VerifyEmailPage() {
   useEffect(() => {
     if (status !== "success") return;
 
-    // Reset counter when we enter success
-    setCountdown(REDIRECT_DELAY_SECONDS);
-
     const interval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -70,7 +72,7 @@ export default function VerifyEmailPage() {
     }, 1000);
 
     const timeout = setTimeout(() => {
-      navigate("/login", {
+      navigate(loginDestination, {
         state: { verified: true },
         replace: true,
       });
@@ -80,10 +82,10 @@ export default function VerifyEmailPage() {
       clearInterval(interval);
       clearTimeout(timeout);
     };
-  }, [status, navigate]);
+  }, [status, navigate, loginDestination]);
 
   const handleGoNow = () => {
-    navigate("/login", { state: { verified: true }, replace: true });
+    navigate(loginDestination, { state: { verified: true }, replace: true });
   };
 
   return (

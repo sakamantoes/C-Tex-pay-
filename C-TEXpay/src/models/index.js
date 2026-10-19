@@ -35,6 +35,7 @@ import Payout from "./Payout.js";
 import ReconciliationRun from "./ReconciliationRun.js";
 import ReconciliationDiscrepancy from "./ReconciliationDiscrepancy.js";
 import PaymentLink from "./PaymentLink.js";
+import AdminAuditLog from "./AdminAuditLog.js";
 
 User.hasMany(RefreshToken, {
   foreignKey: "userId",
@@ -584,6 +585,9 @@ Payment.belongsTo(PaymentLink, {
   as: "paymentLink",
 });
 
+AdminAuditLog.belongsTo(User, { foreignKey: "actorUserId", as: "actor" });
+User.hasMany(AdminAuditLog, { foreignKey: "actorUserId", as: "adminAuditLogs" });
+
 export {
   User,
   RefreshToken,
@@ -621,4 +625,5 @@ export {
   ReconciliationRun,
   ReconciliationDiscrepancy,
   PaymentLink,
+  AdminAuditLog,
 };

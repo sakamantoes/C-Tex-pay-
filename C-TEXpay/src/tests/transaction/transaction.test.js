@@ -97,6 +97,7 @@ test("transaction response is normalized and omits provider and private customer
     currency: "NGN",
     status: "SUCCESS",
     paymentMethod: "ACCOUNT_TRANSFER",
+    metadata: '{"source":"direct_checkout","returnUrl":"https://merchant.example/success"}',
     provider: "MONNIFY",
     providerReference: "monnify-private-reference",
     providerMetadata: { rawResponse: "private" },
@@ -114,6 +115,11 @@ test("transaction response is normalized and omits provider and private customer
   assert.equal(response.amount, 200000);
   assert.equal(response.customer.name, "John Doe");
   assert.equal(response.customer.phone, "08000000000");
+  assert.equal(response.type, "DIRECT_CHECKOUT");
+  assert.deepEqual(response.metadata, {
+    source: "direct_checkout",
+    returnUrl: "https://merchant.example/success",
+  });
   assert.equal("providerReference" in response, false);
   assert.equal("providerMetadata" in response, false);
   assert.equal("passwordHash" in response.customer, false);
@@ -209,6 +215,10 @@ test("transaction summary sums successful money only within the merchant", async
       totalTransactions: 8,
       successfulTransactions: 3,
       successfulVolumeMinor: "2500000",
+      totalFeesMinor: "0",
+      successfulNetMinor: "2500000",
+      feeCoveredSuccessfulTransactions: 0,
+      legacySuccessfulTransactions: 3,
     });
     assert.deepEqual(countQueries[0].where, { merchantId: "merchant-a" });
     assert.deepEqual(countQueries[1].where, { merchantId: "merchant-a", status: "SUCCESS" });

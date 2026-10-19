@@ -33,9 +33,18 @@ export const protect = async (req, res, next) => {
       });
     }
 
+    if (user.status === "SUSPENDED") {
+      return res.status(403).json({
+        success: false,
+        code: "ACCOUNT_SUSPENDED",
+        message: "Your account has been suspended",
+      });
+    }
+
     if (user.status !== "ACTIVE") {
       return res.status(403).json({
         success: false,
+        code: "ACCOUNT_NOT_ACTIVE",
         message: "Your account is not active",
       });
     }

@@ -28,11 +28,10 @@ export const createMerchantSchema = z.object({
 });
 
 export const updateMerchantSchema = z.object({
-  status: z.enum(["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING"]).optional(),
   onboardingStatus: z
-    .enum(["NOT_STARTED", "IN_PROGRESS", "COMPLETED"])
+    .enum(["IN_PROGRESS", "COMPLETED"])
     .optional(),
-});
+}).strict();
 
 export const updateBusinessProfileSchema = z.object({
   businessName: z

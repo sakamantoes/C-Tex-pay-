@@ -8,6 +8,7 @@
     "seed:permissions": "node ./src/seeders/runPermissionsSeed.js",
     "start": "node ./src/server.js",
     "fix:user-email-indexes": "node ./src/scripts/fix-user-email-indexes.js",
+    "fix:merchant-onboarding": "node ./src/scripts/backfill-merchant-onboarding.js",
     "test": "node --test src/tests/**/*.test.js"
   },
   "keywords": [],

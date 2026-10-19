@@ -59,8 +59,12 @@ const sanitizeUser = (user) => {
 const VERIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const RESEND_COOLDOWN_MS = 5 * 60 * 1000;   // 5 minutes
 
-const buildVerificationUrl = (rawToken, email) =>
-  `${envConfig.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(email)}`;
+const buildVerificationUrl = (rawToken, email, invitationToken) => {
+  const invitationContext = invitationToken
+    ? `&invitationToken=${encodeURIComponent(invitationToken)}`
+    : "";
+  return `${envConfig.FRONTEND_URL}verify-email?token=${rawToken}&email=${encodeURIComponent(email)}${invitationContext}`;
+};
 
 const buildVerificationEmail = ({ firstName, verificationUrl }) => `
   <div style="font-family: Arial, sans-serif;">
@@ -103,11 +107,11 @@ const buildVerificationEmail = ({ firstName, verificationUrl }) => `
  * @param {Object} [options.transaction] - optional Sequelize transaction
  * @returns {Promise<string>} the raw token (for logging if needed)
  */
-const issueAndSendVerificationEmail = async ({ user, transaction }) => {
+const issueAndSendVerificationEmail = async ({ user, transaction, invitationToken }) => {
   const rawToken = crypto.randomBytes(32).toString("hex");
   const hashedToken = hashToken(rawToken);
 
-  const verificationUrl = buildVerificationUrl(rawToken, user.email);
+  const verificationUrl = buildVerificationUrl(rawToken, user.email, invitationToken);
 
   // Token write can be transactional when called from register.
   // When called standalone (from login), we run it inside its own tx
@@ -157,7 +161,7 @@ const issueAndSendVerificationEmail = async ({ user, transaction }) => {
 
 export const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, password } = req.body;
+    const { firstName, lastName, email, phone, password, invitationToken } = req.body;
 
     /* Validate required fields */
     if (!firstName || !lastName || !email || !password) {
@@ -168,6 +172,27 @@ export const register = async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+
+    // Bind invitation return context to its intended recipient before placing
+    // it in the verification link. Acceptance still requires a later login and
+    // an explicit action on the invitation page.
+    if (invitationToken) {
+      const invitation = await MerchantInvitation.findOne({
+        where: { token: hashToken(invitationToken) },
+      });
+      if (
+        !invitation ||
+        invitation.acceptedAt ||
+        new Date(invitation.expiresAt) <= new Date() ||
+        invitation.email.toLowerCase() !== normalizedEmail
+      ) {
+        return res.status(400).json({
+          success: false,
+          code: "INVITATION_INVALID",
+          message: "This invitation is no longer valid for that email address.",
+        });
+      }
+    }
 
     /* Check existing email (read-only) */
     const existingEmail = await User.findOne({
@@ -230,6 +255,7 @@ export const register = async (req, res) => {
       await issueAndSendVerificationEmail({
         user: createdUser,
         transaction: t,
+        invitationToken,
       });
 
       /*
@@ -300,7 +326,7 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, invitationToken } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -335,6 +361,7 @@ export const login = async (req, res) => {
     if (user.status === "SUSPENDED") {
       return res.status(403).json({
         success: false,
+        code: "ACCOUNT_SUSPENDED",
         message: "Your account has been suspended",
       });
     }
@@ -380,7 +407,21 @@ export const login = async (req, res) => {
         }
 
         if (!withinCooldown) {
-          await issueAndSendVerificationEmail({ user });
+          let validInvitationToken;
+          if (invitationToken) {
+            const invitation = await MerchantInvitation.findOne({
+              where: { token: hashToken(invitationToken) },
+            });
+            if (
+              invitation &&
+              !invitation.acceptedAt &&
+              new Date(invitation.expiresAt) > new Date() &&
+              invitation.email.toLowerCase() === normalizedEmail
+            ) {
+              validInvitationToken = invitationToken;
+            }
+          }
+          await issueAndSendVerificationEmail({ user, invitationToken: validInvitationToken });
           emailSent = true;
         }
       } catch (emailError) {
@@ -1038,7 +1079,7 @@ export const changePassword = async (req, res) => {
 
 export const resendVerification = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, invitationToken } = req.body;
 
     if (!email) {
       return res.status(400).json({
@@ -1059,7 +1100,22 @@ export const resendVerification = async (req, res) => {
       });
     }
 
-    await issueAndSendVerificationEmail({ user });
+    let validInvitationToken;
+    if (invitationToken) {
+      const invitation = await MerchantInvitation.findOne({
+        where: { token: hashToken(invitationToken) },
+      });
+      if (
+        invitation &&
+        !invitation.acceptedAt &&
+        new Date(invitation.expiresAt) > new Date() &&
+        invitation.email.toLowerCase() === normalizedEmail
+      ) {
+        validInvitationToken = invitationToken;
+      }
+    }
+
+    await issueAndSendVerificationEmail({ user, invitationToken: validInvitationToken });
 
     return res.status(200).json({
       success: true,

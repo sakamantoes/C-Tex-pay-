@@ -52,7 +52,10 @@ export const createMerchant = async (req, res) => {
         ownerId: userId,
         merchantCode,
         status: "ACTIVE",
-        onboardingStatus: "NOT_STARTED",
+        // Creating the merchant requires the business name and persists the
+        // business profile in the same transaction, completing the only
+        // onboarding flow currently implemented by the application.
+        onboardingStatus: "COMPLETED",
       },
       { transaction }
     );
@@ -225,22 +228,41 @@ export const updateMyMerchant = async (req, res) => {
 
   try {
     const merchant = req.merchant;
-    const { status, onboardingStatus } = req.body;
+    const { onboardingStatus } = req.body;
 
-    // Only allow specific fields to be updated
-    const updateData = {};
-    if (status) updateData.status = status;
-    if (onboardingStatus) updateData.onboardingStatus = onboardingStatus;
-
-    if (Object.keys(updateData).length === 0) {
+    if (!onboardingStatus) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: "No valid fields to update",
+        message: "A valid onboarding status is required",
       });
     }
 
-    await merchant.update(updateData, { transaction });
+    const currentRank = { NOT_STARTED: 0, IN_PROGRESS: 1, COMPLETED: 2 }[merchant.onboardingStatus];
+    const requestedRank = { IN_PROGRESS: 1, COMPLETED: 2 }[onboardingStatus];
+    if (requestedRank < currentRank) {
+      await transaction.rollback();
+      return res.status(409).json({
+        success: false,
+        message: "Merchant onboarding status cannot move backwards",
+      });
+    }
+
+    if (onboardingStatus === "COMPLETED") {
+      const profile = await BusinessProfile.findOne({
+        where: { merchantId: merchant.id },
+        transaction,
+      });
+      if (!profile?.businessName?.trim()) {
+        await transaction.rollback();
+        return res.status(409).json({
+          success: false,
+          message: "A business profile is required to complete onboarding",
+        });
+      }
+    }
+
+    await merchant.update({ onboardingStatus }, { transaction });
 
     await transaction.commit();
 
@@ -372,18 +394,17 @@ export const updateBusinessProfile = async (req, res) => {
 
 export const getMyMembership = async (req, res) => {
   try {
-    const merchantMember = req.merchantMember;
-
-    if (!merchantMember) {
-      return res.status(404).json({
-        success: false,
-        message: "Membership not found",
-      });
-    }
-
-    const membership = await MerchantMember.findByPk(merchantMember.id, {
+    const requestedMerchantId = req.get("x-merchant-id")?.trim();
+    const memberships = await MerchantMember.findAll({
+      where: { userId: req.user.id, status: "ACTIVE" },
       attributes: ["id", "merchantId", "status", "joinedAt", "createdAt"],
       include: [
+        {
+          model: Merchant,
+          as: "merchant",
+          attributes: ["id", "ownerId", "status"],
+          required: true,
+        },
         {
           model: Role,
           as: "roles",
@@ -399,7 +420,36 @@ export const getMyMembership = async (req, res) => {
           ],
         },
       ],
+      order: [["createdAt", "ASC"]],
     });
+
+    let membership;
+    if (requestedMerchantId) {
+      membership = memberships.find((item) => item.merchantId === requestedMerchantId);
+      if (!membership) {
+        return res.status(403).json({ success: false, message: "Access denied to this merchant workspace" });
+      }
+    } else {
+      const owned = memberships.filter((item) => item.merchant?.ownerId === req.user.id);
+      if (owned.length === 1) [membership] = owned;
+      else if (memberships.length === 1) [membership] = memberships;
+      else if (memberships.length > 1) {
+        return res.status(409).json({ success: false, message: "Select a merchant workspace using the X-Merchant-Id header" });
+      }
+    }
+
+    if (!membership) {
+      return res.status(404).json({ success: false, message: "Membership not found" });
+    }
+
+    if (membership.merchant?.status !== "ACTIVE") {
+      return res.status(403).json({
+        success: false,
+        code: "MERCHANT_SUSPENDED",
+        message: "This merchant account is suspended",
+        data: { merchantId: membership.merchantId, merchantStatus: membership.merchant?.status },
+      });
+    }
 
     // Extract permissions
     const permissions = [];
@@ -421,6 +471,7 @@ export const getMyMembership = async (req, res) => {
         joinedAt: membership.joinedAt,
         createdAt: membership.createdAt,
         merchantId: membership.merchantId,
+        merchantStatus: membership.merchant.status,
       },
       roles: roles.map((role) => ({
         id: role.id,
@@ -456,8 +507,7 @@ export const getMyMemberships = async (req, res) => {
         {
           model: Merchant,
           as: "merchant",
-          attributes: ["id", "ownerId"],
-          where: { status: "ACTIVE" },
+          attributes: ["id", "ownerId", "status"],
           required: true,
         },
         {
@@ -479,10 +529,11 @@ export const getMyMemberships = async (req, res) => {
     });
 
     const data = memberships.map((membership) => {
-      const roles = membership.roles || [];
-      const permissions = [...new Set(
+      const merchantIsActive = membership.merchant.status === "ACTIVE";
+      const roles = merchantIsActive ? membership.roles || [] : [];
+      const permissions = merchantIsActive ? [...new Set(
         roles.flatMap((role) => (role.permissions || []).map((permission) => permission.key)),
-      )];
+      )] : [];
 
       return {
         id: membership.id,
@@ -490,6 +541,7 @@ export const getMyMemberships = async (req, res) => {
         status: membership.status,
         joinedAt: membership.joinedAt,
         isOwner: membership.merchant.ownerId === req.user.id,
+        merchantStatus: membership.merchant.status,
         roles: roles.map(({ id, name }) => ({ id, name })),
         permissions,
       };

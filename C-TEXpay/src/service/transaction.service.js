@@ -1,6 +1,7 @@
 import { Op } from "sequelize";
 import sequelize from "../config/database.js";
 import { Customer, Payment, FeeRecord } from "../models/index.js";
+import { normalizeMetadata } from "../utils/normalizeMetadata.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -18,6 +19,8 @@ const PAYMENT_ATTRIBUTES = [
   "currency",
   "paymentMethod",
   "status",
+  "paymentLinkId", // NEW — needed to detect PAYMENT_LINK type
+  "metadata",      // NEW — needed to detect API / DIRECT_CHECKOUT
   "createdAt",
   "updatedAt",
 ];
@@ -81,14 +84,37 @@ function toFeeBreakdown(feeRecord) {
     currency: d.currency,
     grossAmount: Number(d.grossAmount),
     serviceFee: Number(d.serviceFee),
-    providerFee: d.providerFee === null || d.providerFee === undefined
-      ? null
-      : Number(d.providerFee),
+    providerFee:
+      d.providerFee === null || d.providerFee === undefined
+        ? null
+        : Number(d.providerFee),
     totalFee: Number(d.totalFee),
     merchantNetAmount: Number(d.merchantNetAmount),
     providerFeeTreatment: d.providerFeeTreatment,
     calculationVersion: d.calculationVersion,
   };
+}
+
+/**
+ * Derive the payment's originating channel from existing data.
+ *
+ * Priority:
+ *   1. metadata.source (set at creation time)
+ *   2. paymentLinkId (set for link-based payments)
+ *   3. fallback: BANK_TRANSFER
+ *
+ * Never throws — unknown combinations fall back gracefully.
+ */
+function derivePaymentType(data) {
+  const source = normalizeMetadata(data?.metadata)?.source;
+
+  if (source === "payment_link") return "PAYMENT_LINK";
+  if (source === "direct_checkout") return "DIRECT_CHECKOUT";
+  if (source === "api") return "API";
+
+  if (data?.paymentLinkId) return "PAYMENT_LINK";
+
+  return "BANK_TRANSFER";
 }
 
 /*
@@ -115,6 +141,8 @@ export function toTransactionResponse(payment, feeRecord = null) {
     currency: data.currency,
     status: data.status,
     paymentMethod: data.paymentMethod,
+    type: derivePaymentType(data), // NEW
+    metadata: normalizeMetadata(data.metadata),
     customer: customer
       ? {
           id: customer.id,

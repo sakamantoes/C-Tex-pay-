@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-toastify";
 import { useAuthStore } from "../store/auth.store";
@@ -9,12 +9,15 @@ import PrimaryButton from "../components/auth/PrimaryButton";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const invitationToken = searchParams.get("invitationToken") || "";
+  const invitedEmail = searchParams.get("email") || "";
   const { register, isLoading, error, clearError } = useAuthStore();
 
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
-    email: "",
+    email: invitedEmail,
     phone: "",
     password: "",
     confirmPassword: "",
@@ -54,15 +57,17 @@ export default function RegisterPage() {
       password: form.password,
     };
 
+    if (invitationToken) payload.invitationToken = invitationToken;
+
     if (form.phone.trim()) payload.phone = form.phone.trim();
 
     const res = await register(payload);
 
     if (res.success) {
       toast.success("Account created successfully. Verify your email to continue.");
-      navigate("/verify-email-sent", {
-        state: { email: payload.email },
-      });
+      const query = new URLSearchParams({ email: payload.email });
+      if (invitationToken) query.set("invitationToken", invitationToken);
+      navigate(`/verify-email-sent?${query.toString()}`);
       return;
     }
 
@@ -82,7 +87,9 @@ export default function RegisterPage() {
         <>
           Already have an account?{" "}
           <Link
-            to="/login"
+            to={invitationToken
+              ? `/login?redirect=${encodeURIComponent(`/accept-invitation?token=${encodeURIComponent(invitationToken)}`)}`
+              : "/login"}
             className="font-medium text-ctex-blue hover:text-ctex-blue-light hover:underline"
           >
             Sign in
@@ -120,6 +127,7 @@ export default function RegisterPage() {
           autoComplete="email"
           value={form.email}
           onChange={handleChange}
+          readOnly={Boolean(invitationToken)}
           required
         />
 
