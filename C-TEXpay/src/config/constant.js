@@ -49,6 +49,10 @@ const envConfig = {
 
   //provider selector config
   PAYMENT_PROVIDER: process.env.PAYMENT_PROVIDER || "MONNIFY",
+  // Outbound disbursements are configured independently from collections.
+  // Xixapay's current integration is collection-only; keep payouts on the
+  // explicitly configured Monnify adapter unless another payout adapter is added.
+  PAYOUT_PROVIDER: process.env.PAYOUT_PROVIDER || "MONNIFY",
   MONNIFY_TRANSFER_BANK_CODE: process.env.MONNIFY_TRANSFER_BANK_CODE || null,
 
   //Monnfy webhook
@@ -100,7 +104,7 @@ const envConfig = {
   XIXAPAY_TIMEOUT_MS: parseInt(process.env.XIXAPAY_TIMEOUT_MS || "30000", 10),
 
   // Webhook
-  XIXAPAY_WEBHOOK_SECRET: process.env.XIXAPAY_WEBHOOK_SECRET || null,
+  XIXAPAY_WEBHOOK_SECRET: process.env.XIXAPAY_WEBHOOK_SECRET?.trim() || null,
 
   // Hosted checkout (custom merchant checkout)
   CHECKOUT_TOKEN_SECRET:

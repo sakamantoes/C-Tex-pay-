@@ -32,6 +32,20 @@ const Payout = sequelize.define(
       comment: "Integer kobo — amount requested for withdrawal",
       validate: { min: 1 },
     },
+    feeMode: {
+      type: DataTypes.ENUM("FEE_ON_TOP", "DEDUCT_FROM_AMOUNT"),
+      allowNull: false,
+      defaultValue: "FEE_ON_TOP",
+    },
+    feeAmount: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false, defaultValue: 0 },
+    walletDebitAmount: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false, defaultValue: 0 },
+    beneficiaryAmount: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false, defaultValue: 0 },
+    feeConfigurationId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: { model: "fee_configurations", key: "id" },
+    },
+    feeSnapshot: { type: DataTypes.JSON, allowNull: true },
     currency: {
       type: DataTypes.ENUM("NGN"),
       allowNull: false,
@@ -42,9 +56,10 @@ const Payout = sequelize.define(
       allowNull: false,
     },
     accountNumber: {
-      type: DataTypes.STRING(20),
+      type: DataTypes.STRING(512),
       allowNull: false,
     },
+    accountNumberLast4: { type: DataTypes.STRING(4), allowNull: true },
     accountName: {
       type: DataTypes.STRING(255),
       allowNull: false,

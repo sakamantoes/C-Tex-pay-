@@ -1,46 +1,22 @@
 import crypto from "crypto";
 import envConfig from "../config/constant.js";
-import { Payment, WebhookEvent } from "../models/index.js";
+import {
+  Payment,
+  PaymentStatusHistory,
+  WebhookEvent,
+  sequelize,
+} from "../models/index.js";
+import { postPaymentSettlement } from "../service/ledger.service.js";
+import {
+  createMerchantWebhookEventForSuccessfulPayment,
+  processMerchantWebhookDelivery,
+} from "../service/merchantWebhook.service.js";
+import { enqueueSuccessfulPaymentNotifications } from "../service/merchantNotification.service.js";
 
-/**
- * Xixapay Incoming Webhook
- *
- * Documented payload (from official docs):
- * {
- *   notification_status: "payment_successful",
- *   transaction_id: "...",
- *   amount_paid: 100,
- *   settlement_amount: 99.5,
- *   settlement_fee: 0.5,
- *   transaction_status: "success",
- *   sender: { name, account_number, bank },
- *   receiver: { name, account_number, bank },
- *   customer: { name, email, phone, customer_id },
- *   description: "...",
- *   timestamp: "2024-11-22T13:00:04.256092Z"
- * }
- *
- * Signature header: `xixapay`
- * Algorithm: HMAC-SHA256 of raw body with the shared secret.
- *
- * We NEVER trust the webhook as proof of payment. It only prompts a
- * reconciliation/status update using data we trust (see controller flow).
- */
+/* =========================================================
+ * SIGNATURE VERIFICATION
+ * ======================================================= */
 
-const SUPPORTED_NOTIFICATION_STATUSES = new Set([
-  "payment_successful",
-  "payment_failed",
-]);
-
-const SUPPORTED_TRANSACTION_STATUSES = new Set([
-  "success",
-  "failed",
-  "pending",
-]);
-
-/**
- * Verify the xixapay signature header against the raw request body.
- */
 function verifySignature(rawBody, signature) {
   if (!signature) return { valid: false, reason: "MISSING_SIGNATURE" };
   if (!envConfig.XIXAPAY_WEBHOOK_SECRET) {
@@ -71,9 +47,10 @@ function verifySignature(rawBody, signature) {
   return { valid: true };
 }
 
-/**
- * Derive a stable deduplication key for the event.
- */
+/* =========================================================
+ * DEDUPLICATION KEY
+ * ======================================================= */
+
 function deriveEventKey(body) {
   if (body?.transaction_id) return `xixapay:tx:${body.transaction_id}`;
   const canonical = `${body?.notification_status || ""}|${body?.timestamp || ""}`;
@@ -83,11 +60,193 @@ function deriveEventKey(body) {
     .digest("hex")}`;
 }
 
+/* =========================================================
+ * MATCH WEBHOOK TO PAYMENT
+ * ======================================================= */
+
 /**
- * POST /api/v1/webhooks/xixapay
+ * Find the C-TEX payment this webhook refers to.
+ *
+ * Xixapay does not return a paymentReference in the webhook. We must
+ * match using metadata that was sent at init time. The `externalReference`
+ * we sent to Xixapay was the C-TEX paymentReference, and Xixapay echoes
+ * it back through the transaction record — but the webhook payload
+ * doesn't include it directly.
+ *
+ * Primary match: `receiver.account_number` against
+ *   `payment.paymentInstructions.accountNumber`.
+ *
+ * Secondary match: `customer.email` against the customer record.
+ *
+ * Fallback: any PENDING Xixapay payment with matching amount, scoped to
+ *   a narrow time window. This is a last resort.
  */
+async function findPaymentForWebhook(body, transaction) {
+  const accountNumber = body?.receiver?.account_number;
+  const amountPaidNaira = Number(body?.amount_paid);
+
+  if (!accountNumber) {
+    return null;
+  }
+
+  // Postgres/MariaDB JSON query — paymentInstructions is JSON, but
+  // Sequelize stores it as text on MariaDB. Use LIKE to find by
+  // account number substring. Safer to fetch candidates and filter.
+  const candidates = await Payment.findAll({
+    where: {
+      provider: "XIXAPAY",
+      status: "PENDING",
+    },
+    transaction,
+    limit: 500, // bounded — should be far fewer for a real merchant
+    order: [["createdAt", "DESC"]],
+  });
+
+  for (const p of candidates) {
+    let instr = p.paymentInstructions;
+    if (typeof instr === "string") {
+      try { instr = JSON.parse(instr); } catch { instr = null; }
+    }
+    if (!instr) continue;
+
+    const matchesAccount =
+      String(instr.accountNumber) === String(accountNumber);
+    if (!matchesAccount) continue;
+
+    const expectedAmount = Number(p.amount);
+    const paidKobo = Math.round(amountPaidNaira * 100);
+    if (paidKobo < expectedAmount) {
+      // Underpayment — do not match
+      continue;
+    }
+
+    return p;
+  }
+
+  return null;
+}
+
+/* =========================================================
+ * TRANSITION PAYMENT TO SUCCESS
+ * ======================================================= */
+
+async function transitionToSuccess({
+  paymentId,
+  amountPaidKobo,
+  providerStatus,
+  webhookPayload,
+}) {
+  let merchantWebhookEvent = null;
+
+  const result = await sequelize.transaction(async (t) => {
+    const payment = await Payment.findOne({
+      where: { id: paymentId },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!payment) {
+      return { payment: null, changed: false };
+    }
+
+    if (payment.status === "SUCCESS") {
+      return { payment, changed: false, alreadySuccess: true };
+    }
+
+    if (payment.status === "EXPIRED" || payment.status === "CANCELLED") {
+      return { payment, changed: false, invalidState: true };
+    }
+
+    const previousStatus = payment.status;
+
+    await payment.update(
+      {
+        status: "SUCCESS",
+        providerStatus: providerStatus || "SUCCESS",
+        providerMetadata: {
+          ...(payment.providerMetadata || {}),
+          xixapayWebhook: {
+            amountPaidKobo,
+            transactionStatus: webhookPayload?.transaction_status,
+            paidAt: webhookPayload?.timestamp,
+          },
+        },
+      },
+      { transaction: t }
+    );
+
+    await PaymentStatusHistory.create(
+      {
+        paymentId: payment.id,
+        previousStatus,
+        newStatus: "SUCCESS",
+        reason: `Verified via Xixapay webhook`,
+        source: "WEBHOOK",
+      },
+      { transaction: t }
+    );
+
+    // Merchant webhook + notification
+    const hookResult = await createMerchantWebhookEventForSuccessfulPayment({
+      payment,
+      transaction: t,
+    });
+    if (hookResult.created) {
+      merchantWebhookEvent = hookResult.event;
+    }
+
+    try {
+      await enqueueSuccessfulPaymentNotifications({
+        payment,
+        transaction: t,
+      });
+    } catch (err) {
+      console.error("Xixapay webhook: notification enqueue failed", {
+        paymentReference: payment.paymentReference,
+        errorName: err.name,
+      });
+    }
+
+    return { payment, changed: true, merchantWebhookEvent };
+  });
+
+  // Ledger settlement outside the transaction (idempotent by reference)
+  if (result.changed && result.payment) {
+    try {
+      await postPaymentSettlement({ paymentId: result.payment.id });
+    } catch (err) {
+      console.error("Xixapay webhook: ledger settlement failed", {
+        paymentReference: result.payment.paymentReference,
+        errorCode: err.code,
+        errorName: err.name,
+      });
+    }
+  }
+
+  // Deliver merchant webhook after commit
+  if (merchantWebhookEvent) {
+    try {
+      await processMerchantWebhookDelivery({
+        eventId: merchantWebhookEvent.eventId,
+      });
+    } catch (err) {
+      console.error("Xixapay webhook: merchant webhook delivery failed", {
+        eventId: merchantWebhookEvent.eventId,
+        error: err.message,
+      });
+    }
+  }
+
+  return result;
+}
+
+/* =========================================================
+ * MAIN HANDLER
+ * ======================================================= */
+
 export const handleXixapayWebhook = async (req, res) => {
   try {
+    /* Step 1 — raw body */
     if (!req.rawBody || typeof req.rawBody !== "string") {
       console.warn("Xixapay webhook: raw body not captured");
       return res
@@ -95,6 +254,7 @@ export const handleXixapayWebhook = async (req, res) => {
         .json({ success: false, message: "Invalid request body" });
     }
 
+    /* Step 2 — signature */
     const signature = req.headers["xixapay"];
     const sigResult = verifySignature(req.rawBody, signature);
     if (!sigResult.valid) {
@@ -106,37 +266,34 @@ export const handleXixapayWebhook = async (req, res) => {
         .json({ success: false, message: "Invalid signature" });
     }
 
+    /* Step 3 — payload shape */
     const body = req.body || {};
     const notificationStatus = String(body.notification_status || "");
     const transactionStatus = String(body.transaction_status || "");
 
-    if (
-      !notificationStatus ||
-      !transactionStatus ||
-      !body.transaction_id
-    ) {
+    if (!notificationStatus || !transactionStatus || !body.transaction_id) {
       console.warn("Xixapay webhook: malformed payload");
       return res
         .status(400)
         .json({ success: false, message: "Malformed payload" });
     }
 
-    if (!SUPPORTED_NOTIFICATION_STATUSES.has(notificationStatus)) {
+    if (notificationStatus !== "payment_successful") {
       console.log("Xixapay webhook: unsupported notification, acknowledged", {
         notificationStatus,
       });
       return res.status(200).json({ success: true, message: "Acknowledged" });
     }
 
-    if (!SUPPORTED_TRANSACTION_STATUSES.has(transactionStatus)) {
-      console.log("Xixapay webhook: unsupported tx status, acknowledged", {
+    if (transactionStatus !== "success") {
+      console.log("Xixapay webhook: non-success tx status, acknowledged", {
         transactionStatus,
       });
       return res.status(200).json({ success: true, message: "Acknowledged" });
     }
 
+    /* Step 4 — dedupe */
     const eventKey = deriveEventKey(body);
-
     let record;
     try {
       record = await WebhookEvent.create({
@@ -165,22 +322,49 @@ export const handleXixapayWebhook = async (req, res) => {
         .json({ success: false, message: "Unable to persist event" });
     }
 
-    /*
-     * Match the incoming transaction to the correct C-TEX payment using
-     * the customer_id or by matching the payment reference we sent as
-     * externalReference. Xixapay echoes back customer.email and
-     * customer.customer_id.
-     *
-     * Until a status query endpoint is provided by Xixapay, we record the
-     * event as received and hand off to the reconciliation pipeline.
-     * This avoids marking a payment SUCCESS based on unverified webhook
-     * data alone.
-     */
-    console.log("Xixapay webhook: recorded", {
+    /* Step 5 — match payment */
+    const amountPaidNaira = Number(body.amount_paid);
+    const amountPaidKobo = Math.round(amountPaidNaira * 100);
+
+    const payment = await findPaymentForWebhook(body, null);
+
+    if (!payment) {
+      console.warn("Xixapay webhook: no matching payment", {
+        transactionId: body.transaction_id,
+        accountNumber: body?.receiver?.account_number,
+        amountPaid: body.amount_paid,
+      });
+      return res
+        .status(200)
+        .json({ success: true, message: "Acknowledged (no matching payment)" });
+    }
+
+    /* Step 6 — amount check */
+    if (amountPaidKobo < Number(payment.amount)) {
+      console.warn("Xixapay webhook: amount underpayment", {
+        paymentReference: payment.paymentReference,
+        expectedKobo: Number(payment.amount),
+        paidKobo: amountPaidKobo,
+      });
+      return res
+        .status(200)
+        .json({ success: true, message: "Acknowledged (underpaid)" });
+    }
+
+    /* Step 7 — transition */
+    const result = await transitionToSuccess({
+      paymentId: payment.id,
+      amountPaidKobo,
+      providerStatus: "SUCCESS",
+      webhookPayload: body,
+    });
+
+    console.log("Xixapay webhook: payment processed", {
       eventId: record.id,
-      transactionId: body.transaction_id,
-      transactionStatus,
-      amount: body.amount_paid,
+      paymentReference: payment.paymentReference,
+      previousStatus: "PENDING",
+      newStatus: result.payment?.status,
+      changed: result.changed,
     });
 
     return res.status(200).json({ success: true, message: "Acknowledged" });
@@ -188,6 +372,7 @@ export const handleXixapayWebhook = async (req, res) => {
     console.error("Xixapay webhook: unhandled error", {
       errorName: error.name,
       errorMessage: error.message,
+      stack: error.stack,
     });
     return res
       .status(500)

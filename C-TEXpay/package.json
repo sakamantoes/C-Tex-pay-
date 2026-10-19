@@ -10,6 +10,7 @@
     "fix:user-email-indexes": "node ./src/scripts/fix-user-email-indexes.js",
     "fix:merchant-onboarding": "node ./src/scripts/backfill-merchant-onboarding.js",
     "migrate:payment-link-payment-reference": "node ./src/scripts/repair-payment-link-payment-reference.js",
+    "migrate:payout-fee-snapshot": "node ./src/scripts/migrate-payout-fee-snapshot.js",
     "test": "node --test src/tests/**/*.test.js"
   },
   "keywords": [],

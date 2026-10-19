@@ -7,6 +7,8 @@ import {
   refreshPayoutFromProvider,
   reversePayout,
   PayoutError,
+  quotePayout,
+  authorizePayout,
 } from "../service/payout.service.js";
 
 function mapError(error) {
@@ -25,10 +27,14 @@ function toPublicPayout(payout) {
   return {
     id: d.id,
     amount: Number(d.amount),
+    feeMode: d.feeMode,
+    feeAmount: Number(d.feeAmount || 0),
+    walletDebitAmount: Number(d.walletDebitAmount ?? d.amount),
+    beneficiaryAmount: Number(d.beneficiaryAmount ?? d.amount),
     currency: d.currency,
     bankCode: d.bankCode,
-    accountNumber: d.accountNumber
-      ? `${"*".repeat(Math.max(0, d.accountNumber.length - 4))}${d.accountNumber.slice(-4)}`
+    accountNumber: (d.accountNumberLast4 || (String(d.accountNumber || "").startsWith("enc:") ? "" : d.accountNumber?.slice(-4)))
+      ? `••••${d.accountNumberLast4 || d.accountNumber.slice(-4)}`
       : null,
     accountName: d.accountName,
     narration: d.narration,
@@ -77,6 +83,7 @@ export const createPayoutController = async (req, res) => {
       merchantReference: req.body.merchantReference,
       idempotencyKey,
       metadata: req.body.metadata,
+      feeMode: req.body.feeMode,
     });
 
     const status = result.replayed ? 200 : 201;
@@ -104,6 +111,41 @@ export const createPayoutController = async (req, res) => {
       merchantId: req.merchant?.id,
       errorCode: error.code,
       message: error.message,
+    });
+    return res.status(status).json({ success: false, message });
+  }
+};
+
+export const quotePayoutController = async (req, res) => {
+  try {
+    const data = await quotePayout({
+      merchantId: req.merchant.id,
+      amount: req.body.amount,
+      currency: req.body.currency,
+      feeMode: req.body.feeMode,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const { status, message } = mapError(error);
+    return res.status(status).json({ success: false, message });
+  }
+};
+
+export const authorizePayoutController = async (req, res) => {
+  try {
+    const payout = await authorizePayout({
+      merchantId: req.merchant.id,
+      payoutId: req.params.id,
+      authorizationCode: req.body.authorizationCode,
+    });
+    return res.status(200).json({ success: true, data: toPublicPayout(payout) });
+  } catch (error) {
+    const { status, message } = mapError(error);
+    console.error("Payout authorization failed", {
+      merchantId: req.merchant?.id,
+      payoutId: req.params.id,
+      errorCode: error.code,
+      statusCode: status,
     });
     return res.status(status).json({ success: false, message });
   }

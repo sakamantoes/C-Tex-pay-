@@ -19,8 +19,19 @@ export const createPayoutSchema = z
     narration: z.string().trim().max(500).optional().nullable(),
     merchantReference: z.string().trim().max(255).optional().nullable(),
     metadata: z.record(z.any()).optional().nullable(),
+    feeMode: z.enum(["FEE_ON_TOP", "DEDUCT_FROM_AMOUNT"]).default("FEE_ON_TOP"),
   })
   .strict();
+
+export const payoutQuoteSchema = z.object({
+  amount: z.number().int().positive(),
+  currency: z.enum(["NGN"]).default("NGN"),
+  feeMode: z.enum(["FEE_ON_TOP", "DEDUCT_FROM_AMOUNT"]).default("FEE_ON_TOP"),
+}).strict();
+
+export const payoutAuthorizationSchema = z.object({
+  authorizationCode: z.string().regex(/^\d{4,10}$/),
+}).strict();
 
 export const validateBankAccountSchema = z
   .object({

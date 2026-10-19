@@ -58,6 +58,7 @@ import SuspendedAccountModal from "./components/SuspendedAccountModal.jsx";
 import PaymentLinksPage from "./page/MerchantDashboard/PaymentLinksPage.jsx";
 import PaymentLinkCheckoutPage from "./page/public/PaymentLinkCheckoutPage.jsx";
 import DirectCheckoutPage from "./page/public/DirectCheckoutPage.jsx";
+import WalletPage from "./page/MerchantDashboard/WalletPage.jsx";
 
 
 const PUBLIC_PATHS = [
@@ -208,6 +209,10 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+
+      <Route path="/merchant/dashboard/wallet" element={<ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}><PermissionGuard permission="ledger.read"><WalletPage /></PermissionGuard></ProtectedRoute>} />
+      <Route path="/merchant/dashboard/wallet/transactions" element={<ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}><PermissionGuard permission="ledger.read"><WalletPage /></PermissionGuard></ProtectedRoute>} />
+      <Route path="/merchant/dashboard/wallet/withdraw" element={<ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}><PermissionGuard permission="payouts.create"><WalletPage /></PermissionGuard></ProtectedRoute>} />
 
       <Route
         path="/merchant/dashboard/webhooks"

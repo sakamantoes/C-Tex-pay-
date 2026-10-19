@@ -141,6 +141,23 @@ class MonnifyPayoutAdapter {
       rawResponse: body,
     };
   }
+
+  async authorizePayout({ reference, authorizationCode }) {
+    const response = await monnifyRequest(
+      "/api/v2/disbursements/single/validate-otp",
+      {
+        method: "POST",
+        body: { reference, authorizationCode },
+      },
+    );
+    const body = response?.responseBody;
+    if (!body?.status) {
+      throw Object.assign(new Error("Monnify authorization response is malformed"), {
+        code: "PROVIDER_RESPONSE_MALFORMED",
+      });
+    }
+    return { providerStatus: String(body.status), rawResponse: body };
+  }
 }
 
 export default MonnifyPayoutAdapter;

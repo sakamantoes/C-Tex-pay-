@@ -8,15 +8,38 @@ import {
   validateBankAccountController,
   listMyPayouts,
   getMyPayout,
+  quotePayoutController,
+  authorizePayoutController,
 } from "../controller/payout.controller.js";
 import {
   createPayoutSchema,
   validateBankAccountSchema,
   payoutIdParamSchema,
   listPayoutsQuerySchema,
+  payoutQuoteSchema,
+  payoutAuthorizationSchema,
 } from "../validation/payout.validation.js";
 
 const router = Router();
+
+router.post(
+  "/:id/authorize",
+  protect,
+  requireMerchant,
+  requirePermission("payouts.manage"),
+  validate(payoutIdParamSchema, "params"),
+  validate(payoutAuthorizationSchema),
+  authorizePayoutController,
+);
+
+router.post(
+  "/quote",
+  protect,
+  requireMerchant,
+  requirePermission("payouts.create"),
+  validate(payoutQuoteSchema),
+  quotePayoutController
+);
 
 router.post(
   "/",

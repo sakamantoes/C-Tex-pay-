@@ -13,6 +13,8 @@ import {
   postLedgerTransaction,
   getAvailableBalance,
 } from "./ledger.service.js";
+import { computeServiceFee, resolveFeeConfiguration } from "./fee.service.js";
+import { encryptApiKeyValue, decryptApiKeyValue } from "./apiKey.service.js";
 
 /* =========================================================
  * ERRORS
@@ -109,6 +111,75 @@ function assertIdempotencyKey(key) {
   }
 }
 
+function assertFeeMode(mode) {
+  if (!["FEE_ON_TOP", "DEDUCT_FROM_AMOUNT"].includes(mode)) {
+    throw new PayoutError("feeMode must be FEE_ON_TOP or DEDUCT_FROM_AMOUNT", "INVALID_FEE_MODE", 400);
+  }
+}
+
+export function getPayoutAmounts(amount, feeMode, configuration) {
+  const calculated = configuration
+    ? computeServiceFee({
+        grossAmount: amount,
+        percentageRateBps: configuration.percentageRateBps,
+        fixedAmount: Number(configuration.fixedAmount),
+        minimumFee: Number(configuration.minimumFee),
+        maximumFee: configuration.maximumFee === null ? null : Number(configuration.maximumFee),
+      })
+    : { serviceFee: 0, calculation: "no-config" };
+  const feeAmount = calculated.serviceFee;
+  const walletDebitAmount = feeMode === "FEE_ON_TOP" ? amount + feeAmount : amount;
+  const beneficiaryAmount = feeMode === "FEE_ON_TOP" ? amount : amount - feeAmount;
+  if (beneficiaryAmount <= 0 || walletDebitAmount > MAX_PAYOUT_DEBIT) {
+    throw new PayoutError("Payout amount is outside the supported range after fees", "PAYOUT_AMOUNT_OUT_OF_RANGE", 400);
+  }
+  return {
+    feeAmount,
+    walletDebitAmount,
+    beneficiaryAmount,
+    feeSnapshot: {
+      feeMode,
+      calculation: calculated.calculation,
+      feeConfigurationId: configuration?.id || null,
+      percentageRateBps: configuration?.percentageRateBps ?? 0,
+      fixedAmount: configuration ? Number(configuration.fixedAmount) : 0,
+      minimumFee: configuration ? Number(configuration.minimumFee) : 0,
+      maximumFee: configuration?.maximumFee == null ? null : Number(configuration.maximumFee),
+    },
+  };
+}
+
+const MAX_PAYOUT_DEBIT = envConfig.PAYOUT_MAX_AMOUNT || 500_000_000;
+
+function encryptAccountNumber(value) {
+  return `enc:v1:${encryptApiKeyValue(String(value))}`;
+}
+
+function decryptAccountNumber(value) {
+  const text = String(value || "");
+  return text.startsWith("enc:v1:") ? decryptApiKeyValue(text.slice(7)) : text;
+}
+
+function safePayoutResponse(body) {
+  if (!body || typeof body !== "object") return null;
+  const safe = {};
+  for (const key of ["reference", "transactionReference", "status", "amount", "currency", "fee", "dateCreated", "createdOn", "responseCode"]) {
+    if (body[key] !== undefined) safe[key] = body[key];
+  }
+  return safe;
+}
+
+export async function quotePayout({ merchantId, amount, currency = "NGN", feeMode = "FEE_ON_TOP" }) {
+  assertPayoutAmount(amount);
+  assertFeeMode(feeMode);
+  const configuration = await resolveFeeConfiguration({
+    merchantId,
+    currency,
+    paymentMethod: "ACCOUNT_TRANSFER",
+  });
+  return { amount, currency, ...getPayoutAmounts(amount, feeMode, configuration) };
+}
+
 /* =========================================================
  * CANONICAL HASH
  * ======================================================= */
@@ -134,15 +205,18 @@ function computeRequestHash({
   bankCode,
   accountNumber,
   narration,
+  feeMode,
 }) {
-  const canonical = stableStringify({
+  const request = {
     merchantId,
     amount,
     currency,
     bankCode,
     accountNumber,
     narration: narration || null,
-  });
+  };
+  if (feeMode !== undefined) request.feeMode = feeMode;
+  const canonical = stableStringify(request);
   return crypto.createHash("sha256").update(canonical).digest("hex");
 }
 
@@ -178,7 +252,6 @@ export async function validateBankAccount({ bankCode, accountNumber }) {
     console.error("Bank validation failed", {
       bankCode,
       errorCode: providerError.code,
-      errorMessage: providerError.message,
     });
     throw new PayoutError(
       "Unable to validate bank account with provider",
@@ -217,6 +290,7 @@ export async function createPayout({
   merchantReference = null,
   idempotencyKey,
   metadata = null,
+  feeMode = "FEE_ON_TOP",
 }) {
   if (!merchantId) {
     throw new PayoutError("merchantId is required", "MERCHANT_REQUIRED", 400);
@@ -225,6 +299,7 @@ export async function createPayout({
   assertPayoutAmount(amount);
   assertBankFields({ bankCode, accountNumber, accountName });
   assertIdempotencyKey(idempotencyKey);
+  assertFeeMode(feeMode);
 
   const merchant = await Merchant.findByPk(merchantId);
   if (!merchant) {
@@ -245,6 +320,7 @@ export async function createPayout({
     bankCode,
     accountNumber,
     narration,
+    feeMode,
   });
 
   /* Fast-path idempotency check */
@@ -252,7 +328,10 @@ export async function createPayout({
     where: { merchantId, idempotencyKey },
   });
   if (existing) {
-    if (existing.requestHash !== requestHash) {
+    const legacyRequestHash = feeMode === "FEE_ON_TOP"
+      ? computeRequestHash({ merchantId, amount, currency, bankCode, accountNumber, narration })
+      : null;
+    if (existing.requestHash !== requestHash && existing.requestHash !== legacyRequestHash) {
       throw new PayoutError(
         "Idempotency-Key was reused with a different payout request",
         "IDEMPOTENCY_CONFLICT",
@@ -261,6 +340,27 @@ export async function createPayout({
     }
     return { payout: existing, replayed: true };
   }
+
+  // Select the disbursement rail independently from collection payments and
+  // fail before reserving funds if no compatible provider is configured.
+  let provider;
+  try {
+    provider = getPayoutProvider();
+  } catch {
+    throw new PayoutError(
+      "Bank payouts are not available for the configured provider",
+      "PAYOUT_PROVIDER_UNAVAILABLE",
+      503,
+    );
+  }
+  if (!envConfig.MONNIFY_PAYOUT_SOURCE_ACCOUNT) {
+    throw new PayoutError("Payout source account is not configured", "PAYOUT_SOURCE_ACCOUNT_MISSING", 503);
+  }
+
+  // Do not trust the beneficiary name supplied by the browser. Use the name
+  // returned by provider account enquiry for the actual payout submission.
+  const validatedDestination = await validateBankAccount({ bankCode, accountNumber });
+  const verifiedAccountName = validatedDestination.accountName;
 
   /* Atomic creation + reservation */
   let payout;
@@ -298,9 +398,17 @@ export async function createPayout({
         );
       }
 
+      const feeConfiguration = await resolveFeeConfiguration({
+        merchantId,
+        currency,
+        paymentMethod: "ACCOUNT_TRANSFER",
+        transaction: t,
+      });
+      const amounts = getPayoutAmounts(amount, feeMode, feeConfiguration);
+
       /* Recompute balance from ledger entries inside the lock. */
-      const balance = await getAvailableBalance({ merchantId, currency });
-      if (balance < amount) {
+      const balance = await getAvailableBalance({ merchantId, currency, transaction: t });
+      if (balance < amounts.walletDebitAmount) {
         throw new PayoutError(
           "Insufficient available balance",
           "INSUFFICIENT_BALANCE",
@@ -313,10 +421,17 @@ export async function createPayout({
         {
           merchantId,
           amount,
+          feeMode,
+          feeAmount: amounts.feeAmount,
+          walletDebitAmount: amounts.walletDebitAmount,
+          beneficiaryAmount: amounts.beneficiaryAmount,
+          feeConfigurationId: feeConfiguration?.id || null,
+          feeSnapshot: amounts.feeSnapshot,
           currency,
-          bankCode: String(bankCode),
-          accountNumber: String(accountNumber),
-          accountName: accountName.trim(),
+          bankCode: validatedDestination.bankCode,
+          accountNumber: encryptAccountNumber(validatedDestination.accountNumber),
+          accountNumberLast4: validatedDestination.accountNumber.slice(-4),
+          accountName: verifiedAccountName,
           narration: narration || null,
           merchantReference: merchantReference || null,
           idempotencyKey,
@@ -349,12 +464,12 @@ export async function createPayout({
           {
             account,
             direction: "DEBIT",
-            amount,
+            amount: amounts.walletDebitAmount,
           },
           {
             account: pending,
             direction: "CREDIT",
-            amount,
+            amount: amounts.walletDebitAmount,
           },
         ],
         transaction: t,
@@ -390,16 +505,15 @@ export async function createPayout({
   }
 
   /* Provider submission — outside DB transaction */
-  const provider = getPayoutProvider();
 
   let providerResult;
   try {
     providerResult = await provider.initiatePayout({
-      amountKobo: amount,
+      amountKobo: Number(payout.beneficiaryAmount),
       reference: payout.id,
       narration: payout.narration,
       bankCode: payout.bankCode,
-      accountNumber: payout.accountNumber,
+      accountNumber: decryptAccountNumber(payout.accountNumber),
       accountName: payout.accountName,
       currency: payout.currency,
       sourceAccountNumber: envConfig.MONNIFY_PAYOUT_SOURCE_ACCOUNT,
@@ -409,19 +523,20 @@ export async function createPayout({
     console.error("Payout provider submission failed", {
       payoutId: payout.id,
       errorCode: providerError.code,
-      errorMessage: providerError.message,
     });
 
     await payout.update({
-      provider: envConfig.PAYMENT_PROVIDER || "MONNIFY",
+      provider: envConfig.PAYOUT_PROVIDER || "MONNIFY",
+      // The deterministic request reference is the lookup key for ambiguous
+      // timeouts. Reconciliation can query it without submitting a second payout.
+      providerReference: payout.id,
       providerStatus: "UNKNOWN",
       failureCode: providerError.code || "PROVIDER_ERROR",
-      failureReason: providerError.message,
+      failureReason: "Provider outcome is pending reconciliation",
       metadata: {
         ...(payout.metadata || {}),
         providerSubmissionError: {
           code: providerError.code,
-          message: providerError.message,
         },
       },
     });
@@ -432,16 +547,13 @@ export async function createPayout({
   const normalizedStatus = normalizeProviderStatus(providerResult.providerStatus);
 
   await payout.update({
-    provider: envConfig.PAYMENT_PROVIDER || "MONNIFY",
-    providerReference: providerResult.providerReference || null,
+    provider: envConfig.PAYOUT_PROVIDER || "MONNIFY",
+    providerReference: providerResult.providerReference || payout.id,
     providerStatus: providerResult.providerStatus || "PENDING",
     providerMetadata: {
-      submission: providerResult.rawResponse || null,
+      submission: safePayoutResponse(providerResult.rawResponse),
     },
-    status: normalizedStatus,
-    processingAt: normalizedStatus === "PROCESSING" ? new Date() : null,
-    completedAt: normalizedStatus === "SUCCESS" ? new Date() : null,
-    failedAt: normalizedStatus === "FAILED" ? new Date() : null,
+    ...(normalizedStatus === "PROCESSING" ? { status: "PROCESSING", processingAt: new Date() } : {}),
   });
 
   if (normalizedStatus === "SUCCESS") {
@@ -453,6 +565,11 @@ export async function createPayout({
       payout,
       reason: providerResult.rawResponse?.message || "Provider rejected payout",
     });
+  }
+
+  if (normalizedStatus === "REVERSED") {
+    await releaseReservedFunds({ payout, reason: "Provider reversed payout before settlement" });
+    await payout.update({ status: "REVERSED", reversedAt: new Date() });
   }
 
   return { payout: await payout.reload(), replayed: false };
@@ -479,142 +596,65 @@ function normalizeProviderStatus(providerStatus) {
 
 export async function settleReservedFunds({ payout }) {
   if (!payout) throw new PayoutError("payout is required", "PAYOUT_REQUIRED", 400);
-
-  const pending = await LedgerAccount.findOne({
-    where: {
-      merchantId: payout.merchantId,
-      type: "MERCHANT_PENDING",
-      currency: payout.currency,
-    },
+  return sequelize.transaction(async (t) => {
+    const current = await Payout.findByPk(payout.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!current) throw new PayoutError("Payout not found", "PAYOUT_NOT_FOUND", 404);
+    if (current.status === "SUCCESS" && current.settleLedgerTransactionId) return { transaction: await LedgerTransaction.findByPk(current.settleLedgerTransactionId, { transaction: t }), created: false };
+    if (["FAILED", "REVERSED"].includes(current.status)) throw new PayoutError("Cannot settle a terminal payout", "INVALID_STATE_TRANSITION", 409);
+    const pending = await LedgerAccount.findOne({ where: { merchantId: current.merchantId, type: "MERCHANT_PENDING", currency: current.currency }, transaction: t, lock: t.LOCK.UPDATE });
+    const clearing = await LedgerAccount.findOrCreate({ where: { merchantId: null, type: "CLEARING", currency: current.currency }, defaults: { merchantId: null, type: "CLEARING", currency: current.currency }, transaction: t }).then(([row]) => row);
+    const revenue = await LedgerAccount.findOrCreate({ where: { merchantId: null, type: "CTEX_FEE_REVENUE", currency: current.currency }, defaults: { merchantId: null, type: "CTEX_FEE_REVENUE", currency: current.currency }, transaction: t }).then(([row]) => row);
+    if (!pending) throw new PayoutError("Missing ledger account for settlement", "LEDGER_ACCOUNTS_MISSING", 500);
+    const entries = [
+      { account: pending, direction: "DEBIT", amount: Number(current.walletDebitAmount ?? current.amount) },
+      { account: clearing, direction: "CREDIT", amount: Number(current.beneficiaryAmount ?? current.amount) },
+    ];
+    if (Number(current.feeAmount || 0) > 0) entries.push({ account: revenue, direction: "CREDIT", amount: Number(current.feeAmount) });
+    const result = await postLedgerTransaction({ reference: `PAYOUT_SETTLE:${current.id}`, type: "PAYOUT", merchantId: current.merchantId, currency: current.currency, metadata: { payoutId: current.id, kind: "settle", feeAmount: Number(current.feeAmount || 0) }, entries, transaction: t });
+    await current.update({ status: "SUCCESS", completedAt: current.completedAt || new Date(), settleLedgerTransactionId: result.transaction.id }, { transaction: t });
+    return result;
   });
-  const clearing = await LedgerAccount.findOne({
-    where: { merchantId: null, type: "CLEARING", currency: payout.currency },
-  });
-
-  if (!pending || !clearing) {
-    throw new PayoutError(
-      "Missing ledger accounts for settlement",
-      "LEDGER_ACCOUNTS_MISSING",
-      500
-    );
-  }
-
-  const result = await postLedgerTransaction({
-    reference: `PAYOUT_SETTLE:${payout.id}`,
-    type: "PAYOUT",
-    merchantId: payout.merchantId,
-    currency: payout.currency,
-    metadata: { payoutId: payout.id, kind: "settle" },
-    entries: [
-      { account: pending, direction: "DEBIT", amount: Number(payout.amount) },
-      { account: clearing, direction: "CREDIT", amount: Number(payout.amount) },
-    ],
-  });
-
-  if (!payout.settleLedgerTransactionId) {
-    await payout.update({
-      settleLedgerTransactionId: result.transaction.id,
-    });
-  }
-
-  return result;
 }
 
 export async function releaseReservedFunds({ payout, reason = null }) {
   if (!payout) throw new PayoutError("payout is required", "PAYOUT_REQUIRED", 400);
-
-  const available = await LedgerAccount.findOne({
-    where: {
-      merchantId: payout.merchantId,
-      type: "MERCHANT_AVAILABLE",
-      currency: payout.currency,
-    },
+  return sequelize.transaction(async (t) => {
+    const current = await Payout.findByPk(payout.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!current) throw new PayoutError("Payout not found", "PAYOUT_NOT_FOUND", 404);
+    if (current.status === "FAILED") return { transaction: await LedgerTransaction.findOne({ where: { reference: `PAYOUT_RELEASE:${current.id}`, currency: current.currency }, transaction: t }), created: false };
+    if (["SUCCESS", "REVERSED"].includes(current.status)) throw new PayoutError("Cannot release a terminal payout", "INVALID_STATE_TRANSITION", 409);
+    const available = await LedgerAccount.findOne({ where: { merchantId: current.merchantId, type: "MERCHANT_AVAILABLE", currency: current.currency }, transaction: t, lock: t.LOCK.UPDATE });
+    const pending = await LedgerAccount.findOne({ where: { merchantId: current.merchantId, type: "MERCHANT_PENDING", currency: current.currency }, transaction: t, lock: t.LOCK.UPDATE });
+    if (!available || !pending) throw new PayoutError("Missing ledger accounts for release", "LEDGER_ACCOUNTS_MISSING", 500);
+    const result = await postLedgerTransaction({ reference: `PAYOUT_RELEASE:${current.id}`, type: "PAYOUT", merchantId: current.merchantId, currency: current.currency, metadata: { payoutId: current.id, kind: "release" }, entries: [
+      { account: pending, direction: "DEBIT", amount: Number(current.walletDebitAmount ?? current.amount) },
+      { account: available, direction: "CREDIT", amount: Number(current.walletDebitAmount ?? current.amount) },
+    ], transaction: t });
+    await current.update({ status: "FAILED", failureReason: reason || current.failureReason || "Payout failed", failedAt: current.failedAt || new Date() }, { transaction: t });
+    return result;
   });
-  const pending = await LedgerAccount.findOne({
-    where: {
-      merchantId: payout.merchantId,
-      type: "MERCHANT_PENDING",
-      currency: payout.currency,
-    },
-  });
-
-  if (!available || !pending) {
-    throw new PayoutError(
-      "Missing ledger accounts for release",
-      "LEDGER_ACCOUNTS_MISSING",
-      500
-    );
-  }
-
-  const result = await postLedgerTransaction({
-    reference: `PAYOUT_RELEASE:${payout.id}`,
-    type: "PAYOUT",
-    merchantId: payout.merchantId,
-    currency: payout.currency,
-    metadata: { payoutId: payout.id, kind: "release", reason },
-    entries: [
-      { account: pending, direction: "DEBIT", amount: Number(payout.amount) },
-      { account: available, direction: "CREDIT", amount: Number(payout.amount) },
-    ],
-  });
-
-  await payout.update({
-    status: "FAILED",
-    failureReason: reason || payout.failureReason || "Payout failed",
-    failedAt: new Date(),
-  });
-
-  return result;
 }
 
 export async function reversePayout({ payout, reason = null }) {
   if (!payout) throw new PayoutError("payout is required", "PAYOUT_REQUIRED", 400);
-  if (payout.status !== "SUCCESS") {
-    throw new PayoutError(
-      "Only SUCCESS payouts can be reversed",
-      "INVALID_STATE_TRANSITION",
-      409
-    );
-  }
-
-  const available = await LedgerAccount.findOne({
-    where: {
-      merchantId: payout.merchantId,
-      type: "MERCHANT_AVAILABLE",
-      currency: payout.currency,
-    },
+  return sequelize.transaction(async (t) => {
+    const current = await Payout.findByPk(payout.id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (current?.status !== "SUCCESS") throw new PayoutError("Only SUCCESS payouts can be reversed", "INVALID_STATE_TRANSITION", 409);
+    const available = await LedgerAccount.findOne({ where: { merchantId: current.merchantId, type: "MERCHANT_AVAILABLE", currency: current.currency }, transaction: t, lock: t.LOCK.UPDATE });
+    const clearing = await LedgerAccount.findOne({ where: { merchantId: null, type: "CLEARING", currency: current.currency }, transaction: t, lock: t.LOCK.UPDATE });
+    const revenue = Number(current.feeAmount || 0) > 0
+      ? await LedgerAccount.findOne({ where: { merchantId: null, type: "CTEX_FEE_REVENUE", currency: current.currency }, transaction: t, lock: t.LOCK.UPDATE })
+      : null;
+    if (!available || !clearing || (Number(current.feeAmount || 0) > 0 && !revenue)) throw new PayoutError("Missing ledger accounts for reversal", "LEDGER_ACCOUNTS_MISSING", 500);
+    const entries = [
+      { account: clearing, direction: "DEBIT", amount: Number(current.beneficiaryAmount ?? current.amount) },
+      { account: available, direction: "CREDIT", amount: Number(current.walletDebitAmount ?? current.amount) },
+    ];
+    if (Number(current.feeAmount || 0) > 0) entries.push({ account: revenue, direction: "DEBIT", amount: Number(current.feeAmount) });
+    const result = await postLedgerTransaction({ reference: `PAYOUT_REVERSAL:${current.id}`, type: "REVERSAL", merchantId: current.merchantId, currency: current.currency, metadata: { payoutId: current.id, kind: "reversal", reason }, entries, transaction: t });
+    await current.update({ status: "REVERSED", reversedAt: new Date(), failureReason: reason || current.failureReason || "Payout reversed" }, { transaction: t });
+    return result;
   });
-  const clearing = await LedgerAccount.findOne({
-    where: { merchantId: null, type: "CLEARING", currency: payout.currency },
-  });
-
-  if (!available || !clearing) {
-    throw new PayoutError(
-      "Missing ledger accounts for reversal",
-      "LEDGER_ACCOUNTS_MISSING",
-      500
-    );
-  }
-
-  const result = await postLedgerTransaction({
-    reference: `PAYOUT_REVERSAL:${payout.id}`,
-    type: "REVERSAL",
-    merchantId: payout.merchantId,
-    currency: payout.currency,
-    metadata: { payoutId: payout.id, kind: "reversal", reason },
-    entries: [
-      { account: clearing, direction: "DEBIT", amount: Number(payout.amount) },
-      { account: available, direction: "CREDIT", amount: Number(payout.amount) },
-    ],
-  });
-
-  await payout.update({
-    status: "REVERSED",
-    reversedAt: new Date(),
-    failureReason: reason || payout.failureReason || "Payout reversed",
-  });
-
-  return result;
 }
 
 /* =========================================================
@@ -703,7 +743,6 @@ export async function refreshPayoutFromProvider({ payoutId }) {
     );
   }
   if (
-    payout.status === "SUCCESS" ||
     payout.status === "FAILED" ||
     payout.status === "REVERSED"
   ) {
@@ -725,11 +764,7 @@ export async function refreshPayoutFromProvider({ payoutId }) {
   }
 
   if (normalized === "SUCCESS") {
-    await payout.update({
-      status: "SUCCESS",
-      providerStatus: statusResult.providerStatus,
-      completedAt: new Date(),
-    });
+    await payout.update({ providerStatus: statusResult.providerStatus });
     await settleReservedFunds({ payout });
     return { payout: await payout.reload(), changed: true };
   }
@@ -747,5 +782,43 @@ export async function refreshPayoutFromProvider({ payoutId }) {
     return { payout: await payout.reload(), changed: true };
   }
 
+  if (normalized === "REVERSED") {
+    if (payout.status === "SUCCESS") {
+      await reversePayout({ payout, reason: "Provider reversed payout" });
+    } else {
+      await releaseReservedFunds({ payout, reason: "Provider reversed payout before settlement" });
+      await payout.update({ status: "REVERSED", reversedAt: new Date() });
+    }
+    return { payout: await payout.reload(), changed: true };
+  }
+
   return { payout, changed: false };
+}
+
+export async function authorizePayout({ merchantId, payoutId, authorizationCode }) {
+  if (!/^\d{4,10}$/.test(String(authorizationCode || ""))) {
+    throw new PayoutError("Invalid authorization code", "INVALID_AUTHORIZATION_CODE", 400);
+  }
+  const payout = await Payout.findOne({ where: { id: payoutId, merchantId } });
+  if (!payout) throw new PayoutError("Payout not found", "PAYOUT_NOT_FOUND", 404);
+  if (payout.status !== "PROCESSING" || payout.providerStatus !== "PENDING_AUTHORIZATION") {
+    throw new PayoutError("Payout is not waiting for provider authorization", "INVALID_STATE_TRANSITION", 409);
+  }
+  const provider = getPayoutProvider();
+  if (typeof provider.authorizePayout !== "function") {
+    throw new PayoutError("Configured payout provider does not support authorization", "PAYOUT_AUTHORIZATION_UNSUPPORTED", 409);
+  }
+  const result = await provider.authorizePayout({
+    reference: payout.providerReference || payout.id,
+    authorizationCode: String(authorizationCode),
+  });
+  const normalized = normalizeProviderStatus(result.providerStatus);
+  await payout.update({
+    providerStatus: result.providerStatus,
+    providerMetadata: { ...(payout.providerMetadata || {}), authorizationStatus: safePayoutResponse(result.rawResponse) },
+  });
+  if (normalized === "SUCCESS") await settleReservedFunds({ payout });
+  else if (normalized === "FAILED") await releaseReservedFunds({ payout, reason: "Provider rejected authorized payout" });
+  else await payout.update({ status: "PROCESSING", processingAt: payout.processingAt || new Date() });
+  return payout.reload();
 }

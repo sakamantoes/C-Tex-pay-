@@ -440,9 +440,10 @@ export async function postAdminAdjustment({
  * BALANCE CALCULATION
  * ======================================================= */
 
-async function sumAccount({ merchantId, type, currency }) {
+async function sumAccount({ merchantId, type, currency, transaction = null }) {
   const account = await LedgerAccount.findOne({
     where: { merchantId, type, currency },
+    transaction: transaction || undefined,
   });
   if (!account) return 0;
 
@@ -454,6 +455,7 @@ async function sumAccount({ merchantId, type, currency }) {
     where: { ledgerAccountId: account.id, currency },
     group: ["direction"],
     raw: true,
+    transaction: transaction || undefined,
   });
 
   let credits = 0;
@@ -465,12 +467,12 @@ async function sumAccount({ merchantId, type, currency }) {
   return credits - debits;
 }
 
-export async function getAvailableBalance({ merchantId, currency = "NGN" }) {
-  return sumAccount({ merchantId, type: "MERCHANT_AVAILABLE", currency });
+export async function getAvailableBalance({ merchantId, currency = "NGN", transaction = null }) {
+  return sumAccount({ merchantId, type: "MERCHANT_AVAILABLE", currency, transaction });
 }
 
-export async function getPendingBalance({ merchantId, currency = "NGN" }) {
-  return sumAccount({ merchantId, type: "MERCHANT_PENDING", currency });
+export async function getPendingBalance({ merchantId, currency = "NGN", transaction = null }) {
+  return sumAccount({ merchantId, type: "MERCHANT_PENDING", currency, transaction });
 }
 
 export async function getBalanceSummary({ merchantId, currency = "NGN" }) {

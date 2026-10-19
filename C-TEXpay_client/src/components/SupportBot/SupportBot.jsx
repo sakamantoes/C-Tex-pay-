@@ -151,7 +151,7 @@ const RULES = [
 
     reply:
 
-      "API keys support fine-grained permissions:\n\n• payments.create — initialize payments\n• payments.read — view payments\n• customers.create / read / update / delete — customer management\n• transactions.read — view transactions\n• api_keys.read / create / revoke — key management\n• webhooks.read / manage — merchant webhook configuration\n\nPayout permissions are not listed because payouts are not a confirmed live feature. Only grant the permissions your integration needs.",
+      "API keys support fine-grained permissions for API payment operations, customers, transactions, and webhooks. Wallet and payout actions use authenticated dashboard permissions such as ledger.read, payouts.create, and payouts.read; they are not API-key scopes in this integration.",
 
     quickReplies: [
 
@@ -419,7 +419,7 @@ const RULES = [
 
     reply:
 
-      "Merchant balance and wallet/ledger endpoints are planned work and should not be treated as live C-TEX PAY features yet. You can currently review payment and transaction records in the available dashboard/API. Contact support for questions about settlement or funds availability.",
+      "If your merchant role has wallet access, open Merchant dashboard → Wallet to see available and reserved funds. Balances come from the C-TEX PAY ledger; Monnify's disbursement wallet is separate.",
 
     quickReplies: [
 
@@ -443,7 +443,7 @@ const RULES = [
 
     reply:
 
-      "Ledger history and double-entry balance reporting are still on the roadmap. The assistant cannot provide a live ledger endpoint or confirm ledger entries at this stage. Please use the transaction records currently available and contact support for settlement questions.",
+      "Open Merchant dashboard → Wallet → Transactions to view ledger activity. Each wallet balance is calculated from posted ledger entries.",
 
     quickReplies: [
 
@@ -466,7 +466,7 @@ const RULES = [
     keywords: ["withdraw", "payout", "cash out", "transfer out", "send to bank"],
 
     reply:
-      'Payouts and withdrawals are on the C-TEX PAY roadmap and are not confirmed as available in the current release. Do not call a guessed payout endpoint or assume funds can be withdrawn from a C-TEX PAY balance yet. Contact support for current settlement arrangements.',
+      'If your workspace has withdrawal permission, open Merchant dashboard → Wallet → Withdraw, verify the beneficiary account, choose whether the fee is added to the debit or deducted from the requested amount, review the quote, then confirm. Bank transfers use the configured Monnify disbursement account; Xixapay bank payouts are not supported by the current integration.',
 
     quickReplies: [
 
@@ -489,7 +489,7 @@ const RULES = [
     keywords: ["validate bank", "verify bank account", "bank validation", "account name"],
 
     reply:
-      'Bank-account validation for C-TEX PAY payouts is not confirmed as available because the payout feature is still on the roadmap. Please contact support for current settlement or payout options.',
+      'The withdrawal form checks the account with Monnify and uses the returned account name. If verification is unavailable, do not submit the payout; check with your merchant administrator.',
 
     quickReplies: ["How do I withdraw?"],
 
@@ -504,7 +504,7 @@ const RULES = [
     keywords: ["payout take how long", "payout speed", "when will payout arrive", "how long withdraw"],
 
     reply:
-      'Payout processing times cannot be promised because the C-TEX PAY payout feature is not confirmed as live yet. Contact support for current settlement arrangements.',
+      'Withdrawal status is shown in the Wallet page. Monnify can require an additional authorization code and processes transfers according to its account configuration; C-TEX PAY does not promise a fixed delivery time.',
 
     quickReplies: [
 
@@ -525,7 +525,7 @@ const RULES = [
     keywords: ["payout failed", "payout error", "withdrawal failed"],
 
     reply:
-      'Automated payout failure handling is not confirmed as a live C-TEX PAY feature. If you have a settlement issue, contact support and include the relevant transaction reference and timestamp.',
+      'A failed withdrawal releases its reserved C-TEX wallet amount through a compensating ledger entry. If the provider outcome is uncertain, funds remain reserved until the payout is reconciled. Share the payout reference with support if its status does not update.',
 
     quickReplies: ["How do I validate a bank account?"],
 
@@ -540,7 +540,7 @@ const RULES = [
     keywords: ["my payouts", "payout history", "list payout", "withdrawal history"],
 
     reply:
-      'Payout history is not available as a confirmed live API feature yet. Please contact support for help with settlement questions.',
+      'Open Merchant dashboard → Wallet → Withdraw to review recent withdrawal requests and their status.',
 
     quickReplies: ["How do I withdraw?"],
 
@@ -558,7 +558,7 @@ const RULES = [
 
     reply:
 
-      "Merchant webhooks notify your backend about payment events. Configure your webhook URL in the C-TEX PAY dashboard. Verify webhook authenticity using the signature and secret details documented for your current integration; do not trust an unsigned or unverified payload. Payout events are not advertised here as live because payouts are still on the roadmap.",
+      "Merchant webhooks notify your backend about payment events. Configure your webhook URL in the C-TEX PAY dashboard. Verify webhook authenticity using the signature and secret details documented for your current integration; do not trust an unsigned or unverified payload. Payout notifications are not currently sent as merchant webhook events; review the Wallet page for payout status.",
 
     quickReplies: [
 
@@ -831,7 +831,7 @@ function resolveReply(message) {
 
     reply:
 
-      "I don't have a reliable answer for that question yet. I can currently help with merchant setup, API keys, customers, payment initialization and verification, transactions, merchant webhooks, team access, and common API errors. Fees, ledger/balance reporting, payouts, and reconciliation are still being developed. Tap WhatsApp support below and our team can help.",
+      "I don't have a reliable answer for that question yet. I can help with merchant setup, API keys, customers, payments, transactions, wallet balances, withdrawals, and webhooks. Tap WhatsApp support below and our team can help.",
 
     quickReplies: [
 

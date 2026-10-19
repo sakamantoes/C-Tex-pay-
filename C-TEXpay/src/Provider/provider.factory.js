@@ -42,16 +42,14 @@ export function getPaymentProvider() {
  * Xixapay payouts are not implemented in this stage (see scope notes).
  */
 export function getPayoutProvider() {
-  const activeProvider = (
-    envConfig.PAYMENT_PROVIDER || "MONNIFY"
-  ).toUpperCase();
+  const activeProvider = String(envConfig.PAYOUT_PROVIDER || "").toUpperCase();
 
   switch (activeProvider) {
     case "MONNIFY":
       return new MonnifyPayoutAdapter();
     case "XIXAPAY":
       throw new Error(
-        "Xixapay payouts are not implemented in this stage. Set PAYMENT_PROVIDER=MONNIFY for payouts."
+        "Xixapay bank payouts are not supported by the configured integration. Set PAYOUT_PROVIDER=MONNIFY to use Monnify disbursements."
       );
     default:
       throw new Error(
