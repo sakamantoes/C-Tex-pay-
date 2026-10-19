@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import { useAuthStore } from "../../store/auth.store";
 import { useMerchantStore } from "../../store/merchant.store";
 import walletService from "../../service/wallet.service";
+import { buildMerchantNav } from "./merchantNav";
 
 const money = (minor = 0) => new Intl.NumberFormat("en-NG", {
   style: "currency", currency: "NGN", minimumFractionDigits: 2,
@@ -13,6 +14,7 @@ export default function WalletPage() {
   const location = useLocation();
   const { user } = useAuthStore();
   const { businessProfile, roles, permissions } = useMerchantStore();
+  const navSections = useMemo(() => buildMerchantNav(permissions), [permissions]);
   const [balance, setBalance] = useState(null);
   const [entries, setEntries] = useState([]);
   const [payouts, setPayouts] = useState([]);
@@ -94,11 +96,7 @@ export default function WalletPage() {
 
   return <DashboardLayout title={businessProfile?.businessName || "Merchant workspace"} subtitle={title}
     profileName={user ? `${user.firstName} ${user.lastName}`.trim() : "User"}
-    profileRole={roles[0]?.name || "Member"} navSections={[{ title: "Wallet", items: [
-      { key: "wallet", label: "Balance", icon: "wallet", path: "/merchant/dashboard/wallet" },
-      { key: "wallet-transactions", label: "Transactions", icon: "transactions", path: "/merchant/dashboard/wallet/transactions" },
-      { key: "withdraw", label: "Withdraw", icon: "withdrawals", path: "/merchant/dashboard/wallet/withdraw" },
-    ] }]}>
+    profileRole={roles[0]?.name || "Member"} navSections={navSections}>
     {error && <div role="alert" className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
     {notice && <div role="status" className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-400">{notice}</div>}
     {loading ? <p className="text-sm text-ctex-text-muted">Loading wallet…</p> : <>
