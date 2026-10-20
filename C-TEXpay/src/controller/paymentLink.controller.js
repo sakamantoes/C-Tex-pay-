@@ -136,6 +136,13 @@ export const publicCheckout = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Public payment-link checkout failed", {
+      requestId: req.requestId,
+      errorName: error?.name || "Error",
+      errorCode: error?.code || null,
+      statusCode: error?.statusCode || null,
+      databaseCode: error?.parent?.code || error?.original?.code || null,
+    });
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }

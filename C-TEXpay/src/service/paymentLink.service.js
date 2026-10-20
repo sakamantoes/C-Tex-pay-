@@ -27,6 +27,14 @@ export class PaymentLinkError extends Error {
   }
 }
 
+function isUniqueConstraintError(error) {
+  return (
+    error?.name === "SequelizeUniqueConstraintError" ||
+    error?.parent?.code === "ER_DUP_ENTRY" ||
+    error?.original?.code === "ER_DUP_ENTRY"
+  );
+}
+
 /* =========================================================
  * JSON COLUMN NORMALIZATION
  * ======================================================= */
@@ -505,23 +513,48 @@ export async function checkoutPublicLink({
   const merchantId = link.merchantId;
   const normalizedEmail = customer.email.trim().toLowerCase();
 
-  const [customerRecord] = await Customer.findOrCreate({
-    where: { merchantId, email: normalizedEmail },
-    defaults: {
-      merchantId,
-      firstName: customer.firstName.trim(),
-      lastName: customer.lastName.trim(),
-      email: normalizedEmail,
-      phone: normalizedXixapayPhone || (customer.phone ? customer.phone.trim() : null),
-      status: "ACTIVE",
-      customerCode: `CUS_${crypto.randomBytes(6).toString("hex").toUpperCase()}`,
-    },
-  });
+  let customerRecord;
+  try {
+    [customerRecord] = await Customer.findOrCreate({
+      where: { merchantId, email: normalizedEmail },
+      defaults: {
+        merchantId,
+        firstName: customer.firstName.trim(),
+        lastName: customer.lastName.trim(),
+        email: normalizedEmail,
+        phone:
+          normalizedXixapayPhone ||
+          (customer.phone ? customer.phone.trim() : null),
+        status: "ACTIVE",
+        customerCode: `CUS_${crypto.randomBytes(6).toString("hex").toUpperCase()}`,
+      },
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new PaymentLinkError(
+        "This phone number is already associated with another customer for this merchant.",
+        "CUSTOMER_PHONE_ALREADY_IN_USE",
+        409
+      );
+    }
+    throw error;
+  }
 
   // findOrCreate keeps existing customer fields unchanged. Update this
   // provider-required value when a returning customer corrects their phone.
   if (normalizedXixapayPhone && customerRecord.phone !== normalizedXixapayPhone) {
-    await customerRecord.update({ phone: normalizedXixapayPhone });
+    try {
+      await customerRecord.update({ phone: normalizedXixapayPhone });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        throw new PaymentLinkError(
+          "This phone number is already associated with another customer for this merchant.",
+          "CUSTOMER_PHONE_ALREADY_IN_USE",
+          409
+        );
+      }
+      throw error;
+    }
   }
 
   const stableIdempotencyKey =
