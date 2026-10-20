@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { Op } from "sequelize";
 import envConfig from "../config/constant.js";
 import {
   Payment,
@@ -14,7 +15,7 @@ import {
 import { enqueueSuccessfulPaymentNotifications } from "../service/merchantNotification.service.js";
 
 /* =========================================================
- * SIGNATURE VERIFICATION (unchanged)
+ * SIGNATURE VERIFICATION
  * ======================================================= */
 
 function verifySignature(rawBody, signature) {
@@ -72,7 +73,7 @@ async function findPaymentForWebhook(body, transaction = null) {
   const candidates = await Payment.findAll({
     where: {
       provider: "XIXAPAY",
-      status: { [require("sequelize").Op.in]: ["PENDING", "EXPIRED"] },
+      status: { [Op.in]: ["PENDING", "EXPIRED"] },
     },
     transaction,
     limit: 500,
@@ -82,7 +83,11 @@ async function findPaymentForWebhook(body, transaction = null) {
   for (const p of candidates) {
     let instr = p.paymentInstructions;
     if (typeof instr === "string") {
-      try { instr = JSON.parse(instr); } catch { instr = null; }
+      try {
+        instr = JSON.parse(instr);
+      } catch {
+        instr = null;
+      }
     }
     if (!instr) continue;
 
@@ -148,7 +153,7 @@ async function transitionToSuccess({
         paymentId: payment.id,
         previousStatus,
         newStatus: "SUCCESS",
-        reason: `Verified via Xixapay webhook`,
+        reason: "Verified via Xixapay webhook",
         source: "WEBHOOK",
       },
       { transaction: t }
@@ -241,7 +246,10 @@ export const handleXixapayWebhook = async (req, res) => {
         .json({ success: false, message: "Malformed payload" });
     }
 
-    if (notificationStatus !== "payment_successful" || transactionStatus !== "success") {
+    if (
+      notificationStatus !== "payment_successful" ||
+      transactionStatus !== "success"
+    ) {
       console.log("Xixapay webhook: ignoring non-success event", {
         notificationStatus,
         transactionStatus,
@@ -249,7 +257,7 @@ export const handleXixapayWebhook = async (req, res) => {
       return res.status(200).json({ success: true, message: "Acknowledged" });
     }
 
-    /* Step 4 — dedupe (but try self-heal on duplicate) */
+    /* Step 4 — dedupe (with self-heal) */
     const eventKey = deriveEventKey(body);
     let record;
     let isDuplicate = false;
