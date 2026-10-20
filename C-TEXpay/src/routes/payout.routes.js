@@ -10,6 +10,7 @@ import {
   getMyPayout,
   quotePayoutController,
   authorizePayoutController,
+  listPayoutBanksController,
 } from "../controller/payout.controller.js";
 import {
   createPayoutSchema,
@@ -22,11 +23,19 @@ import {
 
 const router = Router();
 
+router.get(
+  "/banks",
+  protect,
+  requireMerchant,
+  requirePermission("payouts.create"),
+  listPayoutBanksController,
+);
+
 router.post(
   "/:id/authorize",
   protect,
   requireMerchant,
-  requirePermission("payouts.manage"),
+  requirePermission("payouts.create"),
   validate(payoutIdParamSchema, "params"),
   validate(payoutAuthorizationSchema),
   authorizePayoutController,

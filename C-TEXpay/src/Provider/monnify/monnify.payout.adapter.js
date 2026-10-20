@@ -20,6 +20,19 @@ import envConfig from "../../config/constant.js";
  */
 
 class MonnifyPayoutAdapter {
+  async getBanks() {
+    const response = await monnifyRequest("/api/v1/banks", { method: "GET" });
+    const banks = response?.responseBody;
+    if (!Array.isArray(banks)) {
+      throw Object.assign(new Error("Monnify bank list response is malformed"), {
+        code: "PROVIDER_RESPONSE_MALFORMED",
+      });
+    }
+    return banks
+      .filter((bank) => bank?.name && bank?.code != null)
+      .map((bank) => ({ name: String(bank.name), code: String(bank.code) }));
+  }
+
   /**
    * Bank account name enquiry.
    * Returns { accountName } on success, throws ProviderError on failure.
@@ -51,6 +64,7 @@ class MonnifyPayoutAdapter {
     accountName: String(body.accountName),
     accountNumber: String(body.accountNumber || accountNumber),
     bankCode: String(body.bankCode || bankCode),
+    bankName: body.bankName ? String(body.bankName) : null,
     rawResponse: body,
   };
 }

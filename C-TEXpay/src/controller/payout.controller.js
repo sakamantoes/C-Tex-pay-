@@ -9,6 +9,7 @@ import {
   PayoutError,
   quotePayout,
   authorizePayout,
+  listPayoutBanks,
 } from "../service/payout.service.js";
 
 function mapError(error) {
@@ -33,6 +34,8 @@ function toPublicPayout(payout) {
     beneficiaryAmount: Number(d.beneficiaryAmount ?? d.amount),
     currency: d.currency,
     bankCode: d.bankCode,
+    bankName: d.bankName || d.providerMetadata?.beneficiaryBankName || d.providerMetadata?.submission?.destinationBankName || null,
+    authorizationRequired: d.providerStatus === "PENDING_AUTHORIZATION",
     accountNumber: (d.accountNumberLast4 || (String(d.accountNumber || "").startsWith("enc:") ? "" : d.accountNumber?.slice(-4)))
       ? `••••${d.accountNumberLast4 || d.accountNumber.slice(-4)}`
       : null,
@@ -159,6 +162,16 @@ export const validateBankAccountController = async (req, res) => {
       accountNumber: req.body.accountNumber,
     });
     return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    const { status, message } = mapError(error);
+    return res.status(status).json({ success: false, message });
+  }
+};
+
+export const listPayoutBanksController = async (req, res) => {
+  try {
+    const banks = await listPayoutBanks();
+    return res.status(200).json({ success: true, data: banks });
   } catch (error) {
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });

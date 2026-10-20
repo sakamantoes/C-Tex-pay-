@@ -21,6 +21,14 @@ const walletService = {
     const { data } = await api.post("/payouts/validate-bank-account", payload);
     return data.data;
   },
+  async getPayoutBanks() {
+    const { data } = await api.get("/payouts/banks");
+    return data.data;
+  },
+  async authorizePayout(payoutId, authorizationCode) {
+    const { data } = await api.post(`/payouts/${payoutId}/authorize`, { authorizationCode });
+    return data.data;
+  },
   async createPayout(payload, idempotencyKey) {
     const { data } = await api.post("/payouts", payload, {
       headers: { "Idempotency-Key": idempotencyKey },

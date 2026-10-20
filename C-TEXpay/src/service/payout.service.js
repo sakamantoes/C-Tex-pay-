@@ -163,7 +163,7 @@ function decryptAccountNumber(value) {
 function safePayoutResponse(body) {
   if (!body || typeof body !== "object") return null;
   const safe = {};
-  for (const key of ["reference", "transactionReference", "status", "amount", "currency", "fee", "dateCreated", "createdOn", "responseCode"]) {
+  for (const key of ["reference", "transactionReference", "status", "amount", "currency", "fee", "dateCreated", "createdOn", "responseCode", "destinationBankName"]) {
     if (body[key] !== undefined) safe[key] = body[key];
   }
   return safe;
@@ -224,6 +224,31 @@ function computeRequestHash({
  * BANK ACCOUNT VALIDATION
  * ======================================================= */
 
+let payoutBanksCache = { expiresAt: 0, banks: [] };
+
+export async function listPayoutBanks() {
+  if (payoutBanksCache.expiresAt > Date.now() && payoutBanksCache.banks.length) {
+    return payoutBanksCache.banks;
+  }
+  let provider;
+  try {
+    provider = getPayoutProvider();
+  } catch (error) {
+    throw new PayoutError("Bank payouts are not available", error.code || "PAYOUT_PROVIDER_UNAVAILABLE", 503);
+  }
+  if (typeof provider.getBanks !== "function") {
+    throw new PayoutError("Bank directory is unavailable", "BANK_DIRECTORY_UNAVAILABLE", 503);
+  }
+  try {
+    const banks = await provider.getBanks();
+    payoutBanksCache = { banks, expiresAt: Date.now() + 60 * 60 * 1000 };
+    return banks;
+  } catch (error) {
+    console.error("Payout bank directory fetch failed", { errorCode: error.code });
+    throw new PayoutError("Unable to load supported banks", error.code || "PROVIDER_ERROR", 502);
+  }
+}
+
 export async function validateBankAccount({ bankCode, accountNumber }) {
   if (!/^\d{3,10}$/.test(String(bankCode || ""))) {
     throw new PayoutError("bankCode must be 3-10 digits", "INVALID_BANK_CODE", 400);
@@ -247,6 +272,7 @@ export async function validateBankAccount({ bankCode, accountNumber }) {
       bankCode: String(bankCode),
       accountNumber: String(accountNumber),
       accountName: result.accountName,
+      bankName: result.bankName || null,
     };
   } catch (providerError) {
     console.error("Bank validation failed", {
@@ -439,6 +465,9 @@ export async function createPayout({
           status: "PENDING",
           initiatedAt: new Date(),
           metadata,
+          providerMetadata: validatedDestination.bankName
+            ? { beneficiaryBankName: validatedDestination.bankName }
+            : null,
         },
         { transaction: t }
       );
@@ -551,6 +580,7 @@ export async function createPayout({
     providerReference: providerResult.providerReference || payout.id,
     providerStatus: providerResult.providerStatus || "PENDING",
     providerMetadata: {
+      ...(payout.providerMetadata || {}),
       submission: safePayoutResponse(providerResult.rawResponse),
     },
     ...(normalizedStatus === "PROCESSING" ? { status: "PROCESSING", processingAt: new Date() } : {}),
