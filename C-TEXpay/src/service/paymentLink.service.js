@@ -8,7 +8,10 @@ import {
   Customer,
   BusinessProfile
 } from "../models/index.js";
-import { createPayment } from "./payment.service.js";
+import {
+  createPayment,
+  recoverPendingTransferInstructions,
+} from "./payment.service.js";
 
 /* =========================================================
  * ERRORS
@@ -518,6 +521,7 @@ export async function checkoutPublicLink({
         paymentLinkSlug: link.slug,
       },
       idempotencyKey: stableIdempotencyKey,
+      recoverIncompleteTransfer: true,
     });
   } catch (error) {
     const mapped = new PaymentLinkError(
@@ -581,6 +585,10 @@ export async function getPublicPaymentStatus({
 
   if (!payment) {
     throw new PaymentLinkError("Payment not found", "NOT_FOUND", 404);
+  }
+
+  if (await recoverPendingTransferInstructions(payment)) {
+    await payment.reload();
   }
 
   return {

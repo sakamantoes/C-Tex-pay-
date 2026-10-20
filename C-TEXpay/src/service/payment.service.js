@@ -79,6 +79,132 @@ const PAYMENT_REFERENCE_PREFIX =
 const FALLBACK_CUSTOMER_EMAIL = "noreply@ctexpay.com";
 
 const DEFAULT_PAYMENT_EXPIRY_MINUTES = 30;
+const transferRecoveryAttempts = new Map();
+
+async function ensureBankTransferInstructions({
+  payment,
+  provider,
+  customerContext,
+}) {
+  let bankTransferResult;
+  try {
+    bankTransferResult = await provider.initializeBankTransfer({
+      transactionReference: payment.providerReference,
+      bankCode: envConfig.MONNIFY_TRANSFER_BANK_CODE || null,
+      paymentReference: payment.paymentReference,
+      providerReference: payment.providerReference,
+      merchantReference: payment.merchantReference,
+      amount: Number(payment.amount) / 100,
+      currency: payment.currency,
+      customer: customerContext,
+      description: payment.description,
+      metadata: normalizeMetadata(payment.metadata),
+    });
+  } catch (error) {
+    console.error("Bank transfer initialization failed", {
+      paymentReference: payment.paymentReference,
+      providerReference: payment.providerReference,
+      errorCode: error?.code,
+      providerHttpStatus: error?.httpStatus,
+      error: error?.message,
+    });
+    throwErr(
+      "Unable to initialize bank transfer payment",
+      "ACCOUNT_TRANSFER_INIT_FAILED",
+      502
+    );
+  }
+
+  if (
+    !bankTransferResult ||
+    typeof bankTransferResult !== "object" ||
+    !bankTransferResult.accountNumber
+  ) {
+    throwErr(
+      "Payment provider did not return a transfer account number",
+      "PROVIDER_RESPONSE_MALFORMED",
+      502
+    );
+  }
+
+  const providerExpiresAt = normalizeProviderExpiry(bankTransferResult.expiresAt);
+  if (!providerExpiresAt || providerExpiresAt.getTime() <= Date.now()) {
+    throwErr(
+      "Payment provider returned an invalid transfer account expiry",
+      "PROVIDER_RESPONSE_MALFORMED",
+      502
+    );
+  }
+
+  const paymentInstructions = {
+    type: "ACCOUNT_TRANSFER",
+    accountNumber: bankTransferResult.accountNumber,
+    accountName: bankTransferResult.accountName || null,
+    bankName: bankTransferResult.bankName || null,
+    bankCode: bankTransferResult.bankCode || null,
+    expiresAt: providerExpiresAt.toISOString(),
+    ussdPayment: bankTransferResult.ussdPayment || null,
+  };
+
+  await payment.update({
+    expiresAt: providerExpiresAt,
+    paymentInstructions,
+    providerStatus:
+      bankTransferResult.providerStatus || payment.providerStatus || "PENDING",
+    providerMetadata: {
+        ...(typeof payment.providerMetadata === "object" &&
+        payment.providerMetadata
+        ? payment.providerMetadata
+        : {}),
+      bankTransfer: bankTransferResult.rawResponse || null,
+    },
+  });
+
+  return paymentInstructions;
+}
+
+export async function recoverPendingTransferInstructions(payment) {
+  if (
+    !payment ||
+    payment.status !== "PENDING" ||
+    payment.paymentMethod !== "ACCOUNT_TRANSFER" ||
+    payment.paymentInstructions ||
+    !payment.providerReference
+  ) {
+    return false;
+  }
+
+  const lastAttempt = transferRecoveryAttempts.get(payment.id) || 0;
+  if (Date.now() - lastAttempt < 30_000) return false;
+  transferRecoveryAttempts.set(payment.id, Date.now());
+
+  try {
+    const provider = getPaymentProvider();
+    const customer = payment.customerId
+      ? await Customer.findOne({ where: { id: payment.customerId, merchantId: payment.merchantId } })
+      : null;
+    await ensureBankTransferInstructions({
+      payment,
+      provider,
+      customerContext: {
+        id: payment.customerId,
+        email: customer?.email || FALLBACK_CUSTOMER_EMAIL,
+        name: customer
+          ? `${customer.firstName} ${customer.lastName}`.trim()
+          : "Customer",
+        phone: customer?.phone || null,
+      },
+    });
+    return true;
+  } catch (error) {
+    console.warn("Pending payment transfer instruction recovery failed", {
+      paymentReference: payment.paymentReference,
+      errorCode: error?.code,
+      providerHttpStatus: error?.httpStatus,
+    });
+    return false;
+  }
+}
 
 /* =========================================================
  * ERROR HELPER
@@ -513,6 +639,7 @@ export async function createPayment({
   metadata = null,
   idempotencyKey,
   returnUrl = null,
+  recoverIncompleteTransfer = false,
 }) {
   if (!merchantId) {
     throwErr("merchantId is required", "MERCHANT_REQUIRED", 400);
@@ -625,7 +752,34 @@ export async function createPayment({
   };
 
   const replayed = await replay();
-  if (replayed) return replayed;
+  if (replayed) {
+    const existing = replayed.payment;
+    if (
+      recoverIncompleteTransfer &&
+      existing.status === "PENDING" &&
+      existing.paymentMethod === "ACCOUNT_TRANSFER" &&
+      !existing.paymentInstructions
+    ) {
+      if (!existing.providerReference) {
+        throwErr(
+          "Payment initialization is still in progress. Retry this checkout shortly.",
+          "PAYMENT_INITIALIZATION_IN_PROGRESS",
+          409
+        );
+      }
+
+      await recoverPendingTransferInstructions(existing);
+      if (!existing.paymentInstructions) {
+        throwErr(
+          "Unable to prepare bank transfer instructions yet. Please retry shortly.",
+          "ACCOUNT_TRANSFER_INIT_FAILED",
+          502
+        );
+      }
+      await existing.reload();
+    }
+    return replayed;
+  }
 
   /* -------------------------------------------------------
    * CREATE PAYMENT + FEE SNAPSHOT (atomic)
@@ -813,97 +967,11 @@ export async function createPayment({
    * ----------------------------------------------------- */
 
   if (paymentMethod === "ACCOUNT_TRANSFER") {
-    let bankTransferResult;
-    try {
-      bankTransferResult = await provider.initializeBankTransfer({
-        transactionReference: initializeResult.providerReference,
-        bankCode: envConfig.MONNIFY_TRANSFER_BANK_CODE || null,
-        paymentReference: payment.paymentReference,
-        providerReference: initializeResult.providerReference,
-        merchantReference: payment.merchantReference,
-        amount: Number(payment.amount) / 100,
-        currency: payment.currency,
-        customer: customerContext,
-        description: payment.description,
-        metadata: normalizeMetadata(payment.metadata),
-      });
-    } catch (error) {
-      console.error("Bank transfer initialization failed", {
-        paymentReference: payment.paymentReference,
-        providerReference: initializeResult.providerReference,
-        errorCode: error?.code,
-        providerHttpStatus: error?.httpStatus,
-        error: error?.message,
-      });
-      throwErr(
-        "Unable to initialize bank transfer payment",
-        "ACCOUNT_TRANSFER_INIT_FAILED",
-        502
-      );
-    }
-
-    if (!bankTransferResult || typeof bankTransferResult !== "object") {
-      throwErr(
-        "Payment provider returned an invalid bank transfer response",
-        "PROVIDER_RESPONSE_MALFORMED",
-        502
-      );
-    }
-
-    if (!bankTransferResult.accountNumber) {
-      throwErr(
-        "Payment provider did not return a transfer account number",
-        "PROVIDER_RESPONSE_MALFORMED",
-        502
-      );
-    }
-
-    const providerExpiresAt = normalizeProviderExpiry(
-      bankTransferResult.expiresAt
-    );
-
-    if (!providerExpiresAt) {
-      throwErr(
-        "Payment provider did not return a transfer account expiry",
-        "PROVIDER_RESPONSE_MALFORMED",
-        502
-      );
-    }
-
-    if (providerExpiresAt.getTime() <= Date.now()) {
-      throwErr(
-        "Payment provider returned an already expired transfer account",
-        "PROVIDER_RESPONSE_MALFORMED",
-        502
-      );
-    }
-
-    const paymentInstructions = {
-      type: "ACCOUNT_TRANSFER",
-      accountNumber: bankTransferResult.accountNumber,
-      accountName: bankTransferResult.accountName || null,
-      bankName: bankTransferResult.bankName || null,
-      bankCode: bankTransferResult.bankCode || null,
-      expiresAt: providerExpiresAt.toISOString(),
-      ussdPayment: bankTransferResult.ussdPayment || null,
-    };
-
-    await payment.update({
-      expiresAt: providerExpiresAt,
-      paymentInstructions,
-      providerStatus:
-        bankTransferResult.providerStatus ||
-        initializeResult.providerStatus ||
-        "PENDING",
-      providerMetadata: {
-        ...(payment.providerMetadata || {}),
-        bankTransfer: bankTransferResult.rawResponse || null,
-      },
-    });
+    await ensureBankTransferInstructions({ payment, provider, customerContext });
 
     console.log("Bank transfer instructions generated", {
       paymentReference: payment.paymentReference,
-      bankName: bankTransferResult.bankName,
+      bankName: payment.paymentInstructions?.bankName || null,
     });
   }
 
