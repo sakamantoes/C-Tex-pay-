@@ -4,8 +4,8 @@ import {
   Payment,
   PaymentStatusHistory,
   WebhookEvent,
-  sequelize,
 } from "../models/index.js";
+import sequelize from "../config/database.js";
 import { postPaymentSettlement } from "../service/ledger.service.js";
 import {
   createMerchantWebhookEventForSuccessfulPayment,
