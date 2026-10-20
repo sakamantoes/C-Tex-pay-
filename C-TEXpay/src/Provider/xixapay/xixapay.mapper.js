@@ -30,15 +30,39 @@ export const XIXAPAY_BANK_CODES = {
  * Map a C-TEX customer to Xixapay's "Raw Customer Data" payload.
  *
  * Xixapay requires email, name, and phoneNumber for unverified customers.
- * If the C-TEX customer has no phone, we substitute a controlled
- * placeholder and mark the record — this is documented behavior in
- * the provider-notes section of the C-TEX codebase.
+ * The value is validated and normalized to Xixapay's required Nigerian
+ * national format before it is sent to the provider.
  */
+export function normalizeXixapayPhone(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    const err = new Error("A Nigerian phone number is required for Xixapay payments.");
+    err.code = "XIXAPAY_PHONE_REQUIRED";
+    throw err;
+  }
+
+  const digits = raw.replace(/\D/g, "");
+  let nationalNumber = digits;
+
+  // Xixapay requires Nigerian local format (11 digits). Convert only the
+  // country-code form +234XXXXXXXXXX; never reinterpret another country's number.
+  if (digits.startsWith("234") && digits.length === 13) {
+    nationalNumber = `0${digits.slice(3)}`;
+  }
+
+  if (!/^0[789]\d{9}$/.test(nationalNumber)) {
+    const err = new Error(
+      "Xixapay requires an 11-digit Nigerian phone number, such as 08012345678 or +2348012345678."
+    );
+    err.code = "XIXAPAY_PHONE_FORMAT_UNSUPPORTED";
+    throw err;
+  }
+
+  return nationalNumber;
+}
+
 function toXixapayCustomerFields(customer) {
-  const phone =
-    customer?.phone && String(customer.phone).trim().length > 0
-      ? String(customer.phone).trim()
-      : "00000000000"; // placeholder — see C-TEX provider-notes
+  const phone = normalizeXixapayPhone(customer?.phone);
 
   return {
     email: customer?.email || "noreply@ctexpay.com",

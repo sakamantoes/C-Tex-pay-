@@ -1,6 +1,8 @@
 import crypto from "crypto";
 import { Op } from "sequelize";
 import sequelize from "../config/database.js";
+import envConfig from "../config/constant.js";
+import { normalizeXixapayPhone } from "../Provider/xixapay/xixapay.mapper.js";
 import {
   PaymentLink,
   Payment,
@@ -485,6 +487,21 @@ export async function checkoutPublicLink({
     finalAmount = Number(amount);
   }
 
+  let normalizedXixapayPhone = null;
+  if (
+    String(envConfig.PAYMENT_PROVIDER || "MONNIFY").toUpperCase() === "XIXAPAY"
+  ) {
+    try {
+      normalizedXixapayPhone = normalizeXixapayPhone(customer.phone);
+    } catch (error) {
+      throw new PaymentLinkError(
+        error.message,
+        error.code || "INVALID_CUSTOMER_PHONE",
+        400
+      );
+    }
+  }
+
   const merchantId = link.merchantId;
   const normalizedEmail = customer.email.trim().toLowerCase();
 
@@ -495,11 +512,17 @@ export async function checkoutPublicLink({
       firstName: customer.firstName.trim(),
       lastName: customer.lastName.trim(),
       email: normalizedEmail,
-      phone: customer.phone ? customer.phone.trim() : null,
+      phone: normalizedXixapayPhone || (customer.phone ? customer.phone.trim() : null),
       status: "ACTIVE",
       customerCode: `CUS_${crypto.randomBytes(6).toString("hex").toUpperCase()}`,
     },
   });
+
+  // findOrCreate keeps existing customer fields unchanged. Update this
+  // provider-required value when a returning customer corrects their phone.
+  if (normalizedXixapayPhone && customerRecord.phone !== normalizedXixapayPhone) {
+    await customerRecord.update({ phone: normalizedXixapayPhone });
+  }
 
   const stableIdempotencyKey =
     idempotencyKey ||
