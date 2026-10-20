@@ -4,8 +4,8 @@ import {
   Payment,
   PaymentStatusHistory,
   WebhookEvent,
+  sequelize,
 } from "../models/index.js";
-import sequelize from "../config/database.js";
 import { postPaymentSettlement } from "../service/ledger.service.js";
 import {
   createMerchantWebhookEventForSuccessfulPayment,
@@ -14,7 +14,7 @@ import {
 import { enqueueSuccessfulPaymentNotifications } from "../service/merchantNotification.service.js";
 
 /* =========================================================
- * SIGNATURE VERIFICATION
+ * SIGNATURE VERIFICATION (unchanged)
  * ======================================================= */
 
 function verifySignature(rawBody, signature) {
@@ -43,7 +43,6 @@ function verifySignature(rawBody, signature) {
   if (!crypto.timingSafeEqual(expectedBuf, receivedBuf)) {
     return { valid: false, reason: "SIGNATURE_MISMATCH" };
   }
-
   return { valid: true };
 }
 
@@ -61,44 +60,22 @@ function deriveEventKey(body) {
 }
 
 /* =========================================================
- * MATCH WEBHOOK TO PAYMENT
+ * FIND PAYMENT
  * ======================================================= */
 
-/**
- * Find the C-TEX payment this webhook refers to.
- *
- * Xixapay does not return a paymentReference in the webhook. We must
- * match using metadata that was sent at init time. The `externalReference`
- * we sent to Xixapay was the C-TEX paymentReference, and Xixapay echoes
- * it back through the transaction record — but the webhook payload
- * doesn't include it directly.
- *
- * Primary match: `receiver.account_number` against
- *   `payment.paymentInstructions.accountNumber`.
- *
- * Secondary match: `customer.email` against the customer record.
- *
- * Fallback: any PENDING Xixapay payment with matching amount, scoped to
- *   a narrow time window. This is a last resort.
- */
-async function findPaymentForWebhook(body, transaction) {
+async function findPaymentForWebhook(body, transaction = null) {
   const accountNumber = body?.receiver?.account_number;
   const amountPaidNaira = Number(body?.amount_paid);
 
-  if (!accountNumber) {
-    return null;
-  }
+  if (!accountNumber) return null;
 
-  // Postgres/MariaDB JSON query — paymentInstructions is JSON, but
-  // Sequelize stores it as text on MariaDB. Use LIKE to find by
-  // account number substring. Safer to fetch candidates and filter.
   const candidates = await Payment.findAll({
     where: {
       provider: "XIXAPAY",
-      status: "PENDING",
+      status: { [require("sequelize").Op.in]: ["PENDING", "EXPIRED"] },
     },
     transaction,
-    limit: 500, // bounded — should be far fewer for a real merchant
+    limit: 500,
     order: [["createdAt", "DESC"]],
   });
 
@@ -109,16 +86,11 @@ async function findPaymentForWebhook(body, transaction) {
     }
     if (!instr) continue;
 
-    const matchesAccount =
-      String(instr.accountNumber) === String(accountNumber);
-    if (!matchesAccount) continue;
+    if (String(instr.accountNumber) !== String(accountNumber)) continue;
 
     const expectedAmount = Number(p.amount);
     const paidKobo = Math.round(amountPaidNaira * 100);
-    if (paidKobo < expectedAmount) {
-      // Underpayment — do not match
-      continue;
-    }
+    if (paidKobo < expectedAmount) continue;
 
     return p;
   }
@@ -127,7 +99,7 @@ async function findPaymentForWebhook(body, transaction) {
 }
 
 /* =========================================================
- * TRANSITION PAYMENT TO SUCCESS
+ * TRANSITION TO SUCCESS
  * ======================================================= */
 
 async function transitionToSuccess({
@@ -145,15 +117,11 @@ async function transitionToSuccess({
       lock: t.LOCK.UPDATE,
     });
 
-    if (!payment) {
-      return { payment: null, changed: false };
-    }
-
+    if (!payment) return { payment: null, changed: false };
     if (payment.status === "SUCCESS") {
       return { payment, changed: false, alreadySuccess: true };
     }
-
-    if (payment.status === "EXPIRED" || payment.status === "CANCELLED") {
+    if (payment.status === "CANCELLED") {
       return { payment, changed: false, invalidState: true };
     }
 
@@ -186,7 +154,6 @@ async function transitionToSuccess({
       { transaction: t }
     );
 
-    // Merchant webhook + notification
     const hookResult = await createMerchantWebhookEventForSuccessfulPayment({
       payment,
       transaction: t,
@@ -210,7 +177,6 @@ async function transitionToSuccess({
     return { payment, changed: true, merchantWebhookEvent };
   });
 
-  // Ledger settlement outside the transaction (idempotent by reference)
   if (result.changed && result.payment) {
     try {
       await postPaymentSettlement({ paymentId: result.payment.id });
@@ -223,7 +189,6 @@ async function transitionToSuccess({
     }
   }
 
-  // Deliver merchant webhook after commit
   if (merchantWebhookEvent) {
     try {
       await processMerchantWebhookDelivery({
@@ -248,7 +213,6 @@ export const handleXixapayWebhook = async (req, res) => {
   try {
     /* Step 1 — raw body */
     if (!req.rawBody || typeof req.rawBody !== "string") {
-      console.warn("Xixapay webhook: raw body not captured");
       return res
         .status(400)
         .json({ success: false, message: "Invalid request body" });
@@ -266,35 +230,30 @@ export const handleXixapayWebhook = async (req, res) => {
         .json({ success: false, message: "Invalid signature" });
     }
 
-    /* Step 3 — payload shape */
+    /* Step 3 — payload */
     const body = req.body || {};
     const notificationStatus = String(body.notification_status || "");
     const transactionStatus = String(body.transaction_status || "");
 
     if (!notificationStatus || !transactionStatus || !body.transaction_id) {
-      console.warn("Xixapay webhook: malformed payload");
       return res
         .status(400)
         .json({ success: false, message: "Malformed payload" });
     }
 
-    if (notificationStatus !== "payment_successful") {
-      console.log("Xixapay webhook: unsupported notification, acknowledged", {
+    if (notificationStatus !== "payment_successful" || transactionStatus !== "success") {
+      console.log("Xixapay webhook: ignoring non-success event", {
         notificationStatus,
-      });
-      return res.status(200).json({ success: true, message: "Acknowledged" });
-    }
-
-    if (transactionStatus !== "success") {
-      console.log("Xixapay webhook: non-success tx status, acknowledged", {
         transactionStatus,
       });
       return res.status(200).json({ success: true, message: "Acknowledged" });
     }
 
-    /* Step 4 — dedupe */
+    /* Step 4 — dedupe (but try self-heal on duplicate) */
     const eventKey = deriveEventKey(body);
     let record;
+    let isDuplicate = false;
+
     try {
       record = await WebhookEvent.create({
         provider: "XIXAPAY",
@@ -307,19 +266,22 @@ export const handleXixapayWebhook = async (req, res) => {
       const isDup =
         err.name === "SequelizeUniqueConstraintError" ||
         err.parent?.code === "ER_DUP_ENTRY";
-      if (isDup) {
-        console.log("Xixapay webhook: duplicate event", { eventKey });
+      if (!isDup) {
+        console.error("Xixapay webhook: event persistence failed", {
+          errorName: err.name,
+          errorMessage: err.message,
+        });
         return res
-          .status(200)
-          .json({ success: true, message: "Acknowledged (duplicate)" });
+          .status(500)
+          .json({ success: false, message: "Unable to persist event" });
       }
-      console.error("Xixapay webhook: event persistence failed", {
-        errorName: err.name,
-        errorMessage: err.message,
+      isDuplicate = true;
+      record = await WebhookEvent.findOne({
+        where: { provider: "XIXAPAY", eventKey },
       });
-      return res
-        .status(500)
-        .json({ success: false, message: "Unable to persist event" });
+      console.log("Xixapay webhook: duplicate event — will attempt self-heal", {
+        eventKey,
+      });
     }
 
     /* Step 5 — match payment */
@@ -333,6 +295,7 @@ export const handleXixapayWebhook = async (req, res) => {
         transactionId: body.transaction_id,
         accountNumber: body?.receiver?.account_number,
         amountPaid: body.amount_paid,
+        duplicate: isDuplicate,
       });
       return res
         .status(200)
@@ -341,7 +304,7 @@ export const handleXixapayWebhook = async (req, res) => {
 
     /* Step 6 — amount check */
     if (amountPaidKobo < Number(payment.amount)) {
-      console.warn("Xixapay webhook: amount underpayment", {
+      console.warn("Xixapay webhook: underpayment", {
         paymentReference: payment.paymentReference,
         expectedKobo: Number(payment.amount),
         paidKobo: amountPaidKobo,
@@ -359,12 +322,12 @@ export const handleXixapayWebhook = async (req, res) => {
       webhookPayload: body,
     });
 
-    console.log("Xixapay webhook: payment processed", {
-      eventId: record.id,
+    console.log("Xixapay webhook: processed", {
+      eventId: record?.id,
       paymentReference: payment.paymentReference,
-      previousStatus: "PENDING",
-      newStatus: result.payment?.status,
       changed: result.changed,
+      alreadySuccess: result.alreadySuccess,
+      duplicate: isDuplicate,
     });
 
     return res.status(200).json({ success: true, message: "Acknowledged" });
@@ -374,8 +337,6 @@ export const handleXixapayWebhook = async (req, res) => {
       errorMessage: error.message,
       stack: error.stack,
     });
-    return res
-      .status(500)
-      .json({ success: false, message: "Internal error" });
+    return res.status(500).json({ success: false, message: "Internal error" });
   }
 };
