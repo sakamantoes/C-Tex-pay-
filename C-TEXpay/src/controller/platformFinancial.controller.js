@@ -93,7 +93,12 @@ export async function getWithdrawalFeesController(req, res) {
   try {
     return res.json({ success: true, data: await getWithdrawalFeeTiers() });
   } catch (error) {
-    console.error("Withdrawal fee tier read failed", { requestId: req.requestId, errorName: error.name });
+    console.error("Withdrawal fee tier read failed", {
+      requestId: req.requestId,
+      errorName: error.name,
+      errorCode: error.code || null,
+      errorMessage: String(error.message || "").slice(0, 180),
+    });
     return res.status(503).json({ success: false, message: "Withdrawal fee configuration is unavailable" });
   }
 }
@@ -108,6 +113,20 @@ export async function previewWithdrawalFeeController(req, res) {
     const data = await calculateWithdrawalCharges(parsed.data);
     return res.json({ success: true, data });
   } catch (error) {
+    if ((error.statusCode || 500) >= 500) {
+      console.error("Withdrawal fee preview failed", {
+        requestId: req.requestId,
+        errorName: error.name,
+        errorCode: error.code || null,
+        errorMessage: String(error.message || "").slice(0, 180),
+      });
+    }
+    if (
+      error.code === "WITHDRAWAL_FEE_CONFIGURATION_UNAVAILABLE" ||
+      error.name?.startsWith("Sequelize")
+    ) {
+      return res.status(503).json({ success: false, message: "Withdrawal fee configuration is unavailable" });
+    }
     return res.status(error.statusCode || 500).json({ success: false, message: error.statusCode ? error.message : "Unable to calculate withdrawal charge" });
   }
 }

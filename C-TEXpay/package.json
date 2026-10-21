@@ -13,6 +13,7 @@
     "migrate:payout-fee-snapshot": "node ./src/scripts/migrate-payout-fee-snapshot.js",
     "migrate:platform-financials": "node ./src/scripts/migrate-platform-financials.js",
     "migrate:fee-record-financial-columns": "node ./src/scripts/migrate-fee-record-financial-columns.js",
+    "migrate:withdrawal-fee-tiers": "node ./src/scripts/migrate-withdrawal-fee-tiers.js",
     "migrate:merchant-redirect-urls": "node ./src/scripts/migrate-merchant-redirect-urls.js",
     "bootstrap:empty-production-schema": "node ./src/scripts/bootstrap-empty-production-schema.js",
     "test": "node --test src/tests/**/*.test.js"

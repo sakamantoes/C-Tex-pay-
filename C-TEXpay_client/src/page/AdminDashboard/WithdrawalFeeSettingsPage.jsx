@@ -47,6 +47,10 @@ export default function WithdrawalFeeSettingsPage() {
     return () => clearTimeout(timer);
   }, []);
   useEffect(() => {
+    if (tiers.length !== 3) {
+      setPreview(null);
+      return undefined;
+    }
     const majorAmount = Number(previewAmount);
     if (!Number.isFinite(majorAmount) || majorAmount <= 0) return;
     let active = true;

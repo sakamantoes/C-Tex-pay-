@@ -8,6 +8,13 @@ const DEFAULT_TIERS = [
   { tierKey: "FROM_50000", minimumAmount: 5_000_000, maximumAmountExclusive: null, feeAmount: 8_000 },
 ];
 
+function unavailableWithdrawalFeeConfiguration(message = "Withdrawal fee configuration is unavailable") {
+  const error = new Error(message);
+  error.code = "WITHDRAWAL_FEE_CONFIGURATION_UNAVAILABLE";
+  error.statusCode = 503;
+  return error;
+}
+
 function serializeTier(tier) {
   return {
     id: tier.id,
@@ -23,7 +30,10 @@ function serializeTier(tier) {
 
 export async function getWithdrawalFeeTiers({ transaction } = {}) {
   const tiers = await WithdrawalFeeTier.findAll({ order: [["minimumAmount", "ASC"]], transaction });
-  if (tiers.length !== DEFAULT_TIERS.length) throw new Error("Withdrawal fee configuration is incomplete; apply the financial settings migration");
+  const keys = new Set(tiers.map((tier) => tier.tierKey));
+  if (tiers.length !== DEFAULT_TIERS.length || DEFAULT_TIERS.some(({ tierKey }) => !keys.has(tierKey))) {
+    throw unavailableWithdrawalFeeConfiguration("Withdrawal fee configuration is incomplete");
+  }
   return tiers.map(serializeTier);
 }
 
@@ -44,7 +54,7 @@ export async function calculateWithdrawalCharges({ amount, feeMode = "FEE_ON_TOP
     order: [["minimumAmount", "DESC"]],
     transaction,
   });
-  if (!tier) throw new Error("No withdrawal fee tier covers this amount");
+  if (!tier) throw unavailableWithdrawalFeeConfiguration("No configured withdrawal fee tier covers this amount");
   return computeWithdrawalAmounts({ amount, feeMode, tier: serializeTier(tier) });
 }
 

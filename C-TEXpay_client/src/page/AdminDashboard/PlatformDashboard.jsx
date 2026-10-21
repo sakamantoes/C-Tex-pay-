@@ -5,6 +5,7 @@ import { useAuthStore } from "../../store/auth.store";
 import platformAdminService from "../../service/platformAdmin.service";
 
 function formatMoneyMinor(amount, currency = "NGN") {
+  if (amount == null) return "Not recorded";
   return new Intl.NumberFormat("en-NG", {
     style: "currency",
     currency,
@@ -36,7 +37,13 @@ export default function PlatformDashboard({ platformRole }) {
       else errors.push(summaryResult.reason.response?.data?.message || "Could not load overview metrics.");
       if (paymentsResult.status === "fulfilled") setPayments(paymentsResult.value.data?.payments || []);
       else errors.push(paymentsResult.reason.response?.data?.message || "Could not load recent transactions.");
-      if (platformRole === "SUPER_ADMIN" && financialResult?.status === "fulfilled") setFinancialSummary(financialResult.value);
+      if (platformRole === "SUPER_ADMIN" && financialResult?.status === "fulfilled") {
+        const financial = financialResult.value;
+        if (financial.payments.confirmedProviderChargesAvailable === false) {
+          financial.payments.confirmedProviderCharges = null;
+        }
+        setFinancialSummary(financial);
+      }
       if (errors.length) setError(errors.join(" "));
       setLoading(false);
     });

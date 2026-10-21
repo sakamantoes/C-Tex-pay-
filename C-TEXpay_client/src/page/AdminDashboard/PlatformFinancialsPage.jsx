@@ -4,7 +4,7 @@ import { useAuthStore } from "../../store/auth.store";
 import platformAdminService from "../../service/platformAdmin.service";
 
 const LIMIT = 25;
-const money = (value) => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 2 }).format(Number(value || 0) / 100);
+const money = (value) => value == null ? "Not recorded" : new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 2 }).format(Number(value) / 100);
 
 export default function PlatformFinancialsPage() {
   const { user } = useAuthStore();
@@ -59,16 +59,16 @@ export default function PlatformFinancialsPage() {
   const w = summary?.withdrawals || {};
   const cards = [
     ["Successful payment volume", p.grossVolume],
-    ["Confirmed provider charges", p.confirmedProviderCharges],
-    ["Estimated provider charges", p.estimatedProviderCharges],
-    ["Provider-reported charges", p.providerReportedCharges],
+    ["Confirmed provider charges", p.confirmedProviderChargesAvailable === false ? null : p.confirmedProviderCharges],
+    ["Estimated provider charges", p.estimatedProviderChargesAvailable === false ? null : p.estimatedProviderCharges],
+    ["Provider-reported charges", p.providerReportedChargesAvailable === false ? null : p.providerReportedCharges],
     ["C-TEX payment service fees", p.ctexServiceFeeRevenue],
     ["Merchant net payable", p.merchantNetPayable],
-    ["Actual provider settlements", p.actualProviderSettlements],
-    ["Confirmed gross processing margin", p.ctexGrossProcessingMargin],
-    ["Estimated gross processing margin", p.estimatedCtexGrossProcessingMargin],
-    ["Pending expected settlements", p.pendingExpectedSettlement],
-    ["Successful withdrawals", w.successfulPayoutAmount],
+    ["Actual provider settlements", p.actualProviderSettlementsAvailable === false ? null : p.actualProviderSettlements],
+    ["Confirmed gross processing margin", p.ctexGrossProcessingMarginAvailable === false ? null : p.ctexGrossProcessingMargin],
+    ["Estimated gross processing margin", p.estimatedCtexGrossProcessingMarginAvailable === false ? null : p.estimatedCtexGrossProcessingMargin],
+    ["Pending expected settlements", p.pendingExpectedSettlementAvailable === false ? null : p.pendingExpectedSettlement],
+    ["Successful withdrawal volume", w.successfulPayoutAmount],
     ["Withdrawal charges collected", w.ctexWithdrawalChargesCollected],
   ];
 

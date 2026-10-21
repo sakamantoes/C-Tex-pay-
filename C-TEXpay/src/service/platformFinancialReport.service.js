@@ -33,6 +33,14 @@ export async function getPlatformFinancialSummary(filters = {}) {
   const sql = sqlFilters(filters);
   const [payments] = await sequelize.query(`
     SELECT COUNT(*) AS successfulPaymentCount,
+      COUNT(fr.providerFee) AS confirmedProviderFeeRecords,
+      COUNT(fr.providerFeeEstimate) AS estimatedProviderFeeRecords,
+      COUNT(fr.providerReportedFee) AS providerReportedFeeRecords,
+      COUNT(fr.providerReportedSettlementAmount) AS providerReportedSettlementRecords,
+      COUNT(fr.actualSettlementAmount) AS actualSettlementRecords,
+      COUNT(fr.ctexGrossMargin) AS confirmedMarginRecords,
+      COUNT(fr.estimatedCtexGrossMargin) AS estimatedMarginRecords,
+      COUNT(CASE WHEN fr.settlementStatus IN ('PENDING','REPORTED') AND fr.expectedSettlementAmount IS NOT NULL THEN 1 END) AS pendingExpectedSettlementRecords,
       COALESCE(SUM(fr.grossAmount),0) AS grossPaymentVolume,
       COALESCE(SUM(fr.providerFee),0) AS confirmedProviderCharges,
       COALESCE(SUM(fr.providerFeeEstimate),0) AS estimatedProviderCharges,
@@ -57,7 +65,8 @@ export async function getPlatformFinancialSummary(filters = {}) {
     if (filters.dateFrom) payoutWhere.completedAt[Op.gte] = new Date(filters.dateFrom);
     if (filters.dateTo) payoutWhere.completedAt[Op.lte] = new Date(filters.dateTo);
   }
-  const [successfulWithdrawals, withdrawalCharges] = await Promise.all([
+  const [successfulWithdrawalCount, successfulWithdrawals, withdrawalCharges] = await Promise.all([
+    Payout.count({ where: payoutWhere }),
     Payout.sum("beneficiaryAmount", { where: payoutWhere }),
     Payout.sum("feeAmount", { where: payoutWhere }),
   ]);
@@ -68,6 +77,14 @@ export async function getPlatformFinancialSummary(filters = {}) {
     scope: "successful provider-confirmed payments only",
     payments: {
       count: Number(row.successfulPaymentCount || 0),
+      confirmedProviderChargesAvailable: Number(row.confirmedProviderFeeRecords || 0) > 0,
+      estimatedProviderChargesAvailable: Number(row.estimatedProviderFeeRecords || 0) > 0,
+      providerReportedChargesAvailable: Number(row.providerReportedFeeRecords || 0) > 0,
+      providerReportedSettlementsAvailable: Number(row.providerReportedSettlementRecords || 0) > 0,
+      actualProviderSettlementsAvailable: Number(row.actualSettlementRecords || 0) > 0,
+      ctexGrossProcessingMarginAvailable: Number(row.confirmedMarginRecords || 0) > 0,
+      estimatedCtexGrossProcessingMarginAvailable: Number(row.estimatedMarginRecords || 0) > 0,
+      pendingExpectedSettlementAvailable: Number(row.pendingExpectedSettlementRecords || 0) > 0,
       grossVolume: asString(row.grossPaymentVolume),
       confirmedProviderCharges: asString(row.confirmedProviderCharges),
       estimatedProviderCharges: asString(row.estimatedProviderCharges),
@@ -83,6 +100,7 @@ export async function getPlatformFinancialSummary(filters = {}) {
       settlementDiscrepancyAmount: asString(row.settlementDiscrepancyAmount),
     },
     withdrawals: {
+      successfulPayoutCount: Number(successfulWithdrawalCount || 0),
       successfulPayoutAmount: asString(successfulWithdrawals),
       ctexWithdrawalChargesCollected: asString(withdrawalCharges),
     },
