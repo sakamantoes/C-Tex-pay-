@@ -28,51 +28,157 @@ function serializeTier(tier) {
   };
 }
 
-export async function getWithdrawalFeeTiers({ transaction } = {}) {
-  const tiers = await WithdrawalFeeTier.findAll({ order: [["minimumAmount", "ASC"]], transaction });
-  const keys = new Set(tiers.map((tier) => tier.tierKey));
-  if (tiers.length !== DEFAULT_TIERS.length || DEFAULT_TIERS.some(({ tierKey }) => !keys.has(tierKey))) {
-    throw unavailableWithdrawalFeeConfiguration("Withdrawal fee configuration is incomplete");
+/*
+|--------------------------------------------------------------------------
+| Idempotent seeding
+|--------------------------------------------------------------------------
+| Ensures each of the three default tiers exists with exactly one row.
+| - If a row already exists, its feeAmount is preserved (never overwrite
+|   operator-configured values).
+| - If a row is missing, it is created with the default feeAmount.
+| Safe to call on every boot and from read paths.
+*/
+
+export async function ensureWithdrawalFeeTiersExist({ transaction } = {}) {
+  for (const tier of DEFAULT_TIERS) {
+    const existing = await WithdrawalFeeTier.findOne({
+      where: { tierKey: tier.tierKey },
+      transaction,
+    });
+    if (!existing) {
+      await WithdrawalFeeTier.create(
+        {
+          tierKey: tier.tierKey,
+          minimumAmount: tier.minimumAmount,
+          maximumAmountExclusive: tier.maximumAmountExclusive,
+          feeAmount: tier.feeAmount,
+          version: 1,
+          updatedBy: null,
+        },
+        { transaction }
+      );
+    }
   }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Read
+|--------------------------------------------------------------------------
+| Self-heals: if any tier is missing, seed first, then read again.
+| This guarantees the endpoint returns 200 on a fresh database.
+*/
+
+export async function getWithdrawalFeeTiers({ transaction } = {}) {
+  let tiers = await WithdrawalFeeTier.findAll({
+    order: [["minimumAmount", "ASC"]],
+    transaction,
+  });
+
+  // Self-heal: any missing tier → seed and re-read.
+  const keys = new Set(tiers.map((t) => t.tierKey));
+  const missing = DEFAULT_TIERS.some(({ tierKey }) => !keys.has(tierKey));
+
+  if (missing) {
+    // Use a distinct transaction if caller didn't pass one, so the heal
+    // commits independently of any outer transaction that may later abort.
+    if (transaction) {
+      await ensureWithdrawalFeeTiersExist({ transaction });
+      tiers = await WithdrawalFeeTier.findAll({
+        order: [["minimumAmount", "ASC"]],
+        transaction,
+      });
+    } else {
+      await sequelize.transaction(async (t) => {
+        await ensureWithdrawalFeeTiersExist({ transaction: t });
+      });
+      tiers = await WithdrawalFeeTier.findAll({
+        order: [["minimumAmount", "ASC"]],
+      });
+    }
+  }
+
+  const healedKeys = new Set(tiers.map((t) => t.tierKey));
+  if (
+    tiers.length !== DEFAULT_TIERS.length ||
+    DEFAULT_TIERS.some(({ tierKey }) => !healedKeys.has(tierKey))
+  ) {
+    // Even after healing, the table is inconsistent → real config error.
+    throw unavailableWithdrawalFeeConfiguration(
+      "Withdrawal fee configuration is incomplete"
+    );
+  }
+
   return tiers.map(serializeTier);
 }
 
-export async function calculateWithdrawalCharges({ amount, feeMode = "FEE_ON_TOP", transaction } = {}) {
+/*
+|--------------------------------------------------------------------------
+| Calculate charges
+|--------------------------------------------------------------------------
+*/
+
+export async function calculateWithdrawalCharges({
+  amount,
+  feeMode = "FEE_ON_TOP",
+  transaction,
+} = {}) {
   if (!Number.isSafeInteger(amount) || amount <= 0) {
     const error = new Error("Withdrawal amount must be a positive integer in kobo");
-    error.code = "INVALID_AMOUNT"; error.statusCode = 400; throw error;
+    error.code = "INVALID_AMOUNT";
+    error.statusCode = 400;
+    throw error;
   }
   if (!["FEE_ON_TOP", "DEDUCT_FROM_AMOUNT"].includes(feeMode)) {
     const error = new Error("Invalid withdrawal fee option");
-    error.code = "INVALID_FEE_MODE"; error.statusCode = 400; throw error;
+    error.code = "INVALID_FEE_MODE";
+    error.statusCode = 400;
+    throw error;
   }
+
   const tier = await WithdrawalFeeTier.findOne({
     where: {
       minimumAmount: { [Op.lte]: amount },
-      [Op.or]: [{ maximumAmountExclusive: null }, { maximumAmountExclusive: { [Op.gt]: amount } }],
+      [Op.or]: [
+        { maximumAmountExclusive: null },
+        { maximumAmountExclusive: { [Op.gt]: amount } },
+      ],
     },
     order: [["minimumAmount", "DESC"]],
     transaction,
   });
+
   if (!tier) throw unavailableWithdrawalFeeConfiguration("No configured withdrawal fee tier covers this amount");
+
   return computeWithdrawalAmounts({ amount, feeMode, tier: serializeTier(tier) });
 }
 
 export function computeWithdrawalAmounts({ amount, feeMode = "FEE_ON_TOP", tier }) {
-  if (!Number.isSafeInteger(amount) || amount <= 0 || !tier || !Number.isSafeInteger(Number(tier.feeAmount))) {
+  if (
+    !Number.isSafeInteger(amount) ||
+    amount <= 0 ||
+    !tier ||
+    !Number.isSafeInteger(Number(tier.feeAmount))
+  ) {
     const error = new Error("Invalid withdrawal amount or fee tier");
-    error.code = "INVALID_WITHDRAWAL_FEE_CONFIG"; error.statusCode = 400; throw error;
+    error.code = "INVALID_WITHDRAWAL_FEE_CONFIG";
+    error.statusCode = 400;
+    throw error;
   }
   if (!["FEE_ON_TOP", "DEDUCT_FROM_AMOUNT"].includes(feeMode)) {
     const error = new Error("Invalid withdrawal fee option");
-    error.code = "INVALID_FEE_MODE"; error.statusCode = 400; throw error;
+    error.code = "INVALID_FEE_MODE";
+    error.statusCode = 400;
+    throw error;
   }
   const feeAmount = Number(tier.feeAmount);
   const walletDebitAmount = feeMode === "FEE_ON_TOP" ? amount + feeAmount : amount;
   const beneficiaryAmount = feeMode === "FEE_ON_TOP" ? amount : amount - feeAmount;
   if (!Number.isSafeInteger(walletDebitAmount) || beneficiaryAmount <= 0) {
     const error = new Error("Withdrawal amount is too small after the applicable charge");
-    error.code = "PAYOUT_AMOUNT_OUT_OF_RANGE"; error.statusCode = 400; throw error;
+    error.code = "PAYOUT_AMOUNT_OUT_OF_RANGE";
+    error.statusCode = 400;
+    throw error;
   }
   return {
     amount,
@@ -96,44 +202,77 @@ export function computeWithdrawalAmounts({ amount, feeMode = "FEE_ON_TOP", tier 
   };
 }
 
+/*
+|--------------------------------------------------------------------------
+| Update / reset
+|--------------------------------------------------------------------------
+*/
+
 export async function updateWithdrawalFeeTiers({ fees, updatedBy, reason }) {
   if (!Array.isArray(fees) || fees.length !== DEFAULT_TIERS.length || !reason?.trim()) {
     const error = new Error("Provide all three tier charges and a change reason");
-    error.code = "INVALID_WITHDRAWAL_FEE_CONFIG"; error.statusCode = 400; throw error;
+    error.code = "INVALID_WITHDRAWAL_FEE_CONFIG";
+    error.statusCode = 400;
+    throw error;
   }
   const byKey = new Map(fees.map((item) => [item.tierKey, item.feeAmount]));
   if (byKey.size !== DEFAULT_TIERS.length || DEFAULT_TIERS.some(({ tierKey }) => !byKey.has(tierKey))) {
     const error = new Error("Tier keys must match the fixed withdrawal ranges");
-    error.code = "INVALID_WITHDRAWAL_FEE_CONFIG"; error.statusCode = 400; throw error;
+    error.code = "INVALID_WITHDRAWAL_FEE_CONFIG";
+    error.statusCode = 400;
+    throw error;
   }
   for (const fee of byKey.values()) {
     if (!Number.isSafeInteger(fee) || fee < 0 || fee > 100_000_000) {
       const error = new Error("Each withdrawal charge must be an integer from 0 to 1,000,000 NGN in kobo");
-      error.code = "INVALID_WITHDRAWAL_FEE_CONFIG"; error.statusCode = 400; throw error;
+      error.code = "INVALID_WITHDRAWAL_FEE_CONFIG";
+      error.statusCode = 400;
+      throw error;
     }
   }
 
   return sequelize.transaction(async (transaction) => {
-    const rows = await WithdrawalFeeTier.findAll({ order: [["minimumAmount", "ASC"]], transaction, lock: transaction.LOCK.UPDATE });
-    if (rows.length !== DEFAULT_TIERS.length) throw new Error("Withdrawal fee configuration is incomplete");
+    // Self-heal within the update transaction as well.
+    await ensureWithdrawalFeeTiersExist({ transaction });
+
+    const rows = await WithdrawalFeeTier.findAll({
+      order: [["minimumAmount", "ASC"]],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (rows.length !== DEFAULT_TIERS.length) {
+      throw new Error("Withdrawal fee configuration is incomplete");
+    }
+
     const beforeValue = rows.map(serializeTier);
     for (const row of rows) {
       const nextFee = byKey.get(row.tierKey);
       if (nextFee !== Number(row.feeAmount)) {
-        await row.update({ feeAmount: nextFee, version: Number(row.version) + 1, updatedBy }, { transaction });
+        await row.update(
+          {
+            feeAmount: nextFee,
+            version: Number(row.version) + 1,
+            updatedBy,
+          },
+          { transaction }
+        );
       }
     }
     const afterValue = rows.map(serializeTier);
-    await AdminAuditLog.create({
-      actorUserId: updatedBy,
-      action: "WITHDRAWAL_FEE_TIERS_UPDATED",
-      resourceType: "WITHDRAWAL_FEE_TIERS",
-      resourceId: "platform-default",
-      outcome: "SUCCESS",
-      reason: reason.trim(),
-      beforeValue,
-      afterValue,
-    }, { transaction });
+    await AdminAuditLog.create(
+      {
+        actorUserId: updatedBy,
+        action: "WITHDRAWAL_FEE_TIERS_UPDATED",
+        resourceType: "WITHDRAWAL_FEE_TIERS",
+        resourceId: "platform-default",
+        outcome: "SUCCESS",
+        reason: reason.trim(),
+        beforeValue,
+        afterValue,
+      },
+      { transaction }
+    );
     return afterValue;
   });
 }
