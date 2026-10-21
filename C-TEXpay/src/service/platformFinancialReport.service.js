@@ -1,10 +1,22 @@
 import { Op } from "sequelize";
 import sequelize from "../config/database.js";
-import { AdminAuditLog, FeeRecord, Merchant, Payment, Payout } from "../models/index.js";
+import {
+  AdminAuditLog,
+  FeeRecord,
+  Merchant,
+  Payment,
+  Payout,
+} from "../models/index.js";
 
 const RECOGNIZED = ["RECOGNIZED", "ESTIMATED", "RECONCILED"];
 
-function buildFilters({ dateFrom, dateTo, provider, merchantId, settlementStatus } = {}) {
+function buildFilters({
+  dateFrom,
+  dateTo,
+  provider,
+  merchantId,
+  settlementStatus,
+} = {}) {
   const where = { financialStatus: { [Op.in]: RECOGNIZED } };
   if (provider) where.provider = provider;
   if (settlementStatus) where.settlementStatus = settlementStatus;
@@ -18,20 +30,45 @@ function buildFilters({ dateFrom, dateTo, provider, merchantId, settlementStatus
   return { where, paymentWhere };
 }
 
-function sqlFilters({ dateFrom, dateTo, provider, merchantId, settlementStatus } = {}) {
-  const clauses = ["p.status = 'SUCCESS'", "fr.financialStatus IN ('RECOGNIZED','ESTIMATED','RECONCILED')"];
+function sqlFilters({
+  dateFrom,
+  dateTo,
+  provider,
+  merchantId,
+  settlementStatus,
+} = {}) {
+  const clauses = [
+    "p.status = 'SUCCESS'",
+    "fr.financialStatus IN ('RECOGNIZED','ESTIMATED','RECONCILED')",
+  ];
   const replacements = {};
-  if (dateFrom) { clauses.push("fr.paymentSuccessAt >= :dateFrom"); replacements.dateFrom = dateFrom; }
-  if (dateTo) { clauses.push("fr.paymentSuccessAt <= :dateTo"); replacements.dateTo = dateTo; }
-  if (provider) { clauses.push("fr.provider = :provider"); replacements.provider = provider; }
-  if (merchantId) { clauses.push("p.merchantId = :merchantId"); replacements.merchantId = merchantId; }
-  if (settlementStatus) { clauses.push("fr.settlementStatus = :settlementStatus"); replacements.settlementStatus = settlementStatus; }
+  if (dateFrom) {
+    clauses.push("fr.paymentSuccessAt >= :dateFrom");
+    replacements.dateFrom = dateFrom;
+  }
+  if (dateTo) {
+    clauses.push("fr.paymentSuccessAt <= :dateTo");
+    replacements.dateTo = dateTo;
+  }
+  if (provider) {
+    clauses.push("fr.provider = :provider");
+    replacements.provider = provider;
+  }
+  if (merchantId) {
+    clauses.push("p.merchantId = :merchantId");
+    replacements.merchantId = merchantId;
+  }
+  if (settlementStatus) {
+    clauses.push("fr.settlementStatus = :settlementStatus");
+    replacements.settlementStatus = settlementStatus;
+  }
   return { clause: clauses.join(" AND "), replacements };
 }
 
 export async function getPlatformFinancialSummary(filters = {}) {
   const sql = sqlFilters(filters);
-  const [payments] = await sequelize.query(`
+  const [payments] = await sequelize.query(
+    `
     SELECT COUNT(*) AS successfulPaymentCount,
       COUNT(fr.providerFee) AS confirmedProviderFeeRecords,
       COUNT(fr.providerFeeEstimate) AS estimatedProviderFeeRecords,
@@ -56,7 +93,9 @@ export async function getPlatformFinancialSummary(filters = {}) {
       COALESCE(SUM(CASE WHEN fr.settlementStatus = 'DISCREPANCY' THEN fr.reconciliationDifference ELSE 0 END),0) AS settlementDiscrepancyAmount
     FROM fee_records fr INNER JOIN payments p ON p.id = fr.paymentId
     WHERE ${sql.clause}
-  `, { replacements: sql.replacements });
+  `,
+    { replacements: sql.replacements }
+  );
 
   const payoutWhere = { status: "SUCCESS" };
   if (filters.merchantId) payoutWhere.merchantId = filters.merchantId;
@@ -65,13 +104,16 @@ export async function getPlatformFinancialSummary(filters = {}) {
     if (filters.dateFrom) payoutWhere.completedAt[Op.gte] = new Date(filters.dateFrom);
     if (filters.dateTo) payoutWhere.completedAt[Op.lte] = new Date(filters.dateTo);
   }
-  const [successfulWithdrawalCount, successfulWithdrawals, withdrawalCharges] = await Promise.all([
-    Payout.count({ where: payoutWhere }),
-    Payout.sum("beneficiaryAmount", { where: payoutWhere }),
-    Payout.sum("feeAmount", { where: payoutWhere }),
-  ]);
+  const [successfulWithdrawalCount, successfulWithdrawals, withdrawalCharges] =
+    await Promise.all([
+      Payout.count({ where: payoutWhere }),
+      Payout.sum("beneficiaryAmount", { where: payoutWhere }),
+      Payout.sum("feeAmount", { where: payoutWhere }),
+    ]);
+
   const row = payments[0] || {};
   const asString = (value) => String(value ?? 0);
+
   return {
     currency: "NGN",
     scope: "successful provider-confirmed payments only",
@@ -108,7 +150,65 @@ export async function getPlatformFinancialSummary(filters = {}) {
   };
 }
 
-export async function listPlatformFinancialPayments({ page = 1, limit = 25, ...filters } = {}) {
+/*
+|--------------------------------------------------------------------------
+| Derive settlement display hints
+|--------------------------------------------------------------------------
+| Adds fields the frontend can use to label rows without guessing:
+|   - settlementDisplay: short string for the "actual settlement" column
+|   - missingDataReason: why actual settlement is null, if applicable
+*/
+
+function deriveSettlementDisplay(row) {
+  const actual = row.actualSettlementAmount;
+  const reported = row.providerReportedSettlementAmount;
+  const expected = row.expectedSettlementAmount;
+  const status = row.settlementStatus;
+
+  if (actual != null) {
+    return {
+      settlementDisplay: Number(actual),
+      settlementDisplayKind: "ACTUAL",
+      missingDataReason: null,
+    };
+  }
+
+  if (status === "DISCREPANCY") {
+    return {
+      settlementDisplay: null,
+      settlementDisplayKind: "DISCREPANCY",
+      missingDataReason: "Settlement was reconciled with a discrepancy",
+    };
+  }
+
+  if (reported != null) {
+    return {
+      settlementDisplay: Number(reported),
+      settlementDisplayKind: "PROVIDER_REPORTED",
+      missingDataReason: "Awaiting confirmed bank settlement",
+    };
+  }
+
+  if (expected != null) {
+    return {
+      settlementDisplay: Number(expected),
+      settlementDisplayKind: "EXPECTED_ONLY",
+      missingDataReason: "Provider has not reported a settlement yet",
+    };
+  }
+
+  return {
+    settlementDisplay: null,
+    settlementDisplayKind: "UNKNOWN",
+    missingDataReason: "No expected or reported settlement information",
+  };
+}
+
+export async function listPlatformFinancialPayments({
+  page = 1,
+  limit = 25,
+  ...filters
+} = {}) {
   const safePage = Math.max(1, Number(page) || 1);
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 25));
   const { where, paymentWhere } = buildFilters(filters);
@@ -116,31 +216,122 @@ export async function listPlatformFinancialPayments({ page = 1, limit = 25, ...f
     where,
     include: [
       {
-        model: Payment, as: "payment", required: true,
+        model: Payment,
+        as: "payment",
+        required: true,
         where: paymentWhere,
-        attributes: ["id", "paymentReference", "providerReference", "provider", "merchantId", "status", "amount", "currency", "createdAt"],
-        include: [{ model: Merchant, as: "merchant", attributes: ["id", "merchantCode"], include: [{ association: "businessProfile", attributes: ["businessName"] }] }],
+        attributes: [
+          "id",
+          "paymentReference",
+          "providerReference",
+          "provider",
+          "merchantId",
+          "status",
+          "amount",
+          "currency",
+          "createdAt",
+        ],
+        include: [
+          {
+            model: Merchant,
+            as: "merchant",
+            attributes: ["id", "merchantCode"],
+            include: [{ association: "businessProfile", attributes: ["businessName"] }],
+          },
+        ],
       },
     ],
-    order: [["paymentSuccessAt", "DESC"], ["id", "ASC"]],
+    order: [
+      ["paymentSuccessAt", "DESC"],
+      ["id", "ASC"],
+    ],
     limit: safeLimit,
     offset: (safePage - 1) * safeLimit,
     distinct: true,
   });
+
+  const data = rows.map((row) => {
+    const plain = row.toJSON();
+    const display = deriveSettlementDisplay(plain);
+    return {
+      ...plain,
+      grossAmount: Number(plain.grossAmount),
+      serviceFee: Number(plain.serviceFee),
+      merchantNetAmount: Number(plain.merchantNetAmount),
+      totalFee: plain.totalFee == null ? null : Number(plain.totalFee),
+      providerFee: plain.providerFee == null ? null : Number(plain.providerFee),
+      providerFeeEstimate:
+        plain.providerFeeEstimate == null ? null : Number(plain.providerFeeEstimate),
+      providerReportedFee:
+        plain.providerReportedFee == null ? null : Number(plain.providerReportedFee),
+      expectedSettlementAmount:
+        plain.expectedSettlementAmount == null
+          ? null
+          : Number(plain.expectedSettlementAmount),
+      providerReportedSettlementAmount:
+        plain.providerReportedSettlementAmount == null
+          ? null
+          : Number(plain.providerReportedSettlementAmount),
+      actualSettlementAmount:
+        plain.actualSettlementAmount == null
+          ? null
+          : Number(plain.actualSettlementAmount),
+      estimatedCtexGrossMargin:
+        plain.estimatedCtexGrossMargin == null
+          ? null
+          : Number(plain.estimatedCtexGrossMargin),
+      ctexGrossMargin:
+        plain.ctexGrossMargin == null ? null : Number(plain.ctexGrossMargin),
+      reconciliationDifference:
+        plain.reconciliationDifference == null
+          ? null
+          : Number(plain.reconciliationDifference),
+      settlementDisplay: display.settlementDisplay,
+      settlementDisplayKind: display.settlementDisplayKind,
+      missingDataReason: display.missingDataReason,
+    };
+  });
+
   return {
-    data: rows.map((row) => ({ ...row.toJSON(), grossAmount: Number(row.grossAmount), serviceFee: Number(row.serviceFee), merchantNetAmount: Number(row.merchantNetAmount) })),
-    pagination: { page: safePage, limit: safeLimit, totalItems: count, totalPages: Math.ceil(count / safeLimit) },
+    data,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      totalItems: count,
+      totalPages: Math.ceil(count / safeLimit),
+    },
   };
 }
 
 export async function getPlatformFinancialPayment(paymentReference) {
   return FeeRecord.findOne({
-    include: [{
-      model: Payment, as: "payment", required: true,
-      attributes: ["id", "paymentReference", "providerReference", "provider", "merchantId", "status", "amount", "currency", "createdAt"],
-      where: { paymentReference, status: "SUCCESS" },
-      include: [{ model: Merchant, as: "merchant", attributes: ["id", "merchantCode"], include: [{ association: "businessProfile", attributes: ["businessName"] }] }],
-    }],
+    include: [
+      {
+        model: Payment,
+        as: "payment",
+        required: true,
+        attributes: [
+          "id",
+          "paymentReference",
+          "providerReference",
+          "provider",
+          "merchantId",
+          "status",
+          "amount",
+          "currency",
+          "createdAt",
+        ],
+        where: { paymentReference, status: "SUCCESS" },
+        include: [
+          {
+            model: Merchant,
+            as: "merchant",
+            attributes: ["id", "merchantCode"],
+            include: [{ association: "businessProfile", attributes: ["businessName"] }],
+          },
+        ],
+      },
+    ],
   });
 }
 
@@ -151,71 +342,125 @@ export async function reconcilePlatformPaymentSettlement({
   actorUserId,
   reason,
 }) {
-  if (!Number.isSafeInteger(actualSettlementAmount) || actualSettlementAmount < 0 || (actualProviderFee != null && (!Number.isSafeInteger(actualProviderFee) || actualProviderFee < 0)) || !reason?.trim()) {
-    const error = new Error("Settlement amount, optional provider fee, and reason are invalid");
-    error.statusCode = 400; error.code = "INVALID_SETTLEMENT_RECONCILIATION"; throw error;
+  if (
+    !Number.isSafeInteger(actualSettlementAmount) ||
+    actualSettlementAmount < 0 ||
+    (actualProviderFee != null &&
+      (!Number.isSafeInteger(actualProviderFee) || actualProviderFee < 0)) ||
+    !reason?.trim()
+  ) {
+    const error = new Error(
+      "Settlement amount, optional provider fee, and reason are invalid"
+    );
+    error.statusCode = 400;
+    error.code = "INVALID_SETTLEMENT_RECONCILIATION";
+    throw error;
   }
+
   return sequelize.transaction(async (transaction) => {
-    const payment = await Payment.findOne({ where: { paymentReference }, transaction, lock: transaction.LOCK.UPDATE });
+    const payment = await Payment.findOne({
+      where: { paymentReference },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
     if (!payment || payment.status !== "SUCCESS") {
-      const error = new Error("Only an authoritatively successful payment can be reconciled");
-      error.statusCode = 404; error.code = "FINANCIAL_PAYMENT_NOT_FOUND"; throw error;
+      const error = new Error(
+        "Only an authoritatively successful payment can be reconciled"
+      );
+      error.statusCode = 404;
+      error.code = "FINANCIAL_PAYMENT_NOT_FOUND";
+      throw error;
     }
-    const record = await FeeRecord.findOne({ where: { paymentId: payment.id }, transaction, lock: transaction.LOCK.UPDATE });
+    const record = await FeeRecord.findOne({
+      where: { paymentId: payment.id },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
     if (!record || record.financialStatus === "NOT_RECOGNIZED") {
-      const error = new Error("Successful payment financial snapshot is not recognized yet");
-      error.statusCode = 409; error.code = "FINANCIAL_SNAPSHOT_NOT_RECOGNIZED"; throw error;
+      const error = new Error(
+        "Successful payment financial snapshot is not recognized yet"
+      );
+      error.statusCode = 409;
+      error.code = "FINANCIAL_SNAPSHOT_NOT_RECOGNIZED";
+      throw error;
     }
-    const providerFee = actualProviderFee == null ? record.providerFee : actualProviderFee;
-    const expectedSettlementAmount = providerFee == null
-      ? (record.expectedSettlementAmount == null ? null : Number(record.expectedSettlementAmount))
-      : Number(record.grossAmount) - providerFee;
+    const providerFee =
+      actualProviderFee == null ? record.providerFee : actualProviderFee;
+    const expectedSettlementAmount =
+      providerFee == null
+        ? record.expectedSettlementAmount == null
+          ? null
+          : Number(record.expectedSettlementAmount)
+        : Number(record.grossAmount) - providerFee;
     if (expectedSettlementAmount == null) {
-      const error = new Error("A configured provider fee estimate or actual provider fee is required before settlement reconciliation");
-      error.statusCode = 409; error.code = "EXPECTED_SETTLEMENT_UNAVAILABLE"; throw error;
+      const error = new Error(
+        "A configured provider fee estimate or actual provider fee is required before settlement reconciliation"
+      );
+      error.statusCode = 409;
+      error.code = "EXPECTED_SETTLEMENT_UNAVAILABLE";
+      throw error;
     }
     if (expectedSettlementAmount < 0) {
-      const error = new Error("Provider fee cannot exceed the gross payment amount");
-      error.statusCode = 400; error.code = "INVALID_PROVIDER_FEE"; throw error;
+      const error = new Error(
+        "Provider fee cannot exceed the gross payment amount"
+      );
+      error.statusCode = 400;
+      error.code = "INVALID_PROVIDER_FEE";
+      throw error;
     }
     const difference = actualSettlementAmount - expectedSettlementAmount;
     const next = {
-      providerFee: actualProviderFee == null ? record.providerFee : actualProviderFee,
+      providerFee:
+        actualProviderFee == null ? record.providerFee : actualProviderFee,
       expectedSettlementAmount,
       actualSettlementAmount,
       reconciliationDifference: difference,
       settlementStatus: difference === 0 ? "CONFIRMED" : "DISCREPANCY",
       settlementConfirmedAt: new Date(),
-      ...(actualProviderFee == null ? {} : {
-        ctexGrossMargin: Number(record.serviceFee) - actualProviderFee,
-        financialStatus: difference === 0 ? "RECONCILED" : "ESTIMATED",
-      }),
+      ...(actualProviderFee == null
+        ? {}
+        : {
+            ctexGrossMargin: Number(record.serviceFee) - actualProviderFee,
+            financialStatus: difference === 0 ? "RECONCILED" : "ESTIMATED",
+          }),
     };
     const beforeValue = {
       providerFee: record.providerFee == null ? null : Number(record.providerFee),
-      expectedSettlementAmount: record.expectedSettlementAmount == null ? null : Number(record.expectedSettlementAmount),
-      actualSettlementAmount: record.actualSettlementAmount == null ? null : Number(record.actualSettlementAmount),
-      reconciliationDifference: record.reconciliationDifference == null ? null : Number(record.reconciliationDifference),
+      expectedSettlementAmount:
+        record.expectedSettlementAmount == null
+          ? null
+          : Number(record.expectedSettlementAmount),
+      actualSettlementAmount:
+        record.actualSettlementAmount == null
+          ? null
+          : Number(record.actualSettlementAmount),
+      reconciliationDifference:
+        record.reconciliationDifference == null
+          ? null
+          : Number(record.reconciliationDifference),
       settlementStatus: record.settlementStatus,
     };
     await record.update(next, { transaction });
-    await AdminAuditLog.create({
-      actorUserId,
-      action: "PAYMENT_SETTLEMENT_RECONCILED",
-      resourceType: "PAYMENT_FINANCIAL_RECORD",
-      resourceId: payment.paymentReference,
-      outcome: "SUCCESS",
-      reason: reason.trim(),
-      beforeValue,
-      afterValue: {
-        ...beforeValue,
-        providerFee: next.providerFee == null ? null : Number(next.providerFee),
-        expectedSettlementAmount,
-        actualSettlementAmount,
-        reconciliationDifference: difference,
-        settlementStatus: next.settlementStatus,
+    await AdminAuditLog.create(
+      {
+        actorUserId,
+        action: "PAYMENT_SETTLEMENT_RECONCILED",
+        resourceType: "PAYMENT_FINANCIAL_RECORD",
+        resourceId: payment.paymentReference,
+        outcome: "SUCCESS",
+        reason: reason.trim(),
+        beforeValue,
+        afterValue: {
+          ...beforeValue,
+          providerFee: next.providerFee == null ? null : Number(next.providerFee),
+          expectedSettlementAmount,
+          actualSettlementAmount,
+          reconciliationDifference: difference,
+          settlementStatus: next.settlementStatus,
+        },
       },
-    }, { transaction });
+      { transaction }
+    );
     return record.reload({ transaction });
   });
 }

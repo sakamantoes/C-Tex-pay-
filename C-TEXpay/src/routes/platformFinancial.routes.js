@@ -11,8 +11,10 @@ import {
   resetWithdrawalFeesController,
   updateWithdrawalFeesController,
 } from "../controller/platformFinancial.controller.js";
+import { noCache } from "../middleware/noCache.middleware.js";
 
 const router = Router();
+router.use(noCache);
 router.use(protect, requirePlatformRole("SUPER_ADMIN"));
 router.get("/summary", platformFinancialSummary);
 router.get("/payments", platformFinancialPayments);
