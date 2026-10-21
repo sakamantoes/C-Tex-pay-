@@ -4,6 +4,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import { useAuthStore } from "../../store/auth.store";
 import platformAdminService from "../../service/platformAdmin.service";
@@ -19,7 +20,13 @@ const money = (value) =>
         minimumFractionDigits: 2,
       }).format(Number(value) / 100);
 
-function renderSettlement(amount, kind, reportedFallback, missingReason) {
+function renderSettlement(
+  amount,
+  kind,
+  reportedFallback,
+  missingReason,
+  expectedAmount
+) {
   if (amount != null) {
     return {
       label: money(amount),
@@ -34,7 +41,7 @@ function renderSettlement(amount, kind, reportedFallback, missingReason) {
   }
   if (kind === "EXPECTED_ONLY") {
     return {
-      label: `Awaiting provider (expected ${money(amount)})`,
+      label: `Awaiting provider (expected ${money(expectedAmount)})`,
       tone: "pending",
     };
   }
@@ -50,6 +57,20 @@ const toneClasses = {
   pending: "text-amber-500",
   danger: "text-red-500",
   muted: "text-ctex-text-muted",
+};
+
+// Everything except an already CONFIRMED row can be reconciled.
+// (UNAVAILABLE rows are included: that is where actual data is missing.)
+const canReconcile = (row) => row.settlementStatus !== "CONFIRMED";
+
+const getMerchantName = (row) => {
+  const pay = row.payment || {};
+  return (
+    pay.merchant?.businessProfile?.businessName ||
+    pay.merchant?.merchantCode ||
+    pay.merchantId ||
+    "Unknown merchant"
+  );
 };
 
 export default function PlatformFinancialsPage() {
@@ -156,8 +177,16 @@ export default function PlatformFinancialsPage() {
   };
 
   /* --------------------------------------------------------------
-   * Selection helpers
+   * Selection helpers (only reconcilable rows can be selected)
    * ------------------------------------------------------------ */
+  const selectableRows = useMemo(
+    () => records.filter(canReconcile),
+    [records]
+  );
+
+  const allSelected =
+    selectableRows.length > 0 && selectedIds.size === selectableRows.length;
+
   const toggleSelect = (id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -168,10 +197,10 @@ export default function PlatformFinancialsPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === records.length) {
+    if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(records.map((r) => r.id)));
+      setSelectedIds(new Set(selectableRows.map((r) => r.id)));
     }
   };
 
@@ -186,7 +215,10 @@ export default function PlatformFinancialsPage() {
 
   const openBulkReconcile = () => {
     if (selectedIds.size === 0) return;
-    const targets = records.filter((r) => selectedIds.has(r.id));
+    const targets = records.filter(
+      (r) => selectedIds.has(r.id) && canReconcile(r)
+    );
+    if (targets.length === 0) return;
     setModalMode("bulk");
     setModalTargets(targets);
     setModalOpen(true);
@@ -386,28 +418,38 @@ export default function PlatformFinancialsPage() {
         </button>
       </form>
 
-      {/* ---------- Bulk action toolbar ---------- */}
-      {selectedIds.size > 0 && (
-        <div className="mb-3 flex items-center justify-between rounded-lg border border-ctex-blue/30 bg-ctex-blue/5 px-4 py-2 text-sm">
-          <span className="text-ctex-text">
-            {selectedIds.size} selected
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="rounded border border-ctex-border px-3 py-1.5 text-xs"
-            >
-              Clear
-            </button>
-            <button
-              onClick={openBulkReconcile}
-              className="rounded bg-ctex-blue px-3 py-1.5 text-xs font-semibold text-white"
-            >
-              Reconcile selected
-            </button>
-          </div>
+      {/* ---------- Bulk action toolbar (always visible) ---------- */}
+      <div
+        className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-4 py-2 text-sm ${
+          selectedIds.size > 0
+            ? "border-ctex-blue/30 bg-ctex-blue/5"
+            : "border-ctex-border bg-ctex-surface"
+        }`}
+      >
+        <span className="text-ctex-text">
+          {selectedIds.size > 0
+            ? `${selectedIds.size} selected`
+            : "Tick rows to reconcile several settlements at once, or use View / Reconcile on a single row."}
+        </span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedIds(new Set())}
+            disabled={selectedIds.size === 0}
+            className="rounded border border-ctex-border px-3 py-1.5 text-xs text-ctex-text disabled:opacity-40"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={openBulkReconcile}
+            disabled={selectedIds.size === 0}
+            className="rounded bg-ctex-blue px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+          >
+            Reconcile selected{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+          </button>
         </div>
-      )}
+      </div>
 
       <section className="overflow-hidden rounded-xl border border-ctex-border bg-ctex-surface">
         <div className="border-b border-ctex-border px-4 py-3">
@@ -426,12 +468,10 @@ export default function PlatformFinancialsPage() {
                 <th className="px-3 py-3 font-medium">
                   <input
                     type="checkbox"
-                    checked={
-                      records.length > 0 &&
-                      selectedIds.size === records.length
-                    }
+                    checked={allSelected}
+                    disabled={selectableRows.length === 0}
                     onChange={toggleSelectAll}
-                    aria-label="Select all rows"
+                    aria-label="Select all reconcilable rows"
                   />
                 </th>
                 {[
@@ -479,23 +519,18 @@ export default function PlatformFinancialsPage() {
               ) : (
                 records.map((row) => {
                   const pay = row.payment || {};
-                  const merchantName =
-                    pay.merchant?.businessProfile?.businessName ||
-                    pay.merchant?.merchantCode ||
-                    pay.merchantId;
+                  const merchantName = getMerchantName(row);
 
                   const settlement = renderSettlement(
                     row.actualSettlementAmount,
                     row.settlementDisplayKind,
                     row.providerReportedSettlementAmount,
-                    row.missingDataReason
+                    row.missingDataReason,
+                    row.expectedSettlementAmount
                   );
 
                   const isSelected = selectedIds.has(row.id);
-                  const canReconcile =
-                    row.settlementStatus === "PENDING" ||
-                    row.settlementStatus === "REPORTED" ||
-                    row.settlementStatus === "DISCREPANCY";
+                  const reconcilable = canReconcile(row);
 
                   return (
                     <tr
@@ -508,8 +543,14 @@ export default function PlatformFinancialsPage() {
                         <input
                           type="checkbox"
                           checked={isSelected}
+                          disabled={!reconcilable}
                           onChange={() => toggleSelect(row.id)}
                           aria-label={`Select ${pay.paymentReference}`}
+                          title={
+                            reconcilable
+                              ? "Select for bulk reconciliation"
+                              : "Already reconciled"
+                          }
                         />
                       </td>
                       <td className="whitespace-nowrap px-3 py-3">
@@ -517,53 +558,65 @@ export default function PlatformFinancialsPage() {
                           ? new Date(row.paymentSuccessAt).toLocaleString()
                           : "—"}
                       </td>
-                      <td>{merchantName || "—"}</td>
-                      <td className="font-mono">
+                      <td className="px-3 py-3">{merchantName || "—"}</td>
+                      <td className="px-3 py-3 font-mono">
                         {pay.paymentReference || "—"}
                       </td>
-                      <td className="font-mono">
+                      <td className="px-3 py-3 font-mono">
                         {pay.providerReference || row.providerReference || "—"}
                       </td>
-                      <td>{row.provider || pay.provider || "—"}</td>
-                      <td>{money(row.grossAmount)}</td>
-                      <td>
+                      <td className="px-3 py-3">
+                        {row.provider || pay.provider || "—"}
+                      </td>
+                      <td className="px-3 py-3">{money(row.grossAmount)}</td>
+                      <td className="px-3 py-3">
                         {row.providerFeeEstimate == null
                           ? "Unknown"
                           : money(row.providerFeeEstimate)}
                       </td>
-                      <td>{money(row.serviceFee)}</td>
-                      <td>{money(row.merchantNetAmount)}</td>
-                      <td>
+                      <td className="px-3 py-3">{money(row.serviceFee)}</td>
+                      <td className="px-3 py-3">
+                        {money(row.merchantNetAmount)}
+                      </td>
+                      <td className="px-3 py-3">
                         {row.expectedSettlementAmount == null
                           ? "Unknown"
                           : money(row.expectedSettlementAmount)}
                       </td>
-                      <td>
+                      <td className="px-3 py-3">
                         {row.providerReportedSettlementAmount == null
                           ? "—"
                           : money(row.providerReportedSettlementAmount)}
                       </td>
-                      <td className={toneClasses[settlement.tone] || ""}>
+                      <td
+                        className={`px-3 py-3 ${
+                          toneClasses[settlement.tone] || ""
+                        }`}
+                      >
                         {settlement.label}
                       </td>
-                      <td>
+                      <td className="px-3 py-3">
                         {row.estimatedCtexGrossMargin == null
                           ? "Unknown"
                           : money(row.estimatedCtexGrossMargin)}
                       </td>
-                      <td>{row.settlementStatus}</td>
+                      <td className="px-3 py-3">{row.settlementStatus}</td>
                       <td className="whitespace-nowrap px-3 py-3">
                         <button
+                          type="button"
                           onClick={() => openSingleReconcile(row)}
-                          className="rounded border border-ctex-blue px-2 py-1 text-ctex-blue text-[11px] font-medium"
-                          disabled={!canReconcile}
+                          className={`rounded border px-2 py-1 text-[11px] font-medium ${
+                            reconcilable
+                              ? "border-ctex-blue text-ctex-blue"
+                              : "border-ctex-border text-ctex-text-muted"
+                          }`}
                           title={
-                            canReconcile
-                              ? "Reconcile this settlement"
-                              : "Already reconciled"
+                            reconcilable
+                              ? "Record the actual settlement for this payment"
+                              : "View reconciled settlement details"
                           }
                         >
-                          Reconcile
+                          {reconcilable ? "Reconcile" : "View"}
                         </button>
                       </td>
                     </tr>
@@ -603,6 +656,7 @@ export default function PlatformFinancialsPage() {
           targets={modalTargets}
           onClose={closeModal}
           onSuccess={onReconcileSuccess}
+          onPartial={load}
         />
       )}
     </DashboardLayout>
@@ -610,18 +664,26 @@ export default function PlatformFinancialsPage() {
 }
 
 /* ============================================================
- * Reconcile Modal
+ * Reconcile / View Modal
  * ============================================================ */
 
-function ReconcileModal({ mode, targets, onClose, onSuccess }) {
+function DetailCell({ label, value }) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-ctex-text-muted">
+        {label}
+      </p>
+      <p className="mt-0.5 text-xs font-medium text-ctex-text">{value}</p>
+    </div>
+  );
+}
+
+function ReconcileModal({ mode, targets, onClose, onSuccess, onPartial }) {
   const [rows, setRows] = useState(
     targets.map((t) => ({
-      paymentReference: t.payment.paymentReference,
-      merchantName:
-        t.payment?.merchant?.businessProfile?.businessName ||
-        t.payment?.merchant?.merchantCode ||
-        t.payment?.merchantId ||
-        "Unknown merchant",
+      raw: t,
+      paymentReference: t.payment?.paymentReference,
+      merchantName: getMerchantName(t),
       expected: Number(t.expectedSettlementAmount || 0) / 100,
       reported:
         t.providerReportedSettlementAmount == null
@@ -635,6 +697,27 @@ function ReconcileModal({ mode, targets, onClose, onSuccess }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Read-only when every row is already reconciled
+  const viewOnly = rows.every((r) => !canReconcile(r.raw));
+
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape" && !saving) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, saving]);
+
+  // Lock background scroll while open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   const updateRow = (index, field, value) => {
     setRows((prev) => {
       const next = [...prev];
@@ -642,6 +725,14 @@ function ReconcileModal({ mode, targets, onClose, onSuccess }) {
       return next;
     });
   };
+
+  const buildPayload = (row) => ({
+    actualSettlementAmount: Math.round(Number(row.actual) * 100),
+    ...(row.providerFee === ""
+      ? {}
+      : { actualProviderFee: Math.round(Number(row.providerFee) * 100) }),
+    reason: reason.trim(),
+  });
 
   const submit = async (event) => {
     event.preventDefault();
@@ -656,23 +747,10 @@ function ReconcileModal({ mode, targets, onClose, onSuccess }) {
         }
         await platformAdminService.reconcileFinancialSettlement(
           row.paymentReference,
-          {
-            actualSettlementAmount: Math.round(
-              Number(row.actual) * 100
-            ),
-            ...(row.providerFee === ""
-              ? {}
-              : {
-                  actualProviderFee: Math.round(
-                    Number(row.providerFee) * 100
-                  ),
-                }),
-            reason: reason.trim(),
-          }
+          buildPayload(row)
         );
       } else {
-        // Bulk: apply per-row actual amounts sequentially.
-        // Backend has no bulk endpoint, so we loop with error tolerance.
+        // Bulk: backend has no bulk endpoint, so loop with error tolerance.
         const results = [];
         for (const row of rows) {
           if (row.actual === "") {
@@ -686,24 +764,9 @@ function ReconcileModal({ mode, targets, onClose, onSuccess }) {
           try {
             await platformAdminService.reconcileFinancialSettlement(
               row.paymentReference,
-              {
-                actualSettlementAmount: Math.round(
-                  Number(row.actual) * 100
-                ),
-                ...(row.providerFee === ""
-                  ? {}
-                  : {
-                      actualProviderFee: Math.round(
-                        Number(row.providerFee) * 100
-                      ),
-                    }),
-                reason: reason.trim(),
-              }
+              buildPayload(row)
             );
-            results.push({
-              paymentReference: row.paymentReference,
-              ok: true,
-            });
+            results.push({ paymentReference: row.paymentReference, ok: true });
           } catch (e) {
             results.push({
               paymentReference: row.paymentReference,
@@ -715,43 +778,63 @@ function ReconcileModal({ mode, targets, onClose, onSuccess }) {
             });
           }
         }
+
         const failures = results.filter((r) => !r.ok);
         if (failures.length > 0) {
+          const failedRefs = new Set(failures.map((f) => f.paymentReference));
+          const succeeded = results.length - failures.length;
+
+          // Keep only failed rows in the modal so a retry never resubmits
+          // settlements that already succeeded.
+          setRows((prev) =>
+            prev.filter((r) => failedRefs.has(r.paymentReference))
+          );
+          if (succeeded > 0 && onPartial) {
+            void onPartial();
+          }
           throw new Error(
-            `${failures.length} of ${rows.length} reconciliations failed. First error: ${failures[0].error}`
+            `${succeeded} succeeded, ${failures.length} failed. First error: ${failures[0].error}`
           );
         }
       }
 
       await onSuccess();
     } catch (e) {
-      setError(e.response?.data?.message || e.message || "Reconciliation failed");
+      setError(
+        e.response?.data?.message || e.message || "Reconciliation failed"
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  return (
+  const modal = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !saving) onClose();
       }}
+      role="dialog"
+      aria-modal="true"
     >
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-ctex-border bg-ctex-surface p-6">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-ctex-border bg-ctex-surface p-6 shadow-2xl">
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h3 className="text-lg font-semibold text-ctex-text">
-              {mode === "single"
+              {viewOnly
+                ? "Settlement details"
+                : mode === "single"
                 ? "Reconcile settlement"
                 : `Reconcile ${rows.length} settlements`}
             </h3>
             <p className="mt-1 text-xs text-ctex-text-muted">
-              Enter the amount confirmed by your bank statement. The
-              reconciliation is recorded as permanent audit evidence.
+              {viewOnly
+                ? "This settlement has already been reconciled. Details below are read-only."
+                : "Enter the amount confirmed by your bank statement. The reconciliation is recorded as permanent audit evidence."}
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="rounded p-1 text-ctex-text-muted hover:text-ctex-text"
             aria-label="Close"
@@ -771,113 +854,161 @@ function ReconcileModal({ mode, targets, onClose, onSuccess }) {
 
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-3">
-            {rows.map((row, index) => (
-              <div
-                key={row.paymentReference}
-                className="rounded border border-ctex-border bg-ctex-elevated p-3 text-xs"
-              >
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-mono text-ctex-text">
-                      {row.paymentReference}
-                    </p>
-                    <p className="text-ctex-text-muted">
-                      {row.merchantName}
-                    </p>
-                  </div>
-                  <div className="text-right text-ctex-text-muted">
-                    <p>
-                      Expected:{" "}
-                      <span className="text-ctex-text">
-                        {money(Math.round(row.expected * 100))}
-                      </span>
-                    </p>
-                    {row.reported != null && (
-                      <p>
-                        Provider reported:{" "}
-                        <span className="text-ctex-text">
-                          {money(Math.round(row.reported * 100))}
-                        </span>
+            {rows.map((row, index) => {
+              const t = row.raw;
+              return (
+                <div
+                  key={row.paymentReference}
+                  className="rounded border border-ctex-border bg-ctex-elevated p-3 text-xs"
+                >
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-mono text-ctex-text">
+                        {row.paymentReference}
                       </p>
-                    )}
+                      <p className="text-ctex-text-muted">
+                        {row.merchantName}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-ctex-border px-2 py-0.5 text-[10px] font-medium text-ctex-text-muted">
+                      {t.settlementStatus}
+                    </span>
                   </div>
-                </div>
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="block text-[11px] text-ctex-text-muted">
-                    Actual settlement received (NGN)
-                    <input
-                      required
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={row.actual}
-                      onChange={(e) =>
-                        updateRow(index, "actual", e.target.value)
+                  <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <DetailCell label="Gross" value={money(t.grossAmount)} />
+                    <DetailCell
+                      label="Provider fee (est.)"
+                      value={
+                        t.providerFeeEstimate == null
+                          ? "Unknown"
+                          : money(t.providerFeeEstimate)
                       }
-                      placeholder={
-                        row.reported != null
-                          ? row.reported.toFixed(2)
-                          : row.expected.toFixed(2)
-                      }
-                      className="mt-1 h-9 w-full rounded border border-ctex-border bg-ctex-surface px-2 text-sm text-ctex-text"
                     />
-                  </label>
-                  <label className="block text-[11px] text-ctex-text-muted">
-                    Actual provider fee (optional, NGN)
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={row.providerFee}
-                      onChange={(e) =>
-                        updateRow(index, "providerFee", e.target.value)
-                      }
-                      className="mt-1 h-9 w-full rounded border border-ctex-border bg-ctex-surface px-2 text-sm text-ctex-text"
+                    <DetailCell label="C-TEX fee" value={money(t.serviceFee)} />
+                    <DetailCell
+                      label="Merchant net"
+                      value={money(t.merchantNetAmount)}
                     />
-                  </label>
+                    <DetailCell
+                      label="Expected settle"
+                      value={
+                        t.expectedSettlementAmount == null
+                          ? "Unknown"
+                          : money(t.expectedSettlementAmount)
+                      }
+                    />
+                    <DetailCell
+                      label="Provider reported"
+                      value={
+                        t.providerReportedSettlementAmount == null
+                          ? "—"
+                          : money(t.providerReportedSettlementAmount)
+                      }
+                    />
+                    <DetailCell
+                      label="Actual settle"
+                      value={
+                        t.actualSettlementAmount == null
+                          ? "Not recorded"
+                          : money(t.actualSettlementAmount)
+                      }
+                    />
+                    <DetailCell
+                      label="Margin (est.)"
+                      value={
+                        t.estimatedCtexGrossMargin == null
+                          ? "Unknown"
+                          : money(t.estimatedCtexGrossMargin)
+                      }
+                    />
+                  </div>
+
+                  {canReconcile(t) && (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="block text-[11px] text-ctex-text-muted">
+                        Actual settlement received (NGN)
+                        <input
+                          required
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={row.actual}
+                          onChange={(e) =>
+                            updateRow(index, "actual", e.target.value)
+                          }
+                          placeholder={
+                            row.reported != null
+                              ? row.reported.toFixed(2)
+                              : row.expected.toFixed(2)
+                          }
+                          className="mt-1 h-9 w-full rounded border border-ctex-border bg-ctex-surface px-2 text-sm text-ctex-text"
+                        />
+                      </label>
+                      <label className="block text-[11px] text-ctex-text-muted">
+                        Actual provider fee (optional, NGN)
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={row.providerFee}
+                          onChange={(e) =>
+                            updateRow(index, "providerFee", e.target.value)
+                          }
+                          className="mt-1 h-9 w-full rounded border border-ctex-border bg-ctex-surface px-2 text-sm text-ctex-text"
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <label className="block text-xs text-ctex-text-muted">
-            Evidence / reconciliation note (required, min 8 chars)
-            <textarea
-              required
-              minLength={8}
-              maxLength={500}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-              className="mt-1 w-full rounded border border-ctex-border bg-ctex-elevated px-2 py-1.5 text-sm text-ctex-text"
-              placeholder="e.g., Bank statement 2026-10-21 line 42 shows NGN 99.00 credit"
-            />
-          </label>
+          {!viewOnly && (
+            <label className="block text-xs text-ctex-text-muted">
+              Evidence / reconciliation note (required, min 8 chars)
+              <textarea
+                required
+                minLength={8}
+                maxLength={500}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded border border-ctex-border bg-ctex-elevated px-2 py-1.5 text-sm text-ctex-text"
+                placeholder="e.g., Bank statement 2026-10-21 line 42 shows NGN 99.00 credit"
+              />
+            </label>
+          )}
 
           <div className="flex justify-end gap-2 border-t border-ctex-border pt-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded border border-ctex-border px-4 py-2 text-sm"
+              className="rounded border border-ctex-border px-4 py-2 text-sm text-ctex-text"
               disabled={saving}
             >
-              Cancel
+              {viewOnly ? "Close" : "Cancel"}
             </button>
-            <button
-              type="submit"
-              disabled={saving || !reason.trim()}
-              className="rounded bg-ctex-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {saving
-                ? "Recording…"
-                : mode === "single"
-                ? "Record reconciliation"
-                : `Record ${rows.length} reconciliations`}
-            </button>
+            {!viewOnly && (
+              <button
+                type="submit"
+                disabled={saving || reason.trim().length < 8 || rows.length === 0}
+                className="rounded bg-ctex-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {saving
+                  ? "Recording…"
+                  : mode === "single"
+                  ? "Record reconciliation"
+                  : `Record ${rows.length} reconciliations`}
+              </button>
+            )}
           </div>
         </form>
       </div>
     </div>
   );
+
+  // Portal to body so the layout can never clip or hide the modal
+  return createPortal(modal, document.body);
 }
