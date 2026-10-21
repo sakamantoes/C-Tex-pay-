@@ -12,14 +12,63 @@ import {
   listPayoutBanks,
 } from "../service/payout.service.js";
 
+/*
+|--------------------------------------------------------------------------
+| Error mapping
+|--------------------------------------------------------------------------
+| Converts known error shapes (PayoutError, Sequelize errors, generic
+| errors with a statusCode) into a safe HTTP response. Anything unknown
+| is treated as 500 — but the raw message is never leaked to the client
+| and full details are logged so operators can diagnose.
+*/
+
 function mapError(error) {
   if (error instanceof PayoutError) {
+    return { status: error.statusCode || 400, message: error.message };
+  }
+  if (error?.statusCode && error?.message) {
     return { status: error.statusCode, message: error.message };
   }
-  if (error.statusCode) {
-    return { status: error.statusCode, message: error.message };
+  if (error?.name === "SequelizeUniqueConstraintError") {
+    return { status: 409, message: "Duplicate request" };
+  }
+  if (error?.name === "SequelizeValidationError") {
+    return { status: 400, message: "Invalid request" };
+  }
+  if (error?.name === "SequelizeDatabaseError") {
+    return { status: 500, message: "Database error — please retry" };
   }
   return { status: 500, message: "Internal error" };
+}
+
+function logPayoutError(context, error) {
+  console.error(`Payout operation failed: ${context}`, {
+    name: error?.name,
+    code: error?.code,
+    statusCode: error?.statusCode,
+    message: error?.message,
+    sqlMessage: error?.parent?.sqlMessage,
+    sql: error?.sql,
+  });
+}
+
+/*
+|--------------------------------------------------------------------------
+| Safe serializers
+|--------------------------------------------------------------------------
+| Defensive against null/undefined and encrypted-prefix accountNumber
+| strings. Never leaks encrypted material.
+*/
+
+function maskAccountNumber(d) {
+  if (d.accountNumberLast4) {
+    return `••••${d.accountNumberLast4}`;
+  }
+  const raw = d.accountNumber;
+  if (typeof raw === "string" && !raw.startsWith("enc:") && raw.length >= 4) {
+    return `••••${raw.slice(-4)}`;
+  }
+  return null;
 }
 
 function toPublicPayout(payout) {
@@ -27,19 +76,22 @@ function toPublicPayout(payout) {
   const d = payout.toJSON ? payout.toJSON() : payout;
   return {
     id: d.id,
-    amount: Number(d.amount),
+    amount: Number(d.amount ?? 0),
     feeMode: d.feeMode,
-    feeAmount: Number(d.feeAmount || 0),
-    providerFeeReported: d.providerFeeReported == null ? null : Number(d.providerFeeReported),
-    walletDebitAmount: Number(d.walletDebitAmount ?? d.amount),
-    beneficiaryAmount: Number(d.beneficiaryAmount ?? d.amount),
+    feeAmount: Number(d.feeAmount ?? 0),
+    providerFeeReported:
+      d.providerFeeReported == null ? null : Number(d.providerFeeReported),
+    walletDebitAmount: Number(d.walletDebitAmount ?? d.amount ?? 0),
+    beneficiaryAmount: Number(d.beneficiaryAmount ?? d.amount ?? 0),
     currency: d.currency,
     bankCode: d.bankCode,
-    bankName: d.bankName || d.providerMetadata?.beneficiaryBankName || d.providerMetadata?.submission?.destinationBankName || null,
+    bankName:
+      d.bankName ||
+      d.providerMetadata?.beneficiaryBankName ||
+      d.providerMetadata?.submission?.destinationBankName ||
+      null,
     authorizationRequired: d.providerStatus === "PENDING_AUTHORIZATION",
-    accountNumber: (d.accountNumberLast4 || (String(d.accountNumber || "").startsWith("enc:") ? "" : d.accountNumber?.slice(-4)))
-      ? `••••${d.accountNumberLast4 || d.accountNumber.slice(-4)}`
-      : null,
+    accountNumber: maskAccountNumber(d),
     accountName: d.accountName,
     narration: d.narration,
     merchantReference: d.merchantReference,
@@ -70,7 +122,12 @@ function toAdminPayout(payout) {
   };
 }
 
-/* POST /api/v1/payouts */
+/*
+|--------------------------------------------------------------------------
+| Merchant: create
+|--------------------------------------------------------------------------
+*/
+
 export const createPayoutController = async (req, res) => {
   try {
     const idempotencyKey = req.headers["idempotency-key"];
@@ -98,8 +155,7 @@ export const createPayoutController = async (req, res) => {
     if (result.providerError) {
       return res.status(202).json({
         success: true,
-        message:
-          "Payout recorded — provider response pending reconciliation",
+        message: "Payout recorded — provider response pending reconciliation",
         data: toPublicPayout(result.payout),
       });
     }
@@ -110,15 +166,17 @@ export const createPayoutController = async (req, res) => {
       data: toPublicPayout(result.payout),
     });
   } catch (error) {
+    logPayoutError("create", error);
     const { status, message } = mapError(error);
-    console.error("Create payout failed", {
-      merchantId: req.merchant?.id,
-      errorCode: error.code,
-      message: error.message,
-    });
     return res.status(status).json({ success: false, message });
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| Merchant: quote
+|--------------------------------------------------------------------------
+*/
 
 export const quotePayoutController = async (req, res) => {
   try {
@@ -130,10 +188,17 @@ export const quotePayoutController = async (req, res) => {
     });
     return res.status(200).json({ success: true, data });
   } catch (error) {
+    logPayoutError("quote", error);
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| Merchant: authorize
+|--------------------------------------------------------------------------
+*/
 
 export const authorizePayoutController = async (req, res) => {
   try {
@@ -144,18 +209,18 @@ export const authorizePayoutController = async (req, res) => {
     });
     return res.status(200).json({ success: true, data: toPublicPayout(payout) });
   } catch (error) {
+    logPayoutError("authorize", error);
     const { status, message } = mapError(error);
-    console.error("Payout authorization failed", {
-      merchantId: req.merchant?.id,
-      payoutId: req.params.id,
-      errorCode: error.code,
-      statusCode: status,
-    });
     return res.status(status).json({ success: false, message });
   }
 };
 
-/* POST /api/v1/payouts/validate-bank-account */
+/*
+|--------------------------------------------------------------------------
+| Merchant: validate bank account
+|--------------------------------------------------------------------------
+*/
+
 export const validateBankAccountController = async (req, res) => {
   try {
     const result = await validateBankAccount({
@@ -164,22 +229,35 @@ export const validateBankAccountController = async (req, res) => {
     });
     return res.status(200).json({ success: true, data: result });
   } catch (error) {
+    logPayoutError("validate-bank-account", error);
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| Merchant: list banks
+|--------------------------------------------------------------------------
+*/
 
 export const listPayoutBanksController = async (req, res) => {
   try {
     const banks = await listPayoutBanks();
     return res.status(200).json({ success: true, data: banks });
   } catch (error) {
+    logPayoutError("list-banks", error);
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }
 };
 
-/* GET /api/v1/payouts */
+/*
+|--------------------------------------------------------------------------
+| Merchant: list
+|--------------------------------------------------------------------------
+*/
+
 export const listMyPayouts = async (req, res) => {
   try {
     const result = await listPayoutsForMerchant({
@@ -194,12 +272,18 @@ export const listMyPayouts = async (req, res) => {
       meta: result.pagination,
     });
   } catch (error) {
+    logPayoutError("list-for-merchant", error);
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }
 };
 
-/* GET /api/v1/payouts/:id */
+/*
+|--------------------------------------------------------------------------
+| Merchant: get one
+|--------------------------------------------------------------------------
+*/
+
 export const getMyPayout = async (req, res) => {
   try {
     const payout = await getPayoutForMerchant({
@@ -213,12 +297,18 @@ export const getMyPayout = async (req, res) => {
     }
     return res.status(200).json({ success: true, data: toPublicPayout(payout) });
   } catch (error) {
+    logPayoutError("get-for-merchant", error);
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }
 };
 
-/* GET /api/v1/admin/payouts */
+/*
+|--------------------------------------------------------------------------
+| Admin: list
+|--------------------------------------------------------------------------
+*/
+
 export const adminListPayouts = async (req, res) => {
   try {
     const result = await listAllPayouts({
@@ -233,12 +323,18 @@ export const adminListPayouts = async (req, res) => {
       meta: result.pagination,
     });
   } catch (error) {
+    logPayoutError("admin-list", error);
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }
 };
 
-/* GET /api/v1/admin/payouts/:id */
+/*
+|--------------------------------------------------------------------------
+| Admin: get one
+|--------------------------------------------------------------------------
+*/
+
 export const adminGetPayout = async (req, res) => {
   try {
     const payout = await getPayoutForMerchant({
@@ -252,12 +348,18 @@ export const adminGetPayout = async (req, res) => {
     }
     return res.status(200).json({ success: true, data: toAdminPayout(payout) });
   } catch (error) {
+    logPayoutError("admin-get", error);
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }
 };
 
-/* POST /api/v1/admin/payouts/:id/refresh */
+/*
+|--------------------------------------------------------------------------
+| Admin: refresh from provider
+|--------------------------------------------------------------------------
+*/
+
 export const adminRefreshPayout = async (req, res) => {
   try {
     const result = await refreshPayoutFromProvider({ payoutId: req.params.id });
@@ -269,12 +371,18 @@ export const adminRefreshPayout = async (req, res) => {
       data: toAdminPayout(result.payout),
     });
   } catch (error) {
+    logPayoutError("admin-refresh", error);
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }
 };
 
-/* POST /api/v1/admin/payouts/:id/reverse */
+/*
+|--------------------------------------------------------------------------
+| Admin: reverse
+|--------------------------------------------------------------------------
+*/
+
 export const adminReversePayout = async (req, res) => {
   try {
     const payout = await getPayoutForMerchant({
@@ -296,6 +404,7 @@ export const adminReversePayout = async (req, res) => {
       data: toAdminPayout(await payout.reload()),
     });
   } catch (error) {
+    logPayoutError("admin-reverse", error);
     const { status, message } = mapError(error);
     return res.status(status).json({ success: false, message });
   }

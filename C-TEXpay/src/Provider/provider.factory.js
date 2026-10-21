@@ -40,7 +40,7 @@ export function getPaymentProvider() {
  * selected independently from collection payments and stored per payout.
  */
 export function getPayoutProvider(providerName = envConfig.PAYOUT_PROVIDER) {
-  const activeProvider = String(providerName || "").toUpperCase();
+  const activeProvider = String(providerName || "MONNIFY").toUpperCase();
 
   switch (activeProvider) {
     case "MONNIFY":

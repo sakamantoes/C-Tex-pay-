@@ -1,56 +1,73 @@
 import { z } from "zod";
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid = z.string().uuid("Invalid UUID");
+
+const money = z
+  .number()
+  .int("Amount must be an integer in kobo")
+  .positive("Amount must be positive")
+  .max(Number.MAX_SAFE_INTEGER, "Amount exceeds maximum");
+
+const currency = z.enum(["NGN"]).default("NGN");
+
+const feeMode = z.enum(["FEE_ON_TOP", "DEDUCT_FROM_AMOUNT"]).default("FEE_ON_TOP");
+
+const bankCode = z
+  .string()
+  .trim()
+  .regex(/^\d{3,10}$/, "Bank code must be 3-10 digits");
+
+const accountNumber = z
+  .string()
+  .trim()
+  .regex(/^\d{10}$/, "Account number must be exactly 10 digits");
 
 export const createPayoutSchema = z
   .object({
-    amount: z
-      .number()
-      .int("amount must be an integer in kobo")
-      .positive("amount must be positive"),
-    currency: z.enum(["NGN"]).default("NGN"),
-    bankCode: z.string().trim().regex(/^\d{3,10}$/, "Invalid bank code"),
-    accountNumber: z
-      .string()
-      .trim()
-      .regex(/^\d{10}$/, "Account number must be exactly 10 digits"),
+    amount: money,
+    currency,
+    bankCode,
+    accountNumber,
     accountName: z.string().trim().min(2).max(255),
-    narration: z.string().trim().max(500).optional().nullable(),
-    merchantReference: z.string().trim().max(255).optional().nullable(),
+    narration: z.string().trim().max(255).optional().nullable(),
+    merchantReference: z.string().trim().max(100).optional().nullable(),
+    feeMode,
     metadata: z.record(z.any()).optional().nullable(),
-    feeMode: z.enum(["FEE_ON_TOP", "DEDUCT_FROM_AMOUNT"]).default("FEE_ON_TOP"),
   })
   .strict();
 
-export const payoutQuoteSchema = z.object({
-  amount: z.number().int().positive(),
-  currency: z.enum(["NGN"]).default("NGN"),
-  feeMode: z.enum(["FEE_ON_TOP", "DEDUCT_FROM_AMOUNT"]).default("FEE_ON_TOP"),
-}).strict();
+export const payoutQuoteSchema = z
+  .object({
+    amount: money,
+    currency,
+    feeMode,
+  })
+  .strict();
 
-export const payoutAuthorizationSchema = z.object({
-  authorizationCode: z.string().regex(/^\d{4,10}$/),
-}).strict();
+export const payoutAuthorizationSchema = z
+  .object({
+    authorizationCode: z
+      .string()
+      .trim()
+      .regex(/^\d{4,10}$/, "Authorization code must be 4-10 digits"),
+  })
+  .strict();
 
 export const validateBankAccountSchema = z
   .object({
-    bankCode: z.string().trim().regex(/^\d{3,10}$/, "Invalid bank code"),
-    accountNumber: z
-      .string()
-      .trim()
-      .regex(/^\d{10}$/, "Account number must be exactly 10 digits"),
+    bankCode,
+    accountNumber,
   })
   .strict();
 
 export const payoutIdParamSchema = z.object({
-  id: z.string().regex(UUID_REGEX, "Invalid payout ID"),
+  id: uuid,
 });
 
 export const listPayoutsQuerySchema = z.object({
-  page: z.string().regex(/^\d+$/).optional(),
-  limit: z.string().regex(/^\d+$/).optional(),
   status: z
     .enum(["PENDING", "PROCESSING", "SUCCESS", "FAILED", "REVERSED"])
     .optional(),
+  page: z.string().regex(/^\d+$/).optional(),
+  limit: z.string().regex(/^\d+$/).optional(),
 });
