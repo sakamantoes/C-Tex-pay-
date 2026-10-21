@@ -240,6 +240,9 @@ export async function calculateAndRecordFees({
   const record = await FeeRecord.create(
     {
       paymentId: payment.id,
+      // Persist the server-selected provider with the immutable fee snapshot.
+      // The Payment is created with this same server-side provider setting.
+      provider: payment.provider || null,
       merchantId,
       feeConfigurationId: configId,
       currency,

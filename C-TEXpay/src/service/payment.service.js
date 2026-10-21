@@ -802,6 +802,7 @@ export async function createPayment({
           amount,
           currency,
           paymentMethod,
+          provider: (envConfig.PAYMENT_PROVIDER || "MONNIFY").toUpperCase(),
           status: "PENDING",
           description,
           metadata: mergedMetadata,
