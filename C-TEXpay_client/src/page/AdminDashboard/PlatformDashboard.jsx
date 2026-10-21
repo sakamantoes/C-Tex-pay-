@@ -17,27 +17,31 @@ export default function PlatformDashboard({ platformRole }) {
   const { user } = useAuthStore();
   const [summary, setSummary] = useState(null);
   const [payments, setPayments] = useState([]);
+  const [financialSummary, setFinancialSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const basePath = platformRole === "SUPER_ADMIN" ? "/super-admin" : "/admin";
 
   useEffect(() => {
     let active = true;
-    Promise.allSettled([
+    const requests = [
       platformAdminService.getOverview(),
       platformAdminService.getPayments({ page: 1, limit: 8, sortBy: "createdAt", sortDir: "DESC" }),
-    ]).then(([summaryResult, paymentsResult]) => {
+    ];
+    if (platformRole === "SUPER_ADMIN") requests.push(platformAdminService.getFinancialSummary());
+    Promise.allSettled(requests).then(([summaryResult, paymentsResult, financialResult]) => {
       if (!active) return;
       const errors = [];
       if (summaryResult.status === "fulfilled") setSummary(summaryResult.value.data);
       else errors.push(summaryResult.reason.response?.data?.message || "Could not load overview metrics.");
       if (paymentsResult.status === "fulfilled") setPayments(paymentsResult.value.data?.payments || []);
       else errors.push(paymentsResult.reason.response?.data?.message || "Could not load recent transactions.");
+      if (platformRole === "SUPER_ADMIN" && financialResult?.status === "fulfilled") setFinancialSummary(financialResult.value);
       if (errors.length) setError(errors.join(" "));
       setLoading(false);
     });
     return () => { active = false; };
-  }, []);
+  }, [platformRole]);
 
   const navSections = useMemo(() => [{
     title: "Platform",
@@ -45,10 +49,14 @@ export default function PlatformDashboard({ platformRole }) {
       { key: "dashboard", label: "Dashboard", icon: "dashboard", path: `${basePath}/dashboard` },
       { key: "merchants", label: "Merchants", icon: "business", path: `${basePath}/merchants` },
       { key: "transactions", label: "Transactions", icon: "transactions", path: `${basePath}/transactions` },
+      ...(platformRole === "SUPER_ADMIN" ? [
+        { key: "financials", label: "Financial breakdown", icon: "fees", path: "/super-admin/financials" },
+        { key: "withdrawal-fees", label: "Withdrawal charges", icon: "fees", path: "/super-admin/withdrawal-fees" },
+      ] : []),
       { key: "fees", label: "Fee configuration", icon: "fees", path: `${basePath}/fees` },
       { key: "audit-logs", label: "Audit logs", icon: "security", path: `${basePath}/audit-logs` },
     ],
-  }], [basePath]);
+  }], [basePath, platformRole]);
 
   const displayName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || platformRole;
   const cards = [
@@ -57,6 +65,10 @@ export default function PlatformDashboard({ platformRole }) {
     { label: "Transactions", value: summary?.transactions.total ?? "—", detail: `${summary?.transactions.successful ?? 0} successful · ${summary?.transactions.failed ?? 0} failed` },
     { label: "Successful volume", value: summary ? formatMoneyMinor(summary.transactions.successfulVolumeMinor, summary.currency) : "—", detail: `${summary?.transactions.successful ?? 0} successful payments` },
     { label: "Pending transactions", value: summary?.transactions.pending ?? "—", detail: "Across all merchant accounts" },
+    ...(platformRole === "SUPER_ADMIN" ? [
+      { label: "Confirmed provider fees", value: financialSummary ? formatMoneyMinor(financialSummary.payments.confirmedProviderCharges, summary?.currency) : "—", detail: "Only confirmed fee records" },
+      { label: "C-TEX withdrawal charges", value: financialSummary ? formatMoneyMinor(financialSummary.withdrawals.ctexWithdrawalChargesCollected, summary?.currency) : "—", detail: "Collected from successful withdrawals" },
+    ] : []),
   ];
 
   return (

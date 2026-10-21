@@ -14,12 +14,16 @@ function formatMoneyMinor(amount, currency = "NGN") {
   }).format(Number(amount || 0) / 100);
 }
 
-const createNav = (basePath) => [{
+const createNav = (basePath, platformRole) => [{
   title: "Platform",
   items: [
     { key: "dashboard", label: "Dashboard", icon: "dashboard", path: `${basePath}/dashboard` },
     { key: "merchants", label: "Merchants", icon: "business", path: `${basePath}/merchants` },
     { key: "transactions", label: "Transactions", icon: "transactions", path: `${basePath}/transactions` },
+    ...(platformRole === "SUPER_ADMIN" ? [
+      { key: "financials", label: "Financial breakdown", icon: "fees", path: "/super-admin/financials" },
+      { key: "withdrawal-fees", label: "Withdrawal charges", icon: "fees", path: "/super-admin/withdrawal-fees" },
+    ] : []),
     { key: "fees", label: "Fee configuration", icon: "fees", path: `${basePath}/fees` },
     { key: "audit-logs", label: "Audit logs", icon: "security", path: `${basePath}/audit-logs` },
   ],
@@ -85,7 +89,7 @@ export default function PlatformTransactionsPage({ platformRole }) {
     <DashboardLayout
       title={platformRole === "SUPER_ADMIN" ? "Super Admin" : "Admin"}
       subtitle="Platform transactions"
-      navSections={createNav(basePath)}
+      navSections={createNav(basePath, platformRole)}
       profileName={displayName}
       profileRole={user?.role}
     >

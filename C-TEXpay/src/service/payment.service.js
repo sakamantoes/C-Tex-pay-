@@ -17,6 +17,7 @@ import {
 } from "./merchantWebhook.service.js";
 import { enqueueSuccessfulPaymentNotifications } from "./merchantNotification.service.js";
 import { calculateAndRecordFees } from "./fee.service.js";
+import { majorToMinor, recognizeSuccessfulPaymentFinancials } from "./paymentFinancials.service.js";
 import { postPaymentSettlement } from "./ledger.service.js";
 import { markLinkConsumedIfNeeded } from "./paymentLink.service.js";
 import { normalizeMetadata } from "../utils/normalizeMetadata.js";
@@ -1265,6 +1266,18 @@ export async function verifyPayment({
       },
       { transaction }
     );
+
+    if (statusChanged && newStatus === "SUCCESS") {
+      const reportedSettlement = majorToMinor(
+        verificationResult.rawResponse?.settlementAmount,
+      );
+      await recognizeSuccessfulPaymentFinancials({
+        payment: lockedPayment,
+        transaction,
+        providerReportedSettlementAmount: reportedSettlement,
+        successAt: verificationResult.paidAt || new Date(),
+      });
+    }
 
     if (statusChanged) {
       await PaymentStatusHistory.create(

@@ -36,6 +36,7 @@ import ReconciliationRun from "./ReconciliationRun.js";
 import ReconciliationDiscrepancy from "./ReconciliationDiscrepancy.js";
 import PaymentLink from "./PaymentLink.js";
 import AdminAuditLog from "./AdminAuditLog.js";
+import WithdrawalFeeTier from "./WithdrawalFeeTier.js";
 
 User.hasMany(RefreshToken, {
   foreignKey: "userId",
@@ -626,4 +627,5 @@ export {
   ReconciliationDiscrepancy,
   PaymentLink,
   AdminAuditLog,
+  WithdrawalFeeTier,
 };

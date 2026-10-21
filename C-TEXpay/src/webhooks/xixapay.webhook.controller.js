@@ -13,6 +13,7 @@ import {
   processMerchantWebhookDelivery,
 } from "../service/merchantWebhook.service.js";
 import { enqueueSuccessfulPaymentNotifications } from "../service/merchantNotification.service.js";
+import { majorToMinor, recognizeSuccessfulPaymentFinancials } from "../service/paymentFinancials.service.js";
 
 /* =========================================================
  * SIGNATURE VERIFICATION
@@ -147,6 +148,14 @@ async function transitionToSuccess({
       },
       { transaction: t }
     );
+
+    await recognizeSuccessfulPaymentFinancials({
+      payment,
+      transaction: t,
+      providerReportedSettlementAmount: majorToMinor(webhookPayload?.settlement_amount),
+      providerReportedFee: majorToMinor(webhookPayload?.settlement_fee),
+      successAt: webhookPayload?.timestamp ? new Date(webhookPayload.timestamp) : new Date(),
+    });
 
     await PaymentStatusHistory.create(
       {

@@ -30,6 +30,7 @@ function toPublicPayout(payout) {
     amount: Number(d.amount),
     feeMode: d.feeMode,
     feeAmount: Number(d.feeAmount || 0),
+    providerFeeReported: d.providerFeeReported == null ? null : Number(d.providerFeeReported),
     walletDebitAmount: Number(d.walletDebitAmount ?? d.amount),
     beneficiaryAmount: Number(d.beneficiaryAmount ?? d.amount),
     currency: d.currency,

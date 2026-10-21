@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import { useAuthStore } from "../../store/auth.store";
@@ -36,7 +36,7 @@ export default function WalletPage() {
   const isWithdraw = location.pathname.endsWith("/withdraw");
   const isTransactions = location.pathname.endsWith("/transactions");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
       const tasks = [walletService.getBalance()];
@@ -49,25 +49,30 @@ export default function WalletPage() {
     } catch (e) {
       setError(e.response?.data?.message || "Could not load wallet data.");
     } finally { setLoading(false); }
-  };
+  }, [isTransactions, isWithdraw, permissions]);
 
-  useEffect(() => { load(); }, [location.pathname, permissions]);
+  useEffect(() => {
+    const timer = setTimeout(() => { void load(); }, 0);
+    return () => clearTimeout(timer);
+  }, [load]);
 
   useEffect(() => {
     if (!isWithdraw) return;
     let active = true;
-    setBanksLoading(true);
-    walletService.getPayoutBanks()
-      .then((items) => { if (active) setBanks(items || []); })
-      .catch((e) => { if (active) setError(e.response?.data?.message || "Could not load supported banks."); })
-      .finally(() => { if (active) setBanksLoading(false); });
-    return () => { active = false; };
+    const timer = setTimeout(() => {
+      setBanksLoading(true);
+      walletService.getPayoutBanks()
+        .then((items) => { if (active) setBanks(items || []); })
+        .catch((e) => { if (active) setError(e.response?.data?.message || "Could not load supported banks."); })
+        .finally(() => { if (active) setBanksLoading(false); });
+    }, 0);
+    return () => { active = false; clearTimeout(timer); };
   }, [isWithdraw]);
 
   useEffect(() => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0 || Math.round(value * 100) < 10000) {
-      setQuote(null); return;
+      return;
     }
     let active = true;
     const timer = setTimeout(async () => {
@@ -169,7 +174,7 @@ export default function WalletPage() {
         </section>
         <section className="rounded-2xl border border-ctex-border bg-ctex-surface p-5">
           <h3 className="text-lg font-semibold text-ctex-text">Review withdrawal</h3>
-          {quote ? <dl className="mt-4 space-y-3 text-sm text-ctex-text-muted">
+          {quote && quote.amount === Math.round(Number(amount) * 100) && quote.feeMode === feeMode ? <dl className="mt-4 space-y-3 text-sm text-ctex-text-muted">
             <SummaryRow label="Requested" value={money(quote.amount)} /><SummaryRow label="Fee" value={money(quote.feeAmount)} />
             <SummaryRow label="Wallet debit" value={money(quote.walletDebitAmount)} strong /><SummaryRow label="Beneficiary receives" value={money(quote.beneficiaryAmount)} strong />
             {beneficiary && <p>To {beneficiary.accountName} ••••{beneficiary.accountNumber.slice(-4)}</p>}
@@ -187,4 +192,4 @@ export default function WalletPage() {
 
 function BalanceCard({ label, value }) { return <div className="rounded-2xl border border-ctex-border bg-ctex-surface p-5"><p className="text-sm text-ctex-text-muted">{label}</p><p className="mt-2 text-2xl font-semibold text-ctex-text">{value}</p></div>; }
 function SummaryRow({ label, value, strong }) { return <div className={`flex justify-between ${strong ? "font-semibold text-ctex-text" : ""}`}><dt>{label}</dt><dd>{value}</dd></div>; }
-function Rows({ items, payout = false }) { return !items?.length ? <p className="py-5 text-sm text-ctex-text-muted">No activity yet.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-ctex-text-muted"><th className="py-2">Reference</th><th>Type</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>{items.map(row => <tr key={row.id} className="border-t border-ctex-border text-ctex-text"><td className="py-3">{row.transaction?.reference || row.id}</td><td>{payout ? "Withdrawal" : row.transaction?.type || "Ledger entry"}</td><td>{money(row.walletDebitAmount ?? row.amount)}</td><td>{row.status || row.direction}</td><td>{new Date(row.createdAt).toLocaleString()}</td></tr>)}</tbody></table></div>; }
+function Rows({ items, payout = false }) { return !items?.length ? <p className="py-5 text-sm text-ctex-text-muted">No activity yet.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-ctex-text-muted"><th className="py-2">Reference</th><th>Type</th><th>{payout ? "Wallet debit" : "Amount"}</th>{payout && <><th>C-TEX charge</th><th>Provider charge</th><th>Bank payout</th></>}<th>Status</th><th>Date</th></tr></thead><tbody>{items.map(row => <tr key={row.id} className="border-t border-ctex-border text-ctex-text"><td className="py-3">{row.transaction?.reference || row.id}</td><td>{payout ? "Withdrawal" : row.transaction?.type || "Ledger entry"}</td><td>{money(row.walletDebitAmount ?? row.amount)}</td>{payout && <><td>{money(row.feeAmount)}</td><td>{row.providerFeeReported == null ? "Not reported" : money(row.providerFeeReported)}</td><td>{money(row.beneficiaryAmount ?? row.amount)}</td></>}<td>{row.status || row.direction}</td><td>{new Date(row.createdAt).toLocaleString()}</td></tr>)}</tbody></table><p className="mt-2 text-xs text-ctex-text-muted">Provider payout charges are shown only when the provider reports them; they are not included in the C-TEX charge.</p></div>; }

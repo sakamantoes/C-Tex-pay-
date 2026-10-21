@@ -13,7 +13,9 @@ import {
   postLedgerTransaction,
   getAvailableBalance,
 } from "./ledger.service.js";
-import { computeServiceFee, resolveFeeConfiguration } from "./fee.service.js";
+import { computeServiceFee } from "./fee.service.js";
+import { calculateWithdrawalCharges } from "./withdrawalFee.service.js";
+import { majorToMinor } from "./paymentFinancials.service.js";
 import { encryptApiKeyValue, decryptApiKeyValue } from "./apiKey.service.js";
 
 /* =========================================================
@@ -163,7 +165,7 @@ function decryptAccountNumber(value) {
 function safePayoutResponse(body) {
   if (!body || typeof body !== "object") return null;
   const safe = {};
-  for (const key of ["reference", "transactionReference", "status", "amount", "currency", "fee", "dateCreated", "createdOn", "responseCode", "destinationBankName"]) {
+  for (const key of ["reference", "transactionReference", "status", "amount", "currency", "fee", "totalFee", "dateCreated", "createdOn", "responseCode", "destinationBankName"]) {
     if (body[key] !== undefined) safe[key] = body[key];
   }
   return safe;
@@ -172,12 +174,11 @@ function safePayoutResponse(body) {
 export async function quotePayout({ merchantId, amount, currency = "NGN", feeMode = "FEE_ON_TOP" }) {
   assertPayoutAmount(amount);
   assertFeeMode(feeMode);
-  const configuration = await resolveFeeConfiguration({
-    merchantId,
-    currency,
-    paymentMethod: "ACCOUNT_TRANSFER",
-  });
-  return { amount, currency, ...getPayoutAmounts(amount, feeMode, configuration) };
+  const calculated = await calculateWithdrawalCharges({ amount, feeMode });
+  if (calculated.walletDebitAmount > MAX_PAYOUT_DEBIT) {
+    throw new PayoutError("Payout amount is outside the supported range after fees", "PAYOUT_AMOUNT_OUT_OF_RANGE", 400);
+  }
+  return { currency, ...calculated };
 }
 
 /* =========================================================
@@ -369,9 +370,10 @@ export async function createPayout({
 
   // Select the disbursement rail independently from collection payments and
   // fail before reserving funds if no compatible provider is configured.
+  const payoutProviderName = String(envConfig.PAYOUT_PROVIDER || "MONNIFY").toUpperCase();
   let provider;
   try {
-    provider = getPayoutProvider();
+    provider = getPayoutProvider(payoutProviderName);
   } catch {
     throw new PayoutError(
       "Bank payouts are not available for the configured provider",
@@ -379,8 +381,11 @@ export async function createPayout({
       503,
     );
   }
-  if (!envConfig.MONNIFY_PAYOUT_SOURCE_ACCOUNT) {
+  if (payoutProviderName === "MONNIFY" && !envConfig.MONNIFY_PAYOUT_SOURCE_ACCOUNT) {
     throw new PayoutError("Payout source account is not configured", "PAYOUT_SOURCE_ACCOUNT_MISSING", 503);
+  }
+  if (payoutProviderName === "XIXAPAY" && (!envConfig.XIXAPAY_API_KEY || !envConfig.XIXAPAY_API_SECRET || !envConfig.XIXAPAY_BUSINESS_ID)) {
+    throw new PayoutError("Xixapay payout credentials or business ID are not configured", "PAYOUT_PROVIDER_NOT_CONFIGURED", 503);
   }
 
   // Do not trust the beneficiary name supplied by the browser. Use the name
@@ -424,13 +429,10 @@ export async function createPayout({
         );
       }
 
-      const feeConfiguration = await resolveFeeConfiguration({
-        merchantId,
-        currency,
-        paymentMethod: "ACCOUNT_TRANSFER",
-        transaction: t,
-      });
-      const amounts = getPayoutAmounts(amount, feeMode, feeConfiguration);
+      const amounts = await calculateWithdrawalCharges({ amount, feeMode, transaction: t });
+      if (amounts.walletDebitAmount > MAX_PAYOUT_DEBIT) {
+        throw new PayoutError("Payout amount is outside the supported range after fees", "PAYOUT_AMOUNT_OUT_OF_RANGE", 400);
+      }
 
       /* Recompute balance from ledger entries inside the lock. */
       const balance = await getAvailableBalance({ merchantId, currency, transaction: t });
@@ -446,12 +448,13 @@ export async function createPayout({
       const created = await Payout.create(
         {
           merchantId,
+          provider: payoutProviderName,
           amount,
           feeMode,
           feeAmount: amounts.feeAmount,
           walletDebitAmount: amounts.walletDebitAmount,
           beneficiaryAmount: amounts.beneficiaryAmount,
-          feeConfigurationId: feeConfiguration?.id || null,
+          feeConfigurationId: null,
           feeSnapshot: amounts.feeSnapshot,
           currency,
           bankCode: validatedDestination.bankCode,
@@ -546,6 +549,7 @@ export async function createPayout({
       accountName: payout.accountName,
       currency: payout.currency,
       sourceAccountNumber: envConfig.MONNIFY_PAYOUT_SOURCE_ACCOUNT,
+      businessId: envConfig.XIXAPAY_BUSINESS_ID,
       async: envConfig.MONNIFY_PAYOUT_ASYNC,
     });
   } catch (providerError) {
@@ -555,10 +559,11 @@ export async function createPayout({
     });
 
     await payout.update({
-      provider: envConfig.PAYOUT_PROVIDER || "MONNIFY",
-      // The deterministic request reference is the lookup key for ambiguous
-      // timeouts. Reconciliation can query it without submitting a second payout.
-      providerReference: payout.id,
+      provider: payout.provider || payoutProviderName,
+      // Monnify can query its deterministic request reference. Xixapay's
+      // documented contract has no status-query endpoint; retain any returned
+      // reference for support-assisted reconciliation and never resubmit here.
+      providerReference: providerError.providerResponse?.reference || payout.id,
       providerStatus: "UNKNOWN",
       failureCode: providerError.code || "PROVIDER_ERROR",
       failureReason: "Provider outcome is pending reconciliation",
@@ -576,9 +581,10 @@ export async function createPayout({
   const normalizedStatus = normalizeProviderStatus(providerResult.providerStatus);
 
   await payout.update({
-    provider: envConfig.PAYOUT_PROVIDER || "MONNIFY",
+    provider: payout.provider || payoutProviderName,
     providerReference: providerResult.providerReference || payout.id,
     providerStatus: providerResult.providerStatus || "PENDING",
+    providerFeeReported: majorToMinor(providerResult.rawResponse?.totalFee ?? providerResult.rawResponse?.fee),
     providerMetadata: {
       ...(payout.providerMetadata || {}),
       submission: safePayoutResponse(providerResult.rawResponse),
@@ -779,7 +785,17 @@ export async function refreshPayoutFromProvider({ payoutId }) {
     return { payout, changed: false };
   }
 
-  const provider = getPayoutProvider();
+  // Before provider selection was persisted on each payout, Monnify was the
+  // only supported bank disbursement rail. Keep old null-provider rows there
+  // even if the environment selector is changed later.
+  const provider = getPayoutProvider(payout.provider || "MONNIFY");
+  if (typeof provider.getPayoutStatus !== "function") {
+    throw new PayoutError(
+      "The configured payout provider does not document a payout status lookup. Contact the provider to resolve this transfer before changing its reserved funds.",
+      "PAYOUT_STATUS_LOOKUP_UNSUPPORTED",
+      409,
+    );
+  }
   const statusResult = await provider.getPayoutStatus({
     reference: payout.providerReference,
   });
@@ -834,7 +850,7 @@ export async function authorizePayout({ merchantId, payoutId, authorizationCode 
   if (payout.status !== "PROCESSING" || payout.providerStatus !== "PENDING_AUTHORIZATION") {
     throw new PayoutError("Payout is not waiting for provider authorization", "INVALID_STATE_TRANSITION", 409);
   }
-  const provider = getPayoutProvider();
+  const provider = getPayoutProvider(payout.provider || "MONNIFY");
   if (typeof provider.authorizePayout !== "function") {
     throw new PayoutError("Configured payout provider does not support authorization", "PAYOUT_AUTHORIZATION_UNSUPPORTED", 409);
   }

@@ -17,9 +17,13 @@ export default function PlatformAuditLogsPage({ platformRole }) {
     { key: "dashboard", label: "Dashboard", icon: "dashboard", path: `${base}/dashboard` },
     { key: "merchants", label: "Merchants", icon: "business", path: `${base}/merchants` },
     { key: "transactions", label: "Transactions", icon: "transactions", path: `${base}/transactions` },
+    ...(platformRole === "SUPER_ADMIN" ? [
+      { key: "financials", label: "Financial breakdown", icon: "fees", path: "/super-admin/financials" },
+      { key: "withdrawal-fees", label: "Withdrawal charges", icon: "fees", path: "/super-admin/withdrawal-fees" },
+    ] : []),
     { key: "fees", label: "Fee configuration", icon: "fees", path: `${base}/fees` },
     { key: "audit-logs", label: "Audit logs", icon: "security", path: `${base}/audit-logs` },
-  ] }], [base]);
+  ] }], [base, platformRole]);
 
   useEffect(() => {
     let active = true;

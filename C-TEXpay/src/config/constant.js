@@ -51,9 +51,7 @@ const envConfig = {
 
   //provider selector config
   PAYMENT_PROVIDER: process.env.PAYMENT_PROVIDER || "MONNIFY",
-  // Outbound disbursements are configured independently from collections.
-  // Xixapay's current integration is collection-only; keep payouts on the
-  // explicitly configured Monnify adapter unless another payout adapter is added.
+  // Outbound disbursements are selected independently from collections.
   PAYOUT_PROVIDER: process.env.PAYOUT_PROVIDER || "MONNIFY",
   MONNIFY_TRANSFER_BANK_CODE: process.env.MONNIFY_TRANSFER_BANK_CODE || null,
 
@@ -91,6 +89,8 @@ const envConfig = {
   PAYOUT_MAX_AMOUNT: parseInt(process.env.PAYOUT_MAX_AMOUNT || "500000000", 10), // ₦5M default
   MONNIFY_PAYOUT_SOURCE_ACCOUNT: process.env.MONNIFY_PAYOUT_SOURCE_ACCOUNT,
   MONNIFY_PAYOUT_ASYNC: process.env.MONNIFY_PAYOUT_ASYNC === "true",
+  MONNIFY_PROVIDER_FEE_BPS: parseInt(process.env.MONNIFY_PROVIDER_FEE_BPS || "150", 10),
+  XIXAPAY_PROVIDER_FEE_BPS: parseInt(process.env.XIXAPAY_PROVIDER_FEE_BPS || "100", 10),
 
   // Stage X2 — Xixapay Provider
   XIXAPAY_BASE_URL: process.env.XIXAPAY_BASE_URL || "https://api.xixapay.com",

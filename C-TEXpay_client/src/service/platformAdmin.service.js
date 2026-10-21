@@ -53,6 +53,34 @@ const platformAdminService = {
     const { data } = await api.patch(`/fees/${encodeURIComponent(id)}/status`, { status });
     return data;
   },
+  getFinancialSummary: async (params = {}) => {
+    const { data } = await api.get("/admin/financials/summary", { params });
+    return data.data;
+  },
+  getFinancialPayments: async (params = {}) => {
+    const { data } = await api.get("/admin/financials/payments", { params });
+    return data;
+  },
+  reconcileFinancialSettlement: async (paymentReference, payload) => {
+    const { data } = await api.patch(`/admin/financials/payments/${encodeURIComponent(paymentReference)}/settlement`, payload);
+    return data.data;
+  },
+  getWithdrawalFeeTiers: async () => {
+    const { data } = await api.get("/admin/financials/withdrawal-fees");
+    return data.data;
+  },
+  updateWithdrawalFeeTiers: async (payload) => {
+    const { data } = await api.patch("/admin/financials/withdrawal-fees", payload);
+    return data.data;
+  },
+  resetWithdrawalFeeTiers: async (payload) => {
+    const { data } = await api.post("/admin/financials/withdrawal-fees/reset", payload);
+    return data.data;
+  },
+  previewWithdrawalFee: async (params = {}) => {
+    const { data } = await api.get("/admin/financials/withdrawal-fees/preview", { params });
+    return data.data;
+  },
 };
 
 export default platformAdminService;

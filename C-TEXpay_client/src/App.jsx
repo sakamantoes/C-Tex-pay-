@@ -20,6 +20,8 @@ import PlatformFeesPage from "./page/AdminDashboard/PlatformFeesPage.jsx";
 import PlatformTransactionsPage from "./page/AdminDashboard/PlatformTransactionsPage.jsx";
 import PlatformMerchantsPage from "./page/AdminDashboard/PlatformMerchantsPage.jsx";
 import PlatformAuditLogsPage from "./page/AdminDashboard/PlatformAuditLogsPage.jsx";
+import PlatformFinancialsPage from "./page/AdminDashboard/PlatformFinancialsPage.jsx";
+import WithdrawalFeeSettingsPage from "./page/AdminDashboard/WithdrawalFeeSettingsPage.jsx";
 import SuperAdminDashboard from "./page/SuperAdminDashboard/SuperAdminDashboard.jsx";
 
 import { useAuthStore } from "./store/auth.store";
@@ -361,6 +363,8 @@ const AppRoutes = () => {
       <Route path="/super-admin/merchants" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformMerchantsPage platformRole="SUPER_ADMIN" /></ProtectedRoute>} />
       <Route path="/super-admin/merchants/:merchantId" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformMerchantsPage platformRole="SUPER_ADMIN" /></ProtectedRoute>} />
       <Route path="/super-admin/audit-logs" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformAuditLogsPage platformRole="SUPER_ADMIN" /></ProtectedRoute>} />
+      <Route path="/super-admin/financials" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformFinancialsPage /></ProtectedRoute>} />
+      <Route path="/super-admin/withdrawal-fees" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><WithdrawalFeeSettingsPage /></ProtectedRoute>} />
 
       <Route
         path="*"

@@ -46,6 +46,7 @@ const Payout = sequelize.define(
       references: { model: "fee_configurations", key: "id" },
     },
     feeSnapshot: { type: DataTypes.JSON, allowNull: true },
+    providerFeeReported: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },
     currency: {
       type: DataTypes.ENUM("NGN"),
       allowNull: false,

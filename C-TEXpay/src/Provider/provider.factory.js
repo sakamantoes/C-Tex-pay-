@@ -2,6 +2,7 @@ import envConfig from "../config/constant.js";
 import MonnifyProvider from "./monnify/monnify.provider.js";
 import MonnifyPayoutAdapter from "./monnify/monnify.payout.adapter.js";
 import XixapayProvider from "./xixapay/xixapay.provider.js";
+import XixapayPayoutAdapter from "./xixapay/xixapay.payout.adapter.js";
 
 /**
  * Provider Factory
@@ -35,22 +36,17 @@ export function getPaymentProvider() {
 }
 
 /**
- * Returns the payout adapter for the active provider.
- * Mirrors getPaymentProvider() so payout and payment use the same
- * server-side provider selection.
- *
- * Xixapay payouts are not implemented in this stage (see scope notes).
+ * Returns the payout adapter for the selected payout provider. Payouts are
+ * selected independently from collection payments and stored per payout.
  */
-export function getPayoutProvider() {
-  const activeProvider = String(envConfig.PAYOUT_PROVIDER || "").toUpperCase();
+export function getPayoutProvider(providerName = envConfig.PAYOUT_PROVIDER) {
+  const activeProvider = String(providerName || "").toUpperCase();
 
   switch (activeProvider) {
     case "MONNIFY":
       return new MonnifyPayoutAdapter();
     case "XIXAPAY":
-      throw new Error(
-        "Xixapay bank payouts are not supported by the configured integration. Set PAYOUT_PROVIDER=MONNIFY to use Monnify disbursements."
-      );
+      return new XixapayPayoutAdapter();
     default:
       throw new Error(
         `Unsupported payout provider: ${activeProvider}`
