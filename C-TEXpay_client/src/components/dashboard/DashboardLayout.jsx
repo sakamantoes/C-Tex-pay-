@@ -929,7 +929,7 @@ const DashboardLayout = ({
 
             <button
               type="button"
-              onClick={() => navigate("/user/dashboard/profile")}
+              onClick={() => navigate("/merchant/dashboard/business")}
               aria-label="My profile"
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-ctex-blue/10 text-ctex-blue lg:hidden"
             >
