@@ -2,6 +2,9 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* --------------------------------------------------------------------------
+   THEME TOKENS
+   -------------------------------------------------------------------------- */
 :root {
   --ctex-blue: hsl(205.56deg 88.04% 36.08%);
   --ctex-blue-light: hsl(205.56deg 88.04% 52%);
@@ -35,10 +38,26 @@ html.dark {
   --color-ctex-text: var(--ctex-text);
   --color-ctex-text-muted: var(--ctex-text-muted);
   --color-ctex-border: var(--ctex-border);
-  --font-display: "Rebond Grotesque", "Inter", "Segoe UI", "Arial", sans-serif;
-  --font-body: "Inter", "Segoe UI", "Arial", sans-serif;
+
+  --font-display: "Rebond Grotesque", "Inter", "Segoe UI", Arial, sans-serif;
+  --font-body: "Inter", "Segoe UI", Arial, sans-serif;
+
+  --animate-ctex-rise: ctex-rise 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-ctex-pop: ctex-pop 700ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
+  --animate-ctex-shake: ctex-shake 450ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  --animate-ctex-ripple: ctex-ripple 2.4s ease-out infinite;
+  --animate-ctex-shine: ctex-shine 900ms ease-in-out;
+  --animate-ctex-flash: ctex-flash 900ms ease-out both;
+  --animate-ctex-tick: ctex-tick 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-ctex-grow: ctex-grow 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-ctex-float: ctex-float 3.2s ease-in-out infinite;
+  --animate-ctex-wiggle: ctex-wiggle 1.8s ease-in-out infinite;
+  --animate-ctex-confetti: ctex-confetti 1100ms cubic-bezier(0.15, 0.8, 0.3, 1) both;
 }
 
+/* --------------------------------------------------------------------------
+   BASE
+   -------------------------------------------------------------------------- */
 html {
   scroll-behavior: smooth;
   overflow-x: hidden;
@@ -81,10 +100,13 @@ textarea {
   font: inherit;
 }
 
+/* --------------------------------------------------------------------------
+   MEDIA — icon size bug fixed
+   -------------------------------------------------------------------------- */
 img,
 svg {
   display: block;
-  max-width: 40%;
+  max-width: 100%;   /* was 40% — that was shrinking every icon */
   height: auto;
 }
 
@@ -99,66 +121,28 @@ code {
   color: var(--ctex-text);
 }
 
-@media (max-width: 640px) {
-  body {
-    font-size: 15px;
-  }
+/* --------------------------------------------------------------------------
+   SCROLLBAR (subtle, modern)
+   -------------------------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ctex-border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--ctex-border);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ctex-blue) 50%, var(--ctex-border));
 }
 
-@keyframes pulseSoft {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
-  }
-  50% {
-    box-shadow: 0 0 0 12px rgba(16, 185, 129, 0);
-  }
-}
-
-@keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@keyframes emojiPop {
-  0%   { transform: scale(0.3) rotate(-12deg); opacity: 0; }
-  55%  { transform: scale(1.15) rotate(6deg); opacity: 1; }
-  75%  { transform: scale(0.96) rotate(-3deg); }
-  100% { transform: scale(1) rotate(0); opacity: 1; }
-}
-
-@keyframes pulseRing {
-  0%   { transform: scale(0.9); opacity: 0.8; }
-  70%  { transform: scale(1.25); opacity: 0; }
-  100% { transform: scale(1.25); opacity: 0; }
-}
-
-@keyframes emojiWiggle {
-  0%, 100% { transform: rotate(0deg); }
-  25%      { transform: rotate(-4deg); }
-  75%      { transform: rotate(4deg); }
-}
-
-/* Add to your global stylesheet (the one that holds your Tailwind v4 @theme). */
-
-@theme {
-  --animate-ctex-rise: ctex-rise 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-ctex-pop: ctex-pop 700ms cubic-bezier(0.22, 1.2, 0.36, 1) both;
-  --animate-ctex-shake: ctex-shake 450ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-  --animate-ctex-ripple: ctex-ripple 2.4s ease-out infinite;
-  --animate-ctex-shine: ctex-shine 900ms ease-in-out;
-  --animate-ctex-flash: ctex-flash 900ms ease-out both;
-  --animate-ctex-tick: ctex-tick 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-ctex-grow: ctex-grow 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-ctex-float: ctex-float 3.2s ease-in-out infinite;
-  --animate-ctex-wiggle: ctex-wiggle 1.8s ease-in-out infinite;
-  --animate-ctex-confetti: ctex-confetti 1100ms cubic-bezier(0.15, 0.8, 0.3, 1) both;
-}
-
+/* --------------------------------------------------------------------------
+   KEYFRAMES
+   -------------------------------------------------------------------------- */
 @keyframes ctex-rise {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -208,11 +192,32 @@ code {
   100% { opacity: 0; transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(0.6); }
 }
 
-/* Respect reduced-motion for every custom animation above */
+/* --------------------------------------------------------------------------
+   RESPONSIVE TWEAKS — smartwatch to ultrawide
+   -------------------------------------------------------------------------- */
+
+/* Smartwatch / very small (≤ 360px) */
+@media (max-width: 360px) {
+  body {
+    font-size: 13px;
+  }
+}
+
+/* Small phones (≤ 640px) */
+@media (max-width: 640px) {
+  body {
+    font-size: 15px;
+  }
+}
+
+/* Reduce motion */
 @media (prefers-reduced-motion: reduce) {
-  [class*="animate-ctex-"],
-  [class*="animate-ctex-"]::before,
-  [class*="animate-ctex-"]::after {
-    animation: none !important;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
