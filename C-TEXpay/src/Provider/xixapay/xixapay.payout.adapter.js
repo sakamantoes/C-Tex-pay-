@@ -41,9 +41,9 @@ function assertSuccessfulEnvelope(response, label) {
 
 /*
  * Xixapay returns inconsistent naming across endpoints:
- *   banks:  bank_name, bank_code   (snake_case)
- *   verify: AccountName, BankName  (PascalCase)
- *   transfer: status, reference    (lowercase)
+ *   banks:  bank_name, bank_code   (snake_case, BARE ARRAY response)
+ *   verify: AccountName, BankName  (PascalCase, status envelope)
+ *   transfer: status, reference    (lowercase, status envelope)
  *
  * Normalize defensively at the adapter boundary.
  */
@@ -52,6 +52,36 @@ function pick(...values) {
     if (v !== undefined && v !== null && v !== "") return v;
   }
   return null;
+}
+
+/*
+ * Extract the bank list from whatever shape Xixapay returns.
+ *
+ * The live /api/get/banks endpoint returns a bare JSON array:
+ *   [ { bank_name, bank_code, slug, logo }, ... ]
+ *
+ * We also tolerate an envelope form in case it changes:
+ *   { status: "success", data: [ ... ] }
+ *   { status: "success", banks: [ ... ] }
+ *
+ * An envelope that explicitly reports a non-success status is rejected.
+ */
+function extractBankList(response) {
+  if (Array.isArray(response)) return response;
+
+  if (response && typeof response === "object") {
+    if (response.status !== undefined) {
+      assertSuccessfulEnvelope(response, "bank list");
+    }
+    if (Array.isArray(response.data)) return response.data;
+    if (Array.isArray(response.banks)) return response.banks;
+  }
+
+  throw providerError(
+    "PROVIDER_RESPONSE_MALFORMED",
+    "Xixapay bank list response is not a recognized shape",
+    response && typeof response === "object" ? response : undefined
+  );
 }
 
 /*
@@ -89,15 +119,9 @@ class XixapayPayoutAdapter {
   async getBanks() {
     assertPayoutConfiguration();
     const response = await xixapayRequest("/api/get/banks", { method: "GET" });
-    assertSuccessfulEnvelope(response, "bank list");
-    if (!Array.isArray(response.data)) {
-      throw providerError(
-        "PROVIDER_RESPONSE_MALFORMED",
-        "Xixapay bank list has no data array"
-      );
-    }
+    const list = extractBankList(response);
 
-    return response.data
+    return list
       .map((bank) => {
         const name = pick(bank?.bank_name, bank?.bankName);
         const code = pick(bank?.bank_code, bank?.bankCode);
