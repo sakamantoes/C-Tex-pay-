@@ -40,6 +40,45 @@ function assertSuccessfulEnvelope(response, label) {
 }
 
 /*
+ * /api/verify/bank returns a flat object with NO status field on success:
+ *   { AccountName, BankName, BankCode }
+ * On failure it may return a status/message body. So we only reject when the
+ * body explicitly signals failure, or when there is no account name but there
+ * is a provider message explaining why.
+ */
+function assertVerifyResponse(response) {
+  if (!response || typeof response !== "object" || Array.isArray(response)) {
+    throw providerError(
+      "PROVIDER_RESPONSE_MALFORMED",
+      "Xixapay bank verification response is malformed"
+    );
+  }
+
+  const status = response.status;
+  const statusText = String(status ?? "").toLowerCase();
+  if (
+    status === false ||
+    ["failed", "error", "false", "fail"].includes(statusText)
+  ) {
+    throw providerError(
+      "PROVIDER_REJECTED",
+      response.message || "Xixapay bank verification was rejected",
+      response
+    );
+  }
+
+  const hasName =
+    response.AccountName || response.accountName || response.account_name;
+  if (!hasName && response.message) {
+    throw providerError(
+      "PROVIDER_REJECTED",
+      response.message,
+      response
+    );
+  }
+}
+
+/*
  * Xixapay returns inconsistent naming across endpoints:
  *   banks:  bank_name, bank_code   (snake_case, BARE ARRAY response)
  *   verify: AccountName, BankName  (PascalCase, status envelope)
@@ -146,7 +185,7 @@ class XixapayPayoutAdapter {
       method: "POST",
       body: { bank: String(bankCode), accountNumber: String(accountNumber) },
     });
-    assertSuccessfulEnvelope(response, "bank verification");
+    assertVerifyResponse(response);
 
     const accountName = pick(
       response.AccountName,
