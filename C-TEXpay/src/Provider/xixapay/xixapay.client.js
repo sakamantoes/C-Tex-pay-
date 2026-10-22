@@ -8,6 +8,7 @@ import envConfig from "../../config/constant.js";
  *   - Authentication headers (api-key + Bearer)
  *   - Response parsing
  *   - Error normalization
+ *   - Structured diagnostic logging (no secrets leaked)
  *
  * Does NOT contain business logic. The provider adapter uses this.
  *
@@ -34,9 +35,43 @@ function assertConfigured() {
 }
 
 /**
+ * Log a rejection without leaking secrets.
+ *
+ * We log:
+ *   - the request path and method
+ *   - HTTP status
+ *   - the response body's `status` and `message` fields
+ *   - the response body's top-level keys (but not the full body, which
+ *     can contain user data on some endpoints)
+ *
+ * We never log:
+ *   - the api-key header
+ *   - the Authorization header
+ *   - the full response body verbatim
+ */
+function logRejection(kind, path, method, httpStatus, body) {
+  const safeBody =
+    body && typeof body === "object"
+      ? {
+          status: body.status ?? undefined,
+          message: body.message ?? undefined,
+          error: body.error ?? undefined,
+          keys: Object.keys(body),
+        }
+      : body;
+
+  console.error(`Xixapay ${kind}`, {
+    path,
+    method,
+    httpStatus,
+    body: safeBody,
+  });
+}
+
+/**
  * Low-level request helper for Xixapay.
  *
- * @param {string} path           - e.g. "/api/v1/createVirtualAccount"
+ * @param {string} path           - e.g. "/api/get/banks"
  * @param {object} [options]
  * @param {string} [options.method="GET"]
  * @param {object} [options.body] - JSON-serialized if provided
@@ -45,11 +80,7 @@ function assertConfigured() {
 export async function xixapayRequest(path, options = {}) {
   assertConfigured();
 
-  const {
-    method = "GET",
-    body = null,
-    headers = {},
-  } = options;
+  const { method = "GET", body = null, headers = {} } = options;
 
   const baseUrl = (
     envConfig.XIXAPAY_BASE_URL || "https://api.xixapay.com"
@@ -79,10 +110,17 @@ export async function xixapayRequest(path, options = {}) {
     if (error.name === "AbortError") {
       const err = new Error("Xixapay request timed out");
       err.code = "PROVIDER_TIMEOUT";
+      console.error("Xixapay timeout", { path, method });
       throw err;
     }
     const err = new Error("Xixapay network error");
     err.code = "PROVIDER_NETWORK_ERROR";
+    console.error("Xixapay network error", {
+      path,
+      method,
+      errorName: error.name,
+      errorMessage: error.message,
+    });
     throw err;
   }
 
@@ -96,9 +134,7 @@ export async function xixapayRequest(path, options = {}) {
   }
 
   /*
-   * Xixapay returns HTTP 200 with a JSON `status` field on success
-   * (see "Successful Response" examples in the docs). Non-2xx responses
-   * carry a structured error per the Error Codes table.
+   * Non-2xx responses.
    */
   if (!response.ok) {
     const err = new Error(
@@ -107,12 +143,13 @@ export async function xixapayRequest(path, options = {}) {
     err.code = "PROVIDER_REJECTED";
     err.httpStatus = response.status;
     err.providerResponse = responseBody;
+    logRejection("non-2xx rejection", path, method, response.status, responseBody);
     throw err;
   }
 
   /*
-   * Some Xixapay responses use HTTP 200 with status: "failed" in the body.
-   * Normalize those to PROVIDER_REJECTED so callers handle them uniformly.
+   * HTTP 200 with body-level failure. Some Xixapay endpoints return
+   * `{ status: "failed", message: "..." }` with a 200 status code.
    */
   if (
     responseBody &&
@@ -120,10 +157,19 @@ export async function xixapayRequest(path, options = {}) {
     responseBody.status &&
     ["failed", "error"].includes(String(responseBody.status).toLowerCase())
   ) {
-    const err = new Error(responseBody.message || "Xixapay rejected the request");
+    const err = new Error(
+      responseBody.message || "Xixapay rejected the request"
+    );
     err.code = "PROVIDER_REJECTED";
     err.httpStatus = response.status;
     err.providerResponse = responseBody;
+    logRejection(
+      "body-level rejection",
+      path,
+      method,
+      response.status,
+      responseBody
+    );
     throw err;
   }
 
