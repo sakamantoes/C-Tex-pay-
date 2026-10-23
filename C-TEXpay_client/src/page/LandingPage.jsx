@@ -6,6 +6,7 @@ import {
   Moon,
   Menu,
   X,
+  Plus,
   Key,
   Webhook,
   ShieldCheck,
@@ -15,7 +16,6 @@ import {
   Wallet,
   ArrowDownToLine,
   ArrowRight,
-  ChevronDown,
   Lock,
   ScrollText,
   UserCheck,
@@ -29,39 +29,107 @@ import {
 import { ImageLogo } from "../utils/image";
 
 /* ------------------------------------------------------------------ */
-/* Global styles                                                       */
+/* Global styles (all landing tokens are scoped to .lp / .lp-dark)     */
 /* ------------------------------------------------------------------ */
 
 function GlobalStyles() {
   return (
     <style>{`
-      :root{--Ctex-accent:#0B68AD;--Ctex-code-str:#0E7A4F;--Ctex-code-kw:#6D3FD1;--Ctex-code-num:#B45309}
-      .dark{--Ctex-accent:#4DA6E8;--Ctex-code-str:#7DD3A8;--Ctex-code-kw:#C4A7FF;--Ctex-code-num:#F5B461}
-      @keyframes Ctex-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-      @keyframes Ctex-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-      @keyframes Ctex-ping{0%{transform:scale(1);opacity:.6}80%,100%{transform:scale(2.4);opacity:0}}
-      @keyframes Ctex-spin{to{transform:rotate(360deg)}}
-      @keyframes Ctex-check-draw{0%{stroke-dashoffset:48}100%{stroke-dashoffset:0}}
-      @keyframes Ctex-fade-up{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
-      @keyframes Ctex-pulse-ring{0%{transform:scale(0.8);opacity:0.8}100%{transform:scale(1.6);opacity:0}}
-      @keyframes Ctex-bar-fill{0%{width:0%}100%{width:100%}}
-      @keyframes Ctex-count{0%{opacity:0}100%{opacity:1}}
-      @keyframes Ctex-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
-      .Ctex-marquee{animation:Ctex-marquee 38s linear infinite}
-      .Ctex-float{animation:Ctex-float 6s ease-in-out infinite}
-      .Ctex-ping{animation:Ctex-ping 2s cubic-bezier(0,0,.2,1) infinite}
-      .Ctex-spin{animation:Ctex-spin 0.9s linear infinite}
-      .Ctex-check-draw{stroke-dasharray:48;stroke-dashoffset:48;animation:Ctex-check-draw 0.5s ease forwards}
-      .Ctex-fade-up{animation:Ctex-fade-up 0.4s ease forwards}
-      .Ctex-pulse-ring{animation:Ctex-pulse-ring 1.5s ease-out infinite}
-      .Ctex-bar-fill{animation:Ctex-bar-fill 1.2s ease forwards}
-      .Ctex-count{animation:Ctex-count 0.3s ease forwards}
-      .Ctex-shimmer{background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.15) 50%,transparent 100%);background-size:200% 100%;animation:Ctex-shimmer 1.8s ease infinite}
-      @media (prefers-reduced-motion:reduce){.Ctex-marquee,.Ctex-float,.Ctex-ping,.Ctex-spin,.Ctex-check-draw,.Ctex-fade-up,.Ctex-pulse-ring,.Ctex-bar-fill,.Ctex-count,.Ctex-shimmer{animation:none}}
-      /* Remove number input spinners for a cleaner calculator UI */
-      .Ctex-calc input[type=number]::-webkit-outer-spin-button,
-      .Ctex-calc input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-      .Ctex-calc input[type=number]{-moz-appearance:textfield;appearance:textfield}
+      .lp{
+        --bg:#faf9f7;--card:#ffffff;--soft:#f2efea;--ink:#121214;--ink-fg:#ffffff;
+        --text:#17171b;--muted:#6f6f78;--line:rgba(24,24,32,.08);
+        --accent:#0B68AD;--accent-2:#2f95de;--accent-fg:#ffffff;--tint:rgba(11,104,173,.1);
+        --shadow:0 30px 60px -32px rgba(20,24,40,.3);
+        --c-str:#0E7A4F;--c-kw:#6D3FD1;--c-num:#B45309;
+      }
+      .dark .lp{
+        --bg:#0a0a0c;--card:#131316;--soft:#1a1a1e;--ink:#f4f4f6;--ink-fg:#111114;
+        --text:#f4f4f6;--muted:#9b9ba5;--line:rgba(255,255,255,.1);
+        --accent:#4DA6E8;--accent-2:#7cc0f2;--accent-fg:#04121F;--tint:rgba(77,166,232,.16);
+        --shadow:0 30px 60px -30px rgba(0,0,0,.75);
+      }
+      .lp-dark{
+        --bg:#111114;--card:#18181c;--soft:#1e1e23;--ink:#ffffff;--ink-fg:#111114;
+        --text:#f4f4f6;--muted:#9b9ba5;--line:rgba(255,255,255,.1);
+        --accent:#4DA6E8;--accent-2:#7cc0f2;--accent-fg:#04121F;--tint:rgba(77,166,232,.16);
+        --c-str:#7DD3A8;--c-kw:#C4A7FF;--c-num:#F5B461;
+      }
+      .lp,.lp-dark{background:var(--bg);color:var(--text)}
+
+      .t-text{color:var(--text)}
+      .t-muted{color:var(--muted)}
+      .t-accent{color:var(--accent)}
+      .c-str{color:var(--c-str)}.c-kw{color:var(--c-kw)}.c-num{color:var(--c-num)}
+      .c-cm{color:var(--muted);font-style:italic}
+
+      .lp-wrap{width:100%;max-width:1200px;margin-inline:auto;padding-inline:16px}
+      @media(min-width:640px){.lp-wrap{padding-inline:24px}}
+
+      .lp-card{background:var(--card);border:1px solid var(--line);border-radius:28px}
+      .lp-soft{background:var(--soft);border-radius:28px}
+      .lp-r40{border-radius:clamp(28px,5vw,40px)}
+      .lp-shadow{box-shadow:var(--shadow)}
+      .lp-mock{background:var(--soft);border:1px solid var(--line);border-radius:18px}
+      .lp-bt{border-top:1px solid var(--line)}
+      .lp-bb{border-bottom:1px solid var(--line)}
+      .lp-divide>*+*{border-top:1px solid var(--line)}
+      .lp-glow{background:radial-gradient(closest-side,var(--tint),transparent)}
+
+      .lp-chip{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:999px;background:var(--ink);color:var(--ink-fg);flex-shrink:0}
+      .lp-eyebrow{font-size:11px;font-weight:500;letter-spacing:.3em;text-transform:uppercase;color:var(--accent)}
+      .lp-h2{font-family:var(--font-display);font-size:clamp(1.9rem,4vw,2.75rem);line-height:1.12;font-weight:500;letter-spacing:-.02em;color:var(--text)}
+      .lp-hchip{display:inline-flex;align-items:center;justify-content:center;width:.95em;height:.95em;border-radius:.28em;background:linear-gradient(135deg,var(--accent-2),var(--accent));color:#fff;vertical-align:-.1em;margin-inline:.1em;box-shadow:0 10px 22px -10px var(--accent);transform:rotate(-6deg)}
+      .lp-hchip svg{width:55%;height:55%}
+
+      .lp-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;padding:12px 24px;font-size:14px;font-weight:500;line-height:1.2;white-space:nowrap;cursor:pointer;transition:transform .15s,opacity .15s,background .15s}
+      .lp-btn:hover{transform:translateY(-1px)}
+      .lp-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+      .lp-btn-dark{background:var(--ink);color:var(--ink-fg)}
+      .lp-btn-dark:hover{opacity:.88}
+      .lp-btn-light{background:#fff;color:#111114;border:1px solid var(--line)}
+      .lp-btn-line{background:var(--card);color:var(--text);border:1px solid var(--line)}
+      .lp-btn-link{color:var(--accent);padding-inline:10px}
+      .lp-accent{background:var(--accent);color:var(--accent-fg)}
+      .lp-nav-link{border-radius:999px;padding:8px 14px;font-size:14px;color:var(--muted);transition:color .15s,background .15s}
+      .lp-nav-link:hover{color:var(--text);background:var(--soft)}
+      .lp-nav-blur{background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+      .lp-icon-btn{display:flex;height:38px;width:38px;align-items:center;justify-content:center;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--muted)}
+
+      .lp-bento{display:flex;flex-direction:column;height:100%;overflow:hidden;border-radius:28px}
+      .lp-tone-white{background:var(--card);border:1px solid var(--line)}
+      .lp-tone-soft{background:var(--soft)}
+      .lp-tone-soft .lp-mock{background:var(--card)}
+      .lp-tone-accent{background:linear-gradient(160deg,#2f95de,#0B68AD);--text:#fff;--muted:rgba(255,255,255,.78);--line:rgba(255,255,255,.22);--accent:#fff;color:#fff}
+      .lp-tone-accent .lp-chip{background:rgba(255,255,255,.2);color:#fff}
+      .lp-tone-accent .lp-mock{background:rgba(255,255,255,.14)}
+
+      .lp-input{display:flex;align-items:center;border-radius:16px;border:1px solid var(--line);background:var(--soft);padding-left:14px}
+      .lp-input:focus-within{border-color:var(--accent)}
+      .lp-calc input[type=number]::-webkit-outer-spin-button,.lp-calc input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+      .lp-calc input[type=number]{-moz-appearance:textfield;appearance:textfield}
+
+      .lp-faq{background:var(--soft);border-radius:28px;padding:8px 8px 8px 24px;transition:background .2s}
+      .lp-faq.is-open{background:var(--card);border:1px solid var(--line);padding:12px 12px 8px 24px}
+      .lp-plus{display:grid;place-items:center;width:44px;height:44px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--text);flex-shrink:0}
+      .lp-faq.is-open .lp-plus{background:transparent;border-color:transparent;color:var(--accent)}
+
+      @keyframes lp-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+      @keyframes lp-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+      @keyframes lp-ping{0%{transform:scale(1);opacity:.6}80%,100%{transform:scale(2.4);opacity:0}}
+      @keyframes lp-spin{to{transform:rotate(360deg)}}
+      @keyframes lp-check{0%{stroke-dashoffset:48}100%{stroke-dashoffset:0}}
+      @keyframes lp-pulse{0%{transform:scale(.8);opacity:.8}100%{transform:scale(1.6);opacity:0}}
+      @keyframes lp-bar{0%{width:0%}100%{width:100%}}
+      .lp-marquee{animation:lp-marquee 38s linear infinite}
+      .lp-anim-float{animation:lp-float 6s ease-in-out infinite}
+      .lp-ping{animation:lp-ping 2s cubic-bezier(0,0,.2,1) infinite}
+      .lp-pulse{animation:lp-pulse 1.5s ease-out infinite}
+      .lp-bar{animation:lp-bar 1.2s ease forwards}
+      .lp-check{stroke-dasharray:48;stroke-dashoffset:48;animation:lp-check .5s ease forwards}
+      .lp-spin,.lp-spin-w{display:inline-block;border-radius:999px;animation:lp-spin .9s linear infinite}
+      .lp-spin{border:2px solid var(--tint);border-top-color:var(--accent)}
+      .lp-spin-w{border:2px solid rgba(255,255,255,.35);border-top-color:#fff}
+      @media (prefers-reduced-motion:reduce){.lp-marquee,.lp-anim-float,.lp-ping,.lp-pulse,.lp-bar,.lp-check,.lp-spin,.lp-spin-w{animation:none}}
     `}</style>
   );
 }
@@ -93,43 +161,6 @@ function useTheme() {
 /* Shared primitives                                                   */
 /* ------------------------------------------------------------------ */
 
-const ACCENT = "text-[var(--Ctex-accent)]";
-
-const darkVars = {
-  "--Ctex-bg": "#050B14",
-  "--Ctex-surface": "#0A1422",
-  "--Ctex-elevated": "#0D1A2B",
-  "--Ctex-border": "rgba(255,255,255,0.1)",
-  "--Ctex-text": "#F3F7FB",
-  "--Ctex-text-muted": "#8FA3B8",
-  "--Ctex-accent": "#5CB3F0",
-  "--Ctex-code-str": "#7DD3A8",
-  "--Ctex-code-kw": "#C4A7FF",
-  "--Ctex-code-num": "#F5B461",
-};
-
-function DarkBand({ children, className = "", id }) {
-  return (
-    <section
-      id={id}
-      data-dark-band
-      style={darkVars}
-      className={`relative overflow-hidden bg-[var(--Ctex-bg)] text-[var(--Ctex-text)] ${className}`}
-    >
-      {children}
-    </section>
-  );
-}
-
-const dotGrid = {
-  backgroundImage: "radial-gradient(var(--Ctex-border) 1px, transparent 1px)",
-  backgroundSize: "22px 22px",
-  WebkitMaskImage:
-    "radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%)",
-  maskImage:
-    "radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 75%)",
-};
-
 function Reveal({ children, delay = 0, className = "" }) {
   const reduceMotion = useReducedMotion();
   if (reduceMotion) return <div className={className}>{children}</div>;
@@ -148,11 +179,7 @@ function Reveal({ children, delay = 0, className = "" }) {
 }
 
 function Eyebrow({ children }) {
-  return (
-    <p className={`font-mono text-[12px] sm:text-[13px] ${ACCENT}`}>
-      {children}
-    </p>
-  );
+  return <p className="lp-eyebrow">{children}</p>;
 }
 
 function SectionHeading({ eyebrow, title, sub, align = "left" }) {
@@ -163,11 +190,9 @@ function SectionHeading({ eyebrow, title, sub, align = "left" }) {
       }
     >
       {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
-      <h2 className="mt-2 sm:mt-3 font-display text-3xl sm:text-4xl md:text-[2.75rem] md:leading-[1.1] font-semibold tracking-tight text-[var(--Ctex-text)]">
-        {title}
-      </h2>
+      <h2 className="lp-h2 mt-3">{title}</h2>
       {sub && (
-        <p className="mt-3 sm:mt-4 text-sm sm:text-base leading-relaxed text-[var(--Ctex-text-muted)]">
+        <p className="t-muted mt-4 text-sm leading-relaxed sm:text-base">
           {sub}
         </p>
       )}
@@ -182,21 +207,25 @@ function Button({
   className = "",
   ...props
 }) {
-  const base =
-    "inline-flex items-center justify-center gap-2 rounded-full px-5 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-Ctex-blue";
   const variants = {
-    primary:
-      "bg-[#0B68AD] text-white shadow-[0_6px_20px_-6px_rgba(11,104,173,0.7)] hover:bg-[#0A5C9A] hover:-translate-y-px dark:bg-[var(--Ctex-accent)] dark:text-[#04121F] dark:shadow-[0_6px_20px_-6px_rgba(92,179,240,0.6)] dark:hover:bg-[var(--Ctex-accent)] dark:hover:opacity-90",
-    light: "bg-white text-[#06101C] hover:bg-white/90 hover:-translate-y-px",
-    secondary:
-      "border border-[var(--Ctex-border)] text-[var(--Ctex-text)] hover:border-Ctex-blue hover:text-[var(--Ctex-accent)]",
-    ghost: "text-[var(--Ctex-text)] hover:text-[var(--Ctex-accent)]",
+    primary: "lp-btn-dark",
+    light: "lp-btn-light",
+    secondary: "lp-btn-line",
+    ghost: "lp-btn-link",
   };
   const Comp = as;
   return (
-    <Comp className={`${base} ${variants[variant]} ${className}`} {...props}>
+    <Comp className={`lp-btn ${variants[variant]} ${className}`} {...props}>
       {children}
     </Comp>
+  );
+}
+
+function IconChip({ icon: Icon }) {
+  return (
+    <span className="lp-hchip" aria-hidden>
+      <Icon strokeWidth={2.2} />
+    </span>
   );
 }
 
@@ -206,10 +235,10 @@ const TOKEN =
 function highlight(code) {
   return code.split(TOKEN).map((part, i) => {
     if (i % 2 === 0) return part;
-    let cls = "text-[var(--Ctex-code-str)]";
-    if (part.startsWith("//")) cls = "italic text-[var(--Ctex-text-muted)]";
-    else if (/^\d+$/.test(part)) cls = "text-[var(--Ctex-code-num)]";
-    else if (/^[a-z]+$/.test(part)) cls = "text-[var(--Ctex-code-kw)]";
+    let cls = "c-str";
+    if (part.startsWith("//")) cls = "c-cm";
+    else if (/^\d+$/.test(part)) cls = "c-num";
+    else if (/^[a-z]+$/.test(part)) cls = "c-kw";
     return (
       <span key={i} className={cls}>
         {part}
@@ -218,26 +247,21 @@ function highlight(code) {
   });
 }
 
-function CodeWindow({ label = "request.js", lines, accent = false }) {
+function CodeWindow({ label = "request.js", lines }) {
   return (
     <div
-      className={`relative w-full max-w-full overflow-hidden rounded-xl border bg-[var(--Ctex-elevated)] ${
-        accent
-          ? "border-Ctex-blue/40 shadow-[0_12px_32px_-12px_rgba(11,104,173,0.45)]"
-          : "border-[var(--Ctex-border)] shadow-sm"
-      }`}
+      className="lp-dark relative w-full max-w-full overflow-hidden rounded-2xl"
+      style={{ background: "var(--card)", border: "1px solid var(--line)" }}
     >
-      <div className="flex items-center justify-between border-b border-[var(--Ctex-border)] px-3 sm:px-4 py-2 sm:py-2.5">
+      <div className="lp-bb flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-red-400/70" />
-          <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-amber-400/70" />
-          <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-emerald-400/70" />
+          <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+          <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
         </div>
-        <span className="font-mono text-[10px] sm:text-xs text-[var(--Ctex-text-muted)]">
-          {label}
-        </span>
+        <span className="t-muted font-mono text-[10px] sm:text-xs">{label}</span>
       </div>
-      <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words px-3 sm:px-5 py-3 sm:py-5 font-mono text-[11px] sm:text-[13px] leading-relaxed text-[var(--Ctex-text)]">
+      <pre className="t-text max-w-full overflow-x-auto whitespace-pre-wrap break-words px-4 py-4 font-mono text-[11px] leading-relaxed sm:px-6 sm:py-6 sm:text-[13px]">
         <code className="block min-w-0 whitespace-pre-wrap break-words">
           {highlight(lines)}
         </code>
@@ -254,57 +278,44 @@ function HeroStatusBadge({
   className = "",
 }) {
   const reduceMotion = useReducedMotion();
-  const toneClasses =
-    tone === "success"
-      ? "text-emerald-500 border-emerald-500/30"
-      : `${ACCENT} border-Ctex-blue/30`;
   return (
     <motion.div
       initial={reduceMotion ? undefined : { opacity: 0, y: 8, scale: 0.97 }}
       animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.35, delay, ease: [0.16, 1, 0.3, 1] }}
-      className={`pointer-events-none flex items-center gap-1.5 rounded-full border bg-[var(--Ctex-elevated)] px-3 py-1.5 font-mono text-[10px] sm:text-[11px] shadow-[0_8px_20px_-8px_rgba(0,0,0,0.35)] ${toneClasses} ${className}`}
+      className={`lp-card lp-shadow pointer-events-none flex items-center gap-2 !rounded-full px-3.5 py-2 text-[11px] font-medium ${className}`}
     >
-      <Icon size={12} className="shrink-0" />
-      <span className="whitespace-nowrap">{label}</span>
+      <Icon
+        size={13}
+        className={`shrink-0 ${tone === "success" ? "text-emerald-500" : "t-accent"}`}
+      />
+      <span className="t-text whitespace-nowrap">{label}</span>
     </motion.div>
   );
 }
 
-function FlowSteps({ steps, orientation = "vertical" }) {
-  const isRow = orientation === "horizontal";
+function FlowSteps({ steps }) {
   return (
-    <div className={isRow ? "flex flex-col sm:flex-row" : "flex flex-col"}>
+    <div className="flex flex-col">
       {steps.map((step, i) => (
-        <div
-          key={step.title}
-          className={
-            isRow ? "flex flex-1 items-start gap-3" : "flex gap-3 sm:gap-4"
-          }
-        >
+        <div key={step.title} className="flex gap-3 sm:gap-4">
           <div className="flex flex-col items-center">
             <div
-              className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full border border-Ctex-blue/50 bg-Ctex-blue/10 font-mono text-[10px] sm:text-xs ${ACCENT}`}
+              className="t-accent flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-xs"
+              style={{ background: "var(--tint)", border: "1px solid var(--accent)" }}
             >
               {i + 1}
             </div>
             {i < steps.length - 1 && (
               <span
-                className={
-                  isRow
-                    ? "hidden sm:block mt-4 h-px flex-1 w-full bg-[var(--Ctex-border)]"
-                    : "my-1 w-px flex-1 bg-gradient-to-b from-Ctex-blue/40 to-[var(--Ctex-border)]"
-                }
+                className="my-1 w-px flex-1"
+                style={{ background: "var(--line)" }}
               />
             )}
           </div>
-          <div className={isRow ? "pb-8" : "pb-6 sm:pb-8"}>
-            <p className="font-medium text-sm sm:text-base text-[var(--Ctex-text)]">
-              {step.title}
-            </p>
-            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-[var(--Ctex-text-muted)]">
-              {step.desc}
-            </p>
+          <div className="pb-6 sm:pb-8">
+            <p className="t-text text-sm font-medium sm:text-base">{step.title}</p>
+            <p className="t-muted mt-0.5 text-xs sm:mt-1 sm:text-sm">{step.desc}</p>
           </div>
         </div>
       ))}
@@ -319,8 +330,84 @@ const statusMeta = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Animated "Order Completed" Video Mockup                            */
+/* Animated "Order Completed" card                                     */
 /* ------------------------------------------------------------------ */
+
+const ORDER_STAGES = [
+  { title: "Complete your order" },
+  {
+    title: "Verifying payment",
+    bar: "accent",
+    steps: [
+      ["Payment received", "dim"],
+      ["Verifying with provider…", "spin"],
+      ["Signed webhook", "todo"],
+    ],
+  },
+  {
+    title: "Payment verified",
+    bar: "ok",
+    steps: [
+      ["Payment received", "done"],
+      ["Verified with provider", "done"],
+      ["Webhook delivered", "pulse"],
+    ],
+  },
+  {
+    title: "Finalizing",
+    bar: "full",
+    steps: [
+      ["Payment received", "done"],
+      ["Verified with provider", "done"],
+      ["Webhook delivered", "done"],
+    ],
+  },
+];
+
+function OrderRow({ label, state }) {
+  const dot = {
+    dim: <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />,
+    spin: <span className="lp-spin h-3 w-3" />,
+    todo: (
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ background: "var(--line)" }}
+      />
+    ),
+    done: <CheckCircle2 size={13} className="text-emerald-500" />,
+    pulse: (
+      <span className="relative flex h-2 w-2">
+        <span
+          className="lp-pulse absolute inline-flex h-full w-full rounded-full"
+          style={{ background: "var(--accent)", opacity: 0.6 }}
+        />
+        <span
+          className="relative inline-flex h-2 w-2 rounded-full"
+          style={{ background: "var(--accent)" }}
+        />
+      </span>
+    ),
+  }[state];
+  const muted = state === "dim" || state === "todo";
+  return (
+    <div
+      className={`flex items-center gap-2 ${muted ? "t-muted" : "t-text"} ${
+        state === "todo" ? "opacity-50" : ""
+      }`}
+    >
+      {dot}
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function SecuredLine() {
+  return (
+    <p className="t-muted mt-3 flex items-center justify-center gap-1 text-[10px]">
+      <Lock size={10} /> Secured by Ctex PAY
+    </p>
+  );
+}
 
 function AnimatedOrderCard() {
   const reduceMotion = useReducedMotion();
@@ -331,278 +418,139 @@ function AnimatedOrderCard() {
       setStage(4);
       return;
     }
-    const t1 = setTimeout(() => setStage(1), 800);
-    const t2 = setTimeout(() => setStage(2), 1800);
-    const t3 = setTimeout(() => setStage(3), 2600);
-    const t4 = setTimeout(() => setStage(4), 3400);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-    };
+    const ts = [800, 1800, 2600, 3400].map((ms, i) =>
+      setTimeout(() => setStage(i + 1), ms),
+    );
+    return () => ts.forEach(clearTimeout);
   }, [reduceMotion]);
 
+  const s = ORDER_STAGES[stage];
+
   return (
-    <div className="Ctex-float relative overflow-hidden rounded-2xl border border-Ctex-blue/30 bg-[var(--Ctex-bg)] p-4 shadow-[0_28px_56px_-20px_rgba(11,104,173,0.55)] sm:p-5">
-      {!reduceMotion && stage < 4 && (
-        <div
-          aria-hidden
-          className="Ctex-shimmer pointer-events-none absolute inset-0 z-10 rounded-2xl"
-        />
-      )}
+    <div className="lp-card lp-shadow lp-anim-float overflow-hidden p-5">
+      <AnimatePresence mode="wait">
+        {stage < 4 ? (
+          <motion.div
+            key={stage}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.3 }}
+          >
+            <p className="t-muted text-[11px] sm:text-xs">{s.title}</p>
+            <p className="t-text mt-1 font-display text-2xl font-medium tracking-tight sm:text-3xl">
+              ₦5,000.00
+            </p>
+            <p className="t-muted mt-0.5 font-mono text-[10px] sm:text-[11px]">
+              order_10234
+            </p>
 
-      <div className="relative z-20">
-        <AnimatePresence mode="wait">
-          {stage === 0 && (
-            <motion.div
-              key="pending"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.3 }}
-            >
-              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">
-                Complete your order
-              </p>
-              <p className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:text-3xl">
-                ₦5,000.00
-              </p>
-              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
-                order_10234
-              </p>
+            <div className="lp-bt mt-4 space-y-2.5 pt-3 text-[11px] sm:text-xs">
+              {stage === 0 ? (
+                <>
+                  <div className="t-muted flex justify-between">
+                    <span>Customer</span>
+                    <span className="t-text font-mono">cus_8fh29a</span>
+                  </div>
+                  <div className="t-muted flex justify-between">
+                    <span>Currency</span>
+                    <span className="t-text font-mono">NGN</span>
+                  </div>
+                </>
+              ) : (
+                s.steps.map(([label, st]) => (
+                  <OrderRow key={label} label={label} state={st} />
+                ))
+              )}
+            </div>
 
-              <div className="mt-4 space-y-2 border-t border-[var(--Ctex-border)] pt-3 text-[11px] sm:text-xs">
-                <div className="flex justify-between text-[var(--Ctex-text-muted)]">
-                  <span>Customer</span>
-                  <span className="font-mono text-[var(--Ctex-text)]">
-                    cus_8fh29a
-                  </span>
-                </div>
-                <div className="flex justify-between text-[var(--Ctex-text-muted)]">
-                  <span>Currency</span>
-                  <span className="font-mono text-[var(--Ctex-text)]">NGN</span>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-center gap-2 rounded-full bg-Ctex-blue py-2 text-center text-xs font-medium text-white sm:text-sm">
-                <span className="Ctex-spin inline-block h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white" />
+            {stage === 0 ? (
+              <div className="lp-accent mt-4 flex items-center justify-center gap-2 rounded-full py-2.5 text-xs font-medium sm:text-sm">
+                <span className="lp-spin-w h-3.5 w-3.5" />
                 Processing…
               </div>
-
-              <p className="mt-2.5 flex items-center justify-center gap-1 text-[10px] text-[var(--Ctex-text-muted)]">
-                <Lock size={10} /> Secured by Ctex PAY
-              </p>
-            </motion.div>
-          )}
-
-          {stage === 1 && (
-            <motion.div
-              key="processing"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.3 }}
-            >
-              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">
-                Verifying payment
-              </p>
-              <p className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:text-3xl">
-                ₦5,000.00
-              </p>
-              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
-                order_10234
-              </p>
-
-              <div className="mt-4 space-y-2.5 border-t border-[var(--Ctex-border)] pt-3 text-[11px] sm:text-xs">
-                <div className="flex items-center gap-2 text-[var(--Ctex-text-muted)]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  <span>Payment received</span>
-                </div>
-                <div className="flex items-center gap-2 text-[var(--Ctex-text)]">
-                  <span className="Ctex-spin h-3 w-3 rounded-full border-2 border-Ctex-blue/30 border-t-Ctex-blue" />
-                  <span>Verifying with provider…</span>
-                </div>
-                <div className="flex items-center gap-2 text-[var(--Ctex-text-muted)] opacity-50">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--Ctex-border)]" />
-                  <span>Signed webhook</span>
-                </div>
-              </div>
-
-              <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-[var(--Ctex-border)]">
+            ) : (
+              <div
+                className="mt-4 h-1.5 w-full overflow-hidden rounded-full"
+                style={{
+                  background:
+                    s.bar === "full" ? "rgba(16,185,129,.2)" : "var(--line)",
+                }}
+              >
                 <div
-                  className="Ctex-bar-fill h-full rounded-full bg-gradient-to-r from-Ctex-blue to-sky-400"
-                  style={{ width: "100%" }}
+                  className={`h-full rounded-full ${s.bar === "accent" ? "lp-bar" : ""}`}
+                  style={{
+                    width: "100%",
+                    background: s.bar === "accent" ? "var(--accent)" : "#10b981",
+                  }}
                 />
               </div>
-
-              <p className="mt-2.5 flex items-center justify-center gap-1 text-[10px] text-[var(--Ctex-text-muted)]">
-                <Lock size={10} /> Secured by Ctex PAY
+            )}
+            <SecuredLine />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="completed"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <div className="flex flex-col items-center py-1 text-center">
+              <div className="relative mb-3">
+                {!reduceMotion && (
+                  <span className="lp-pulse absolute inset-0 rounded-full bg-emerald-500/30" />
+                )}
+                <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15">
+                  <svg
+                    width="28"
+                    height="28"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-emerald-500"
+                  >
+                    <path
+                      d="M4 12.5L9.5 18L20 6"
+                      className={reduceMotion ? "" : "lp-check"}
+                    />
+                  </svg>
+                </span>
+              </div>
+              <p className="t-text font-display text-lg font-medium sm:text-xl">
+                Order Completed
               </p>
-            </motion.div>
-          )}
-
-          {stage === 2 && (
-            <motion.div
-              key="webhook"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.3 }}
-            >
-              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">
-                Payment verified
-              </p>
-              <p className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:text-3xl">
-                ₦5,000.00
-              </p>
-              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
+              <p className="t-muted mt-0.5 font-mono text-[10px] sm:text-[11px]">
                 order_10234
               </p>
 
-              <div className="mt-4 space-y-2.5 border-t border-[var(--Ctex-border)] pt-3 text-[11px] sm:text-xs">
-                <div className="flex items-center gap-2 text-[var(--Ctex-text)]">
-                  <CheckCircle2 size={13} className="text-emerald-500" />
-                  <span>Payment received</span>
+              <div className="lp-bt mt-4 w-full space-y-2 pt-3 text-left text-[11px] sm:text-xs">
+                <div className="t-muted flex justify-between">
+                  <span>Amount</span>
+                  <span className="t-text font-mono font-medium">₦5,000.00</span>
                 </div>
-                <div className="flex items-center gap-2 text-[var(--Ctex-text)]">
-                  <CheckCircle2 size={13} className="text-emerald-500" />
-                  <span>Verified with provider</span>
+                <div className="t-muted flex justify-between">
+                  <span>Customer</span>
+                  <span className="t-text font-mono">cus_8fh29a</span>
                 </div>
-                <div className="flex items-center gap-2 text-[var(--Ctex-text)]">
-                  <span className="relative flex h-2 w-2">
-                    <span className="Ctex-pulse-ring absolute inline-flex h-full w-full rounded-full bg-Ctex-blue/60" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-Ctex-blue" />
-                  </span>
-                  <span>Webhook delivered</span>
-                </div>
-              </div>
-
-              <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-[var(--Ctex-border)]">
-                <div className="h-full w-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500" />
-              </div>
-
-              <p className="mt-2.5 flex items-center justify-center gap-1 text-[10px] text-[var(--Ctex-text-muted)]">
-                <Lock size={10} /> Secured by Ctex PAY
-              </p>
-            </motion.div>
-          )}
-
-          {stage === 3 && (
-            <motion.div
-              key="almost"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.3 }}
-            >
-              <p className="text-[11px] text-[var(--Ctex-text-muted)] sm:text-xs">
-                Finalizing
-              </p>
-              <p className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:text-3xl">
-                ₦5,000.00
-              </p>
-              <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
-                order_10234
-              </p>
-
-              <div className="mt-4 space-y-2.5 border-t border-[var(--Ctex-border)] pt-3 text-[11px] sm:text-xs">
-                <div className="flex items-center gap-2 text-[var(--Ctex-text)]">
-                  <CheckCircle2 size={13} className="text-emerald-500" />
-                  <span>Payment received</span>
-                </div>
-                <div className="flex items-center gap-2 text-[var(--Ctex-text)]">
-                  <CheckCircle2 size={13} className="text-emerald-500" />
-                  <span>Verified with provider</span>
-                </div>
-                <div className="flex items-center gap-2 text-[var(--Ctex-text)]">
-                  <CheckCircle2 size={13} className="text-emerald-500" />
-                  <span>Webhook delivered</span>
-                </div>
-              </div>
-
-              <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-emerald-500/20">
-                <div className="h-full w-full rounded-full bg-emerald-500" />
-              </div>
-
-              <p className="mt-2.5 flex items-center justify-center gap-1 text-[10px] text-[var(--Ctex-text-muted)]">
-                <Lock size={10} /> Secured by Ctex PAY
-              </p>
-            </motion.div>
-          )}
-
-          {stage === 4 && (
-            <motion.div
-              key="completed"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="Ctex-count"
-            >
-              <div className="flex flex-col items-center py-2 text-center">
-                <div className="relative mb-3">
-                  {!reduceMotion && (
-                    <span className="Ctex-pulse-ring absolute inset-0 rounded-full bg-emerald-500/30" />
-                  )}
-                  <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15">
-                    <svg
-                      width="28"
-                      height="28"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-emerald-500"
-                    >
-                      <path
-                        d="M4 12.5L9.5 18L20 6"
-                        className={reduceMotion ? "" : "Ctex-check-draw"}
-                      />
-                    </svg>
+                <div className="t-muted flex justify-between">
+                  <span>Status</span>
+                  <span className="flex items-center gap-1 font-mono text-emerald-500">
+                    <CheckCircle2 size={11} /> Paid
                   </span>
                 </div>
-                <p className="font-display text-lg font-semibold text-[var(--Ctex-text)] sm:text-xl">
-                  Order Completed
-                </p>
-                <p className="mt-0.5 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
-                  order_10234
-                </p>
-
-                <div className="mt-4 w-full space-y-2 border-t border-[var(--Ctex-border)] pt-3 text-left text-[11px] sm:text-xs">
-                  <div className="flex justify-between text-[var(--Ctex-text-muted)]">
-                    <span>Amount</span>
-                    <span className="font-mono font-medium text-[var(--Ctex-text)]">
-                      ₦5,000.00
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-[var(--Ctex-text-muted)]">
-                    <span>Customer</span>
-                    <span className="font-mono text-[var(--Ctex-text)]">
-                      cus_8fh29a
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-[var(--Ctex-text-muted)]">
-                    <span>Status</span>
-                    <span className="flex items-center gap-1 font-mono text-emerald-500">
-                      <CheckCircle2 size={11} /> Paid
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-4 w-full rounded-full border border-emerald-500/30 bg-emerald-500/10 py-2 text-center text-xs font-medium text-emerald-500 sm:text-sm">
-                  Payment confirmed
-                </div>
-
-                <p className="mt-2.5 flex items-center justify-center gap-1 text-[10px] text-[var(--Ctex-text-muted)]">
-                  <Lock size={10} /> Secured by Ctex PAY
-                </p>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+
+              <div className="mt-4 w-full rounded-full border border-emerald-500/30 bg-emerald-500/10 py-2 text-center text-xs font-medium text-emerald-500 sm:text-sm">
+                Payment confirmed
+              </div>
+              <SecuredLine />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -613,43 +561,14 @@ function AnimatedOrderCard() {
 
 function Navbar({ theme, setTheme }) {
   const [scrolled, setScrolled] = useState(false);
-  const [overDark, setOverDark] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const headerRef = React.useRef(null);
 
   useEffect(() => {
-    let raf = 0;
-
-    const check = () => {
-      raf = 0;
-      setScrolled(window.scrollY > 8);
-
-      const header = headerRef.current;
-      const probeY = header ? header.offsetHeight / 2 : 40;
-      const bands = document.querySelectorAll("[data-dark-band]");
-      let over = false;
-      bands.forEach((b) => {
-        const r = b.getBoundingClientRect();
-        if (r.top <= probeY && r.bottom >= probeY) over = true;
-      });
-      setOverDark(over);
-    };
-
-    const onScroll = () => {
-      if (!raf) raf = window.requestAnimationFrame(check);
-    };
-
-    check();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (raf) window.cancelAnimationFrame(raf);
-    };
+    const on = () => setScrolled(window.scrollY > 8);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
   }, []);
-
-  const isDarkUI = theme === "dark" || overDark;
 
   const links = [
     { label: "Product", href: "#features" },
@@ -659,68 +578,44 @@ function Navbar({ theme, setTheme }) {
     { label: "Documentation", href: "#docs" },
   ];
 
-  const headerStyle = overDark
-    ? {
-        ...darkVars,
-        background: scrolled ? "rgba(5,11,20,0.82)" : "#050B14",
-      }
-    : undefined;
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
   return (
     <header
-      ref={headerRef}
-      style={headerStyle}
       className={`sticky top-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "border-b border-[var(--Ctex-border)]/60 bg-[var(--Ctex-bg)]/70 backdrop-blur-xl backdrop-saturate-150 shadow-[0_8px_32px_-12px_rgba(5,20,40,0.18)] dark:shadow-[0_8px_32px_-12px_rgba(0,0,0,0.5)]"
-          : "border-b border-transparent bg-[var(--Ctex-bg)]"
+        scrolled ? "lp-nav-blur" : ""
       }`}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 sm:py-3">
-        <div className="w-[180px] sm:w-[240px] lg:w-[280px]">
+      <div className="lp-wrap flex items-center justify-between py-2 sm:py-3">
+        <div className="flex items-center gap-6 lg:gap-10">
           <Link to="/" className="flex items-center">
             <img
               src={ImageLogo.Logo2}
               alt="Ctex PAY"
-              className="h-14 sm:h-12 lg:h-13 sm:w-[150px] lg:w-[180px] w-[120px] object-contain"
+              className="h-14 w-[120px] object-contain sm:h-12 sm:w-[150px] lg:w-[170px]"
             />
           </Link>
+          <nav className="hidden items-center gap-1 md:flex">
+            {links.map((l) => (
+              <a key={l.label} href={l.href} className="lp-nav-link">
+                {l.label}
+              </a>
+            ))}
+          </nav>
         </div>
-
-        <nav className="hidden items-center gap-1 rounded-full border border-[var(--Ctex-border)] px-2 py-1 md:flex">
-          {links.map((l) => (
-            <a
-              key={l.label}
-              href={l.href}
-              className="rounded-full px-3.5 py-1.5 text-sm text-[var(--Ctex-text-muted)] transition-colors hover:bg-Ctex-blue/10 hover:text-[var(--Ctex-accent)]"
-            >
-              {l.label}
-            </a>
-          ))}
-        </nav>
 
         <div className="hidden items-center gap-3 md:flex">
           <button
             aria-label="Toggle theme"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--Ctex-border)] text-[var(--Ctex-text-muted)] transition-colors hover:text-[var(--Ctex-accent)]"
+            onClick={toggleTheme}
+            className="lp-icon-btn"
           >
             {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          <Link
-            to="/login"
-            className="text-sm font-medium text-[var(--Ctex-text)] hover:text-[var(--Ctex-accent)]"
-          >
+          <Link to="/login" className="lp-nav-link t-text">
             Log in
           </Link>
-          <Link
-            to="/signup"
-            className={`inline-flex items-center justify-center gap-2 rounded-full px-5 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-Ctex-blue ${
-              isDarkUI
-                ? "bg-[var(--Ctex-accent)] text-[#04121F] shadow-[0_6px_20px_-6px_rgba(92,179,240,0.6)] hover:opacity-90 hover:-translate-y-px"
-                : "bg-[#0B68AD] text-white shadow-[0_6px_20px_-6px_rgba(11,104,173,0.7)] hover:bg-[#0A5C9A] hover:-translate-y-px"
-            }`}
-          >
+          <Link to="/signup" className="lp-btn lp-btn-dark">
             Get Started
           </Link>
         </div>
@@ -728,8 +623,8 @@ function Navbar({ theme, setTheme }) {
         <div className="flex items-center gap-2 md:hidden">
           <button
             aria-label="Toggle theme"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--Ctex-border)] text-[var(--Ctex-text-muted)]"
+            onClick={toggleTheme}
+            className="lp-icon-btn"
           >
             {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           </button>
@@ -737,7 +632,7 @@ function Navbar({ theme, setTheme }) {
             aria-label="Open menu"
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--Ctex-border)] text-[var(--Ctex-text)]"
+            className="lp-icon-btn t-text"
           >
             {mobileOpen ? <X size={16} /> : <Menu size={16} />}
           </button>
@@ -751,16 +646,16 @@ function Navbar({ theme, setTheme }) {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.18 }}
-            style={overDark ? { background: "rgba(5,11,20,0.96)" } : undefined}
-            className="overflow-hidden border-b border-[var(--Ctex-border)] bg-[var(--Ctex-bg)]/95 backdrop-blur-xl md:hidden"
+            className="lp-bb overflow-hidden md:hidden"
+            style={{ background: "var(--bg)" }}
           >
-            <div className="flex flex-col gap-1 px-4 sm:px-6 pb-5 pt-1">
+            <div className="lp-wrap flex flex-col gap-1 pb-5 pt-1">
               {links.map((l) => (
                 <a
                   key={l.label}
                   href={l.href}
                   onClick={() => setMobileOpen(false)}
-                  className="py-2.5 text-sm text-[var(--Ctex-text-muted)] hover:text-[var(--Ctex-accent)]"
+                  className="t-muted py-2.5 text-sm"
                 >
                   {l.label}
                 </a>
@@ -769,14 +664,7 @@ function Navbar({ theme, setTheme }) {
                 <Button as={Link} to="/login" variant="secondary">
                   Log in
                 </Button>
-                <Link
-                  to="/signup"
-                  className={`inline-flex items-center justify-center gap-2 rounded-full px-5 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-Ctex-blue ${
-                    isDarkUI
-                      ? "bg-[var(--Ctex-accent)] text-[#04121F] shadow-[0_6px_20px_-6px_rgba(92,179,240,0.6)] hover:opacity-90"
-                      : "bg-[#0B68AD] text-white shadow-[0_6px_20px_-6px_rgba(11,104,173,0.7)] hover:bg-[#0A5C9A]"
-                  }`}
-                >
+                <Link to="/signup" className="lp-btn lp-btn-dark">
                   Get Started
                 </Link>
               </div>
@@ -826,7 +714,7 @@ function LiveTransactionFeed() {
   }, [reduceMotion]);
 
   return (
-    <div className="divide-y divide-[var(--Ctex-border)] px-4">
+    <div className="lp-divide px-5 pb-1">
       <AnimatePresence initial={false} mode="popLayout">
         {feed.map((r, i) => {
           const meta = statusMeta[r.status];
@@ -837,23 +725,19 @@ function LiveTransactionFeed() {
               initial={
                 reduceMotion ? undefined : { opacity: 0, y: -14, scale: 0.97 }
               }
-              animate={
-                reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }
-              }
-              exit={
-                reduceMotion ? undefined : { opacity: 0, y: 14, scale: 0.97 }
-              }
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: 14, scale: 0.97 }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="flex items-center justify-between gap-3 py-2.5 sm:py-3"
+              className="flex items-center justify-between gap-3 py-3"
             >
-              <p className="truncate font-mono text-[11px] text-[var(--Ctex-text)] sm:text-xs">
+              <p className="t-text truncate font-mono text-[11px] sm:text-xs">
                 {r.ref}
               </p>
               <div className="flex shrink-0 items-center gap-3">
-                <span className="font-mono text-[11px] text-[var(--Ctex-text)] sm:text-xs">
+                <span className="t-text font-mono text-[11px] sm:text-xs">
                   {r.amount}
                 </span>
-                <meta.icon size={13} className={meta.color} />
+                <meta.icon size={14} className={meta.color} />
               </div>
             </motion.div>
           );
@@ -867,25 +751,23 @@ function HeroVisual() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className="relative mx-auto h-[470px] w-full max-w-[560px] sm:h-[530px]">
-      <div
-        aria-hidden
-        className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-Ctex-blue/20 via-transparent to-Ctex-blue/5"
-      />
+    <div className="relative mx-auto h-[480px] w-full max-w-[560px] sm:h-[540px]">
+      <div aria-hidden className="lp-glow absolute inset-[-8%]" />
 
       <motion.div
         initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-        className="absolute right-0 top-0 w-[92%] overflow-hidden rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-elevated)] shadow-[0_24px_48px_-24px_rgba(5,20,40,0.5)] sm:w-[86%]"
+        className="lp-card lp-shadow absolute right-0 top-0 w-[92%] overflow-hidden sm:w-[86%]"
       >
-        <div className="flex items-center justify-between border-b border-[var(--Ctex-border)] px-4 py-3">
-          <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">
+        <div className="flex items-center justify-between px-5 py-4">
+          <p className="t-muted flex items-center gap-2 text-xs">
+            <Receipt size={14} className="t-accent" />
             Transactions
           </p>
           <span className="flex items-center gap-1.5 font-mono text-[10px] text-emerald-500">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="Ctex-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500/60" />
+              <span className="lp-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500/60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
             </span>
             Live
@@ -898,7 +780,7 @@ function HeroVisual() {
         initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
         transition={{ duration: 0.55, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className="absolute bottom-0 left-0 w-[72%] sm:w-[60%]"
+        className="absolute bottom-0 left-0 w-[74%] sm:w-[62%]"
       >
         <AnimatedOrderCard />
       </motion.div>
@@ -934,55 +816,48 @@ function Hero() {
 
   return (
     <section className="relative overflow-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={dotGrid}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-24 left-1/2 h-[480px] w-full max-w-[1000px] -translate-x-1/2 bg-[radial-gradient(closest-side,hsl(205.56deg_88.04%_36.08%_/_0.2),transparent)] dark:bg-[radial-gradient(closest-side,hsl(205.56deg_88.04%_46%_/_0.28),transparent)]"
-      />
-      <div className="relative mx-auto grid max-w-7xl gap-14 px-4 pb-20 pt-10 sm:px-6 sm:pb-28 sm:pt-20 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-10 lg:pb-32">
+      <div className="lp-wrap grid gap-14 pb-16 pt-8 sm:pb-24 sm:pt-14 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-10">
         <motion.div
           initial={reduceMotion ? undefined : "hidden"}
           animate={reduceMotion ? undefined : "show"}
           variants={reduceMotion ? undefined : textBlock}
         >
-          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] px-3 py-1 text-xs text-[var(--Ctex-text-muted)]">
+          <div className="lp-card inline-flex items-center gap-2 !rounded-full px-3 py-1.5 text-xs">
             <span className="relative flex h-2 w-2">
-              <span className="Ctex-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500/60" />
+              <span className="lp-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500/60" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
-            Payment infrastructure for developers
+            <span className="t-accent font-medium">
+              Payment infrastructure for developers
+            </span>
           </div>
-          <h1 className="mt-5 font-display text-[2.75rem] font-semibold leading-[1.04] tracking-tight text-[var(--Ctex-text)] sm:text-6xl lg:text-[4.5rem]">
-            Accept payments.
-            <span className="block bg-gradient-to-r from-[#0A6CFF] via-[#0A8CE8] to-[#00A6E6] bg-clip-text pb-1 text-transparent dark:from-[#4DB8FF] dark:via-[#6FD0FF] dark:to-[#7DF0FF] dark:drop-shadow-[0_0_22px_rgba(77,184,255,0.35)]">
-              Build faster.
+          <h1 className="t-text mt-5 font-display text-[2.7rem] font-medium leading-[1.05] tracking-tight sm:text-6xl lg:text-[4.25rem]">
+            Accept <IconChip icon={Wallet} /> payments.
+            <span className="t-muted block">
+              Build <IconChip icon={Webhook} /> faster.
             </span>
           </h1>
-          <p className="mt-5 max-w-md text-sm leading-relaxed text-[var(--Ctex-text-muted)] sm:mt-6 sm:text-base">
+          <p className="t-text mt-5 max-w-md text-sm leading-relaxed sm:mt-6 sm:text-[15px]">
             Accept payments, verify transactions, and automate payment
             confirmation with a simple API built for modern businesses.
           </p>
-          <div className="mt-7 flex flex-wrap gap-2 sm:mt-9 sm:gap-3">
+          <div className="mt-7 flex flex-wrap items-center gap-2 sm:mt-9 sm:gap-3">
             <Button as={Link} to="/signup">
               Get Started
+            </Button>
+            <Button as="a" href="#docs" variant="ghost">
+              Read the Docs
               <ArrowRight size={15} />
             </Button>
-            <Button as="a" href="#docs" variant="secondary">
-              Read the Docs
-            </Button>
           </div>
-          <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[var(--Ctex-text-muted)] sm:mt-9 sm:text-sm">
+          <ul className="t-muted mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs sm:mt-9 sm:text-sm">
             {[
               "No SDK to install",
               "Your API key is the integration",
               "Signed webhooks",
             ].map((t) => (
               <li key={t} className="flex items-center gap-1.5">
-                <CheckCircle2 size={14} className={ACCENT} />
+                <CheckCircle2 size={14} className="t-accent" />
                 {t}
               </li>
             ))}
@@ -1013,7 +888,7 @@ function TrustBar() {
   const loop = [...points, ...points];
   return (
     <div
-      className="overflow-hidden border-y border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] py-4 sm:py-5"
+      className="overflow-hidden py-4"
       style={{
         WebkitMaskImage:
           "linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent)",
@@ -1021,13 +896,13 @@ function TrustBar() {
           "linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent)",
       }}
     >
-      <div className="Ctex-marquee flex w-max items-center gap-10 sm:gap-14">
+      <div className="lp-marquee flex w-max items-center gap-3">
         {loop.map(({ icon: Icon, label }, i) => (
           <span
             key={`${label}-${i}`}
-            className="flex items-center gap-2 whitespace-nowrap text-xs text-[var(--Ctex-text-muted)] sm:text-sm"
+            className="lp-card t-muted flex items-center gap-2 whitespace-nowrap !rounded-full px-4 py-2 text-xs sm:text-sm"
           >
-            <Icon size={15} className={`shrink-0 ${ACCENT}`} />
+            <Icon size={15} className="t-accent shrink-0" />
             {label}
           </span>
         ))}
@@ -1057,44 +932,42 @@ function ProblemSolution() {
     },
   ];
   return (
-    <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28">
+    <section className="lp-wrap py-14 sm:py-24">
       <Reveal>
         <SectionHeading
+          align="center"
           title="Payment integration shouldn't slow your product down."
           sub="Most delays come from the same handful of problems. Ctex PAY removes them one by one."
         />
       </Reveal>
 
       <div className="mt-10 grid gap-4 sm:mt-14 lg:grid-cols-2">
-        <Reveal delay={0.08}>
-          <div className="relative h-full overflow-hidden rounded-2xl border border-Ctex-blue/40 bg-gradient-to-br from-Ctex-blue/15 via-[var(--Ctex-surface)] to-[var(--Ctex-surface)] p-6 shadow-[0_20px_44px_-24px_rgba(11,104,173,0.5)] sm:p-8">
-            <p className={`text-sm font-medium ${ACCENT}`}>With Ctex PAY</p>
+        <Reveal delay={0.08} className="lg:order-2">
+          <div className="lp-bento lp-tone-accent lp-r40 p-6 sm:p-9">
+            <p className="text-sm font-medium" style={{ color: "var(--muted)" }}>
+              With Ctex PAY
+            </p>
             <ul className="mt-5 space-y-4">
               {rows.map((r) => (
                 <li
                   key={r.solution}
-                  className="flex items-center gap-3 text-sm font-medium text-[var(--Ctex-text)] sm:text-base"
+                  className="flex items-center gap-3 text-sm font-medium sm:text-base"
                 >
-                  <CheckCircle2
-                    size={18}
-                    className="shrink-0 text-emerald-500"
-                  />
+                  <CheckCircle2 size={18} className="shrink-0 text-white" />
                   {r.solution}
                 </li>
               ))}
             </ul>
           </div>
         </Reveal>
-        <Reveal>
-          <div className="h-full rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] p-6 sm:p-8">
-            <p className="text-sm font-medium text-[var(--Ctex-text-muted)]">
-              Without Ctex PAY
-            </p>
+        <Reveal className="lg:order-1">
+          <div className="lp-soft lp-r40 h-full p-6 sm:p-9">
+            <p className="t-muted text-sm font-medium">Without Ctex PAY</p>
             <ul className="mt-5 space-y-4">
               {rows.map((r) => (
                 <li
                   key={r.problem}
-                  className="flex items-center gap-3 text-sm text-[var(--Ctex-text-muted)] sm:text-base"
+                  className="t-muted flex items-center gap-3 text-sm sm:text-base"
                 >
                   <XCircle size={18} className="shrink-0 text-red-500/80" />
                   {r.problem}
@@ -1109,26 +982,18 @@ function ProblemSolution() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Core features                                                       */
+/* Core features (bento)                                               */
 /* ------------------------------------------------------------------ */
 
-function BentoCell({ icon: Icon, title, desc, children, className = "" }) {
+function BentoCell({ icon: Icon, title, desc, children, tone = "white" }) {
   return (
-    <div
-      className={`group flex flex-col overflow-hidden rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] p-5 transition-colors duration-200 hover:border-Ctex-blue/50 sm:p-6 ${className}`}
-    >
-      <div className="flex-1">{children}</div>
-      <div className="mt-5">
-        <div className="flex items-center gap-2">
-          <Icon size={16} className={ACCENT} />
-          <p className="text-sm font-medium text-[var(--Ctex-text)] sm:text-base">
-            {title}
-          </p>
-        </div>
-        <p className="mt-1.5 text-xs leading-relaxed text-[var(--Ctex-text-muted)] sm:text-sm">
-          {desc}
-        </p>
-      </div>
+    <div className={`lp-bento lp-tone-${tone} p-6 sm:p-7`}>
+      <span className="lp-chip">
+        <Icon size={17} />
+      </span>
+      <p className="t-text mt-5 text-base font-medium sm:text-lg">{title}</p>
+      <p className="t-muted mt-1.5 text-xs leading-relaxed sm:text-sm">{desc}</p>
+      <div className="mt-6 flex flex-1 flex-col justify-end">{children}</div>
     </div>
   );
 }
@@ -1160,36 +1025,40 @@ function Features() {
   const chain = ["Customer pays", "Provider", "Verified", "Signed webhook"];
 
   return (
-    <section
-      id="features"
-      className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28"
-    >
+    <section id="features" className="lp-wrap py-14 sm:py-24">
       <Reveal>
-        <SectionHeading title="One platform for your entire payment operation." />
+        <SectionHeading
+          align="center"
+          title="One platform for your entire payment operation."
+        />
       </Reveal>
 
-      <div className="mt-10 grid grid-cols-1 gap-4 sm:mt-14 lg:grid-cols-6">
-        <Reveal className="lg:col-span-4">
+      <div className="mt-10 grid grid-cols-1 gap-4 sm:mt-14 md:grid-cols-2 lg:grid-cols-12">
+        <Reveal className="md:col-span-2 lg:col-span-7">
           <BentoCell
             icon={CheckCircle2}
             title="Automatic Verification"
             desc="Ctex PAY verifies transactions before reporting successful payments."
-            className="h-full"
           >
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-4 font-mono text-[10px] sm:text-xs">
+            <div className="lp-mock flex flex-wrap items-center gap-2 p-4 font-mono text-[10px] sm:text-xs">
               {chain.map((c, i) => (
                 <React.Fragment key={c}>
                   <span
-                    className={`rounded-full border px-3 py-1.5 ${
+                    className={`rounded-full px-3 py-1.5 ${
                       i === 2
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
-                        : "border-[var(--Ctex-border)] text-[var(--Ctex-text)]"
+                        ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+                        : "t-text"
                     }`}
+                    style={
+                      i === 2
+                        ? undefined
+                        : { border: "1px solid var(--line)", background: "var(--soft)" }
+                    }
                   >
                     {c}
                   </span>
                   {i < chain.length - 1 && (
-                    <ArrowRight size={11} className="shrink-0 opacity-50" />
+                    <ArrowRight size={11} className="t-muted shrink-0" />
                   )}
                 </React.Fragment>
               ))}
@@ -1197,27 +1066,26 @@ function Features() {
           </BentoCell>
         </Reveal>
 
-        <Reveal delay={0.04} className="lg:col-span-2">
+        <Reveal delay={0.04} className="md:col-span-2 lg:col-span-5">
           <BentoCell
             icon={Lock}
             title="API Keys"
             desc="Generate, rotate, and revoke API keys directly from your dashboard."
-            className="h-full"
+            tone="soft"
           >
-            <div className="space-y-2 rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-3 font-mono text-[10px] sm:text-xs">
+            <div className="lp-mock space-y-2.5 p-4 font-mono text-[10px] sm:text-xs">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[var(--Ctex-text)]">
-                  Ctex_live_••••8f21
-                </span>
+                <span className="t-text truncate">Ctex_live_••••8f21</span>
                 <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-500">
                   Active
                 </span>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[var(--Ctex-text)]">
-                  Ctex_test_••••1a09
-                </span>
-                <span className="shrink-0 rounded-full bg-Ctex-blue/10 px-2 py-0.5 text-[var(--Ctex-accent)]">
+                <span className="t-text truncate">Ctex_test_••••1a09</span>
+                <span
+                  className="t-accent shrink-0 rounded-full px-2 py-0.5"
+                  style={{ background: "var(--tint)" }}
+                >
                   Test
                 </span>
               </div>
@@ -1225,21 +1093,18 @@ function Features() {
           </BentoCell>
         </Reveal>
 
-        <Reveal className="lg:col-span-2">
+        <Reveal className="lg:col-span-4">
           <BentoCell
             icon={Webhook}
             title="Webhooks"
             desc="Receive secure payment notifications directly on your server."
-            className="h-full"
+            tone="soft"
           >
-            <div className="space-y-1.5 rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-3 font-mono text-[10px] sm:text-xs">
+            <div className="lp-mock space-y-2 p-4 font-mono text-[10px] sm:text-xs">
               {["payment.success", "payment.success", "payment.pending"].map(
                 (e, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <span className="text-[var(--Ctex-text)]">{e}</span>
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <span className="t-text">{e}</span>
                     <span className="text-emerald-500">200 OK</span>
                   </div>
                 ),
@@ -1248,37 +1113,32 @@ function Features() {
           </BentoCell>
         </Reveal>
 
-        <Reveal delay={0.04} className="lg:col-span-2">
+        <Reveal delay={0.04} className="lg:col-span-4">
           <BentoCell
             icon={Wallet}
             title="Merchant Wallet"
             desc="Monitor available funds and balances as payments settle."
-            className="h-full"
+            tone="accent"
           >
-            <div className="rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-4">
-              <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">
-                Available balance
-              </p>
-              <p className="mt-1 font-mono text-lg text-[var(--Ctex-text)] sm:text-xl">
+            <div className="lp-mock p-4">
+              <p className="t-muted text-[10px] sm:text-xs">Available balance</p>
+              <p className="t-text mt-1 font-mono text-lg sm:text-xl">
                 ₦482,300.00
               </p>
             </div>
           </BentoCell>
         </Reveal>
 
-        <Reveal delay={0.08} className="lg:col-span-2">
+        <Reveal delay={0.08} className="md:col-span-2 lg:col-span-4">
           <BentoCell
             icon={ShieldCheck}
             title="Idempotency & Retries"
             desc="Duplicate requests are ignored; transient failures retry safely."
-            className="h-full"
           >
-            <div className="space-y-1.5 rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-3 font-mono text-[10px] sm:text-xs">
-              <p className="text-[var(--Ctex-text-muted)]">
-                Idempotency-Key: order_10234
-              </p>
-              <p className="flex items-center gap-1.5 text-[var(--Ctex-text)]">
-                <RefreshCw size={11} className={ACCENT} /> Retried after timeout
+            <div className="lp-mock space-y-1.5 p-4 font-mono text-[10px] sm:text-xs">
+              <p className="t-muted">Idempotency-Key: order_10234</p>
+              <p className="t-text flex items-center gap-1.5">
+                <RefreshCw size={11} className="t-accent" /> Retried after timeout
               </p>
               <p className="text-emerald-500">Charged once</p>
             </div>
@@ -1289,12 +1149,14 @@ function Features() {
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {compact.map((f, i) => (
           <Reveal key={f.title} delay={i * 0.04}>
-            <div className="h-full rounded-2xl border border-[var(--Ctex-border)] p-5 transition-colors duration-200 hover:border-Ctex-blue/50">
-              <f.icon size={16} className={ACCENT} />
-              <p className="mt-3 text-sm font-medium text-[var(--Ctex-text)]">
+            <div className="lp-soft h-full p-6">
+              <span className="lp-chip">
+                <f.icon size={16} />
+              </span>
+              <p className="t-text mt-4 text-sm font-medium sm:text-base">
                 {f.title}
               </p>
-              <p className="mt-1 text-xs leading-relaxed text-[var(--Ctex-text-muted)] sm:text-sm">
+              <p className="t-muted mt-1.5 text-xs leading-relaxed sm:text-sm">
                 {f.desc}
               </p>
             </div>
@@ -1469,76 +1331,71 @@ app.post("/webhooks/Ctexpay", (req, res) => {
           : "js";
 
   return (
-    <DarkBand id="developers">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={dotGrid}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-40 top-0 h-[460px] w-[620px] bg-[radial-gradient(closest-side,hsl(205.56deg_88.04%_46%_/_0.22),transparent)]"
-      />
+    <section id="developers" className="lp-wrap py-6 sm:py-10">
+      <div className="lp-dark lp-r40 relative overflow-hidden p-6 sm:p-10 lg:p-14">
+        <div
+          aria-hidden
+          className="lp-glow pointer-events-none absolute -right-32 -top-24 h-[460px] w-[620px]"
+        />
 
-      <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28">
-        <Reveal>
-          <SectionHeading
-            eyebrow="For developers"
-            title="One API. Everything your payment flow needs."
-          />
-        </Reveal>
-
-        <div className="mt-10 grid gap-10 sm:mt-14 lg:grid-cols-2 lg:items-start lg:gap-12">
-          <Reveal>
-            <FlowSteps steps={steps} />
-          </Reveal>
-
-          <Reveal delay={0.08}>
-            <div className="flex flex-wrap gap-1.5 overflow-x-auto">
-              {Object.keys(tabs).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActive(tab)}
-                  className={`whitespace-nowrap rounded-full border px-3.5 py-1.5 font-mono text-[10px] transition-colors sm:text-xs ${
-                    active === tab
-                      ? "border-Ctex-blue bg-Ctex-blue/15 text-[var(--Ctex-accent)]"
-                      : "border-[var(--Ctex-border)] text-[var(--Ctex-text-muted)] hover:text-[var(--Ctex-text)]"
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 sm:mt-4">
-              <CodeWindow
-                label={`payments.${ext}`}
-                lines={tabs[active]}
-                accent
-              />
-            </div>
-          </Reveal>
-        </div>
-
-        <div className="mt-20 border-t border-[var(--Ctex-border)] pt-16 sm:mt-28 sm:pt-24">
+        <div className="relative">
           <Reveal>
             <SectionHeading
-              eyebrow="Webhooks"
-              title="Know when a payment is complete."
-              sub="Set your webhook URL from the dashboard, and Ctex PAY will notify your server the moment a transaction's status changes — signed, so you can trust what you receive."
+              eyebrow="For developers"
+              title="One API. Everything your payment flow needs."
             />
           </Reveal>
 
           <div className="mt-10 grid gap-10 sm:mt-14 lg:grid-cols-2 lg:items-start lg:gap-12">
             <Reveal>
-              <FlowSteps steps={flow} />
+              <FlowSteps steps={steps} />
             </Reveal>
+
             <Reveal delay={0.08}>
-              <CodeWindow label="webhooks.js" lines={webhookCode} />
+              <div className="flex flex-wrap gap-1.5">
+                {Object.keys(tabs).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActive(tab)}
+                    className={`whitespace-nowrap rounded-full px-3.5 py-1.5 font-mono text-[10px] transition-colors sm:text-xs ${
+                      active === tab ? "t-accent" : "t-muted"
+                    }`}
+                    style={{
+                      border: `1px solid ${active === tab ? "var(--accent)" : "var(--line)"}`,
+                      background: active === tab ? "var(--tint)" : "transparent",
+                    }}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 sm:mt-4">
+                <CodeWindow label={`payments.${ext}`} lines={tabs[active]} />
+              </div>
             </Reveal>
+          </div>
+
+          <div className="lp-bt mt-16 pt-14 sm:mt-24 sm:pt-20">
+            <Reveal>
+              <SectionHeading
+                eyebrow="Webhooks"
+                title="Know when a payment is complete."
+                sub="Set your webhook URL from the dashboard, and Ctex PAY will notify your server the moment a transaction's status changes — signed, so you can trust what you receive."
+              />
+            </Reveal>
+
+            <div className="mt-10 grid gap-10 sm:mt-14 lg:grid-cols-2 lg:items-start lg:gap-12">
+              <Reveal>
+                <FlowSteps steps={flow} />
+              </Reveal>
+              <Reveal delay={0.08}>
+                <CodeWindow label="webhooks.js" lines={webhookCode} />
+              </Reveal>
+            </div>
           </div>
         </div>
       </div>
-    </DarkBand>
+    </section>
   );
 }
 
@@ -1600,12 +1457,10 @@ function SecuritySection() {
   ];
 
   return (
-    <section
-      id="security"
-      className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28"
-    >
+    <section id="security" className="lp-wrap py-14 sm:py-24">
       <Reveal>
         <SectionHeading
+          align="center"
           eyebrow="Security"
           title="Payments should be verified, not assumed."
           sub="A successful payment response should never be trusted blindly. Ctex PAY verifies transactions before treating them as successful."
@@ -1613,20 +1468,22 @@ function SecuritySection() {
       </Reveal>
 
       <Reveal delay={0.05}>
-        <div className="mt-8 flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] p-4 font-mono text-[10px] sm:mt-12 sm:p-5 sm:text-xs">
+        <div className="lp-card mt-8 flex flex-wrap items-center justify-center gap-2 p-4 font-mono text-[10px] sm:mt-12 sm:p-6 sm:text-xs">
           {pipeline.map((step, i) => (
             <React.Fragment key={step}>
               <span
-                className={`whitespace-nowrap rounded-full border px-3 py-1.5 ${
-                  i === 4
-                    ? "border-Ctex-blue/50 bg-Ctex-blue/10 text-[var(--Ctex-accent)]"
-                    : "border-[var(--Ctex-border)] text-[var(--Ctex-text-muted)]"
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 ${
+                  i === 4 ? "t-accent" : "t-muted"
                 }`}
+                style={{
+                  border: `1px solid ${i === 4 ? "var(--accent)" : "var(--line)"}`,
+                  background: i === 4 ? "var(--tint)" : "var(--soft)",
+                }}
               >
                 {step}
               </span>
               {i < pipeline.length - 1 && (
-                <ArrowRight size={11} className="shrink-0 opacity-50" />
+                <ArrowRight size={11} className="t-muted shrink-0" />
               )}
             </React.Fragment>
           ))}
@@ -1636,14 +1493,14 @@ function SecuritySection() {
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((it, i) => (
           <Reveal key={it.title} delay={(i % 4) * 0.04}>
-            <div className="h-full rounded-2xl border border-[var(--Ctex-border)] p-5 transition-colors duration-200 hover:border-Ctex-blue/50">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-Ctex-blue/10">
-                <it.icon size={16} className={ACCENT} />
+            <div className={`${i % 2 === 0 ? "lp-soft" : "lp-card"} h-full p-6`}>
+              <span className="lp-chip">
+                <it.icon size={16} />
               </span>
-              <p className="mt-3 text-sm font-medium text-[var(--Ctex-text)]">
+              <p className="t-text mt-4 text-sm font-medium sm:text-base">
                 {it.title}
               </p>
-              <p className="mt-1.5 text-xs leading-relaxed text-[var(--Ctex-text-muted)]">
+              <p className="t-muted mt-1.5 text-xs leading-relaxed sm:text-sm">
                 {it.desc}
               </p>
             </div>
@@ -1695,9 +1552,10 @@ function DashboardPreview() {
   ];
 
   return (
-    <section className="relative mx-auto max-w-7xl px-4 pb-16 sm:px-6 sm:pb-28">
+    <section className="lp-wrap pb-14 pt-4 sm:pb-24">
       <Reveal>
         <SectionHeading
+          align="center"
           title="Every transaction, key, and webhook in one view."
           sub="Interface example with demo values — this is what your dashboard looks like once you're set up."
         />
@@ -1705,65 +1563,58 @@ function DashboardPreview() {
 
       <Reveal delay={0.08}>
         <div className="relative mt-8 sm:mt-12">
-          <div
-            aria-hidden
-            className="absolute -inset-x-6 -inset-y-8 -z-10 bg-[radial-gradient(closest-side,hsl(205.56deg_88.04%_36.08%_/_0.14),transparent)]"
-          />
-          <div className="overflow-hidden rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-elevated)] shadow-[0_32px_64px_-32px_rgba(5,20,40,0.45)]">
-            <div className="flex items-center gap-1.5 border-b border-[var(--Ctex-border)] px-4 py-2.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
-              <span className="ml-3 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">
+          <div aria-hidden className="lp-glow absolute -inset-x-6 -inset-y-8 -z-10" />
+          <div className="lp-card lp-r40 lp-shadow overflow-hidden">
+            <div className="lp-bb flex items-center gap-1.5 px-5 py-3">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+              <span className="t-muted ml-3 font-mono text-[10px] sm:text-xs">
                 Dashboard
               </span>
             </div>
 
-            <div className="grid grid-cols-2 divide-x divide-y divide-[var(--Ctex-border)] border-b border-[var(--Ctex-border)] sm:grid-cols-5 sm:divide-y-0">
+            <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-5 sm:p-5">
               {stats.map((s) => (
-                <div key={s.label} className="px-3 py-3 sm:px-5 sm:py-5">
-                  <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">
-                    {s.label}
-                  </p>
-                  <p className="mt-1 font-mono text-sm text-[var(--Ctex-text)] sm:mt-1.5 sm:text-lg">
+                <div key={s.label} className="lp-soft !rounded-2xl px-4 py-4">
+                  <p className="t-muted text-[10px] sm:text-xs">{s.label}</p>
+                  <p className="t-text mt-1 font-mono text-sm sm:mt-1.5 sm:text-lg">
                     {s.value}
                   </p>
                 </div>
               ))}
             </div>
 
-            <div className="grid lg:grid-cols-[1.4fr_1fr]">
-              <div className="border-b border-[var(--Ctex-border)] p-4 sm:p-5 lg:border-b-0 lg:border-r">
-                <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">
+            <div className="lp-bt grid lg:grid-cols-[1.4fr_1fr]">
+              <div className="lp-bb p-5 sm:p-6 lg:border-b-0 lg:border-r lg:[border-right:1px_solid_var(--line)]">
+                <p className="t-text text-xs font-medium sm:text-sm">
                   Recent transactions
                 </p>
-                <div className="mt-3 divide-y divide-[var(--Ctex-border)] sm:mt-4">
+                <div className="lp-divide mt-3 sm:mt-4">
                   {transactions.map((t) => {
                     const meta = statusMeta[t.status];
                     return (
                       <div
                         key={t.ref}
-                        className="flex items-center justify-between gap-2 py-2.5 sm:py-3"
+                        className="flex items-center justify-between gap-2 py-3"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-mono text-[10px] text-[var(--Ctex-text)] sm:text-xs">
+                          <p className="t-text truncate font-mono text-[10px] sm:text-xs">
                             {t.ref}
                           </p>
-                          <p className="mt-0.5 truncate font-mono text-[9px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
+                          <p className="t-muted mt-0.5 truncate font-mono text-[9px] sm:text-[11px]">
                             {t.customer}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
-                          <span className="font-mono text-[10px] text-[var(--Ctex-text)] sm:text-xs">
+                          <span className="t-text font-mono text-[10px] sm:text-xs">
                             {t.amount}
                           </span>
                           <span
                             className={`flex items-center gap-1 text-[10px] sm:text-xs ${meta.color}`}
                           >
                             <meta.icon size={11} />
-                            <span className="hidden sm:inline">
-                              {meta.label}
-                            </span>
+                            <span className="hidden sm:inline">{meta.label}</span>
                           </span>
                         </div>
                       </div>
@@ -1772,28 +1623,24 @@ function DashboardPreview() {
                 </div>
               </div>
 
-              <div className="p-4 sm:p-5">
-                <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">
-                  API keys
-                </p>
+              <div className="p-5 sm:p-6">
+                <p className="t-text text-xs font-medium sm:text-sm">API keys</p>
                 <div className="mt-3 space-y-2.5 sm:mt-4 sm:space-y-3">
                   <div className="flex items-center justify-between gap-2 font-mono text-[10px] sm:text-xs">
-                    <span className="truncate text-[var(--Ctex-text)]">
+                    <span className="t-text truncate">
                       Ctex_live_saka_••••••••8f21
                     </span>
                     <span className="shrink-0 text-emerald-500">Active</span>
                   </div>
                   <div className="flex items-center justify-between gap-2 font-mono text-[10px] sm:text-xs">
-                    <span className="truncate text-[var(--Ctex-text)]">
+                    <span className="t-text truncate">
                       Ctex_test_saka_••••••••1a09
                     </span>
-                    <span className="shrink-0 text-[var(--Ctex-text-muted)]">
-                      Test mode
-                    </span>
+                    <span className="t-muted shrink-0">Test mode</span>
                   </div>
                 </div>
 
-                <p className="mt-5 text-xs font-medium text-[var(--Ctex-text)] sm:mt-6 sm:text-sm">
+                <p className="t-text mt-5 text-xs font-medium sm:mt-6 sm:text-sm">
                   Webhook status
                 </p>
                 <div className="mt-2.5 flex items-center gap-2 font-mono text-[10px] sm:mt-3 sm:text-xs">
@@ -1801,11 +1648,11 @@ function DashboardPreview() {
                     size={7}
                     className="shrink-0 fill-emerald-500 text-emerald-500"
                   />
-                  <span className="truncate text-[var(--Ctex-text)]">
+                  <span className="t-text truncate">
                     api.yourapp.com/webhooks/Ctexpay
                   </span>
                 </div>
-                <p className="mt-1 text-[10px] text-[var(--Ctex-text-muted)] sm:text-[11px]">
+                <p className="t-muted mt-1 text-[10px] sm:text-[11px]">
                   Last delivery succeeded
                 </p>
               </div>
@@ -1855,12 +1702,10 @@ function MerchantFlow() {
   ];
 
   return (
-    <section
-      id="merchant-flow"
-      className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28"
-    >
+    <section id="merchant-flow" className="lp-wrap py-14 sm:py-24">
       <Reveal>
         <SectionHeading
+          align="center"
           eyebrow="Merchant experience"
           title="From account to payout, in one flow."
         />
@@ -1870,17 +1715,13 @@ function MerchantFlow() {
           {steps.map((s, i) => (
             <div
               key={s.title}
-              className="rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] p-4 transition-colors duration-200 hover:border-Ctex-blue/50 sm:p-5"
+              className={`${i % 2 === 0 ? "lp-soft" : "lp-card"} p-4 sm:p-6`}
             >
-              <span
-                className={`flex h-7 w-7 items-center justify-center rounded-full bg-Ctex-blue/10 font-mono text-[10px] sm:text-xs ${ACCENT}`}
-              >
-                {i + 1}
-              </span>
-              <p className="mt-3 text-xs font-medium text-[var(--Ctex-text)] sm:text-base">
+              <span className="lp-chip font-mono text-xs">{i + 1}</span>
+              <p className="t-text mt-4 text-xs font-medium sm:text-base">
                 {s.title}
               </p>
-              <p className="mt-1 text-[11px] leading-relaxed text-[var(--Ctex-text-muted)] sm:text-sm">
+              <p className="t-muted mt-1 text-[11px] leading-relaxed sm:text-sm">
                 {s.desc}
               </p>
             </div>
@@ -1902,8 +1743,8 @@ function CustomerFlow() {
     "Merchant webhook",
   ];
   return (
-    <section className="border-y border-[var(--Ctex-border)] bg-[var(--Ctex-surface)]">
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24">
+    <section className="lp-wrap py-6 sm:py-10">
+      <div className="lp-soft lp-r40 p-6 sm:p-12">
         <Reveal>
           <SectionHeading
             eyebrow="Customer experience"
@@ -1912,20 +1753,18 @@ function CustomerFlow() {
           />
         </Reveal>
         <Reveal delay={0.06}>
-          <div className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-3 font-mono text-[10px] text-[var(--Ctex-text-muted)] sm:mt-12 sm:text-xs md:text-sm">
+          <div className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-3 font-mono text-[10px] sm:mt-12 sm:text-xs md:text-sm">
             {steps.map((step, i) => (
               <React.Fragment key={step}>
                 <span
-                  className={`whitespace-nowrap rounded-full border px-3 py-1.5 sm:px-4 sm:py-2 ${
-                    step === "Ctex PAY"
-                      ? "border-Ctex-blue bg-Ctex-blue text-white"
-                      : "border-[var(--Ctex-border)] bg-[var(--Ctex-elevated)] text-[var(--Ctex-text)]"
+                  className={`whitespace-nowrap rounded-full px-3 py-1.5 sm:px-4 sm:py-2 ${
+                    step === "Ctex PAY" ? "lp-accent" : "lp-card t-text !rounded-full"
                   }`}
                 >
                   {step}
                 </span>
                 {i < steps.length - 1 && (
-                  <ArrowRight size={12} className="shrink-0 opacity-50" />
+                  <ArrowRight size={12} className="t-muted shrink-0" />
                 )}
               </React.Fragment>
             ))}
@@ -2072,10 +1911,9 @@ function TabButton({ active, onClick, children, icon: Icon }) {
       onClick={onClick}
       aria-pressed={active}
       className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs font-semibold transition-colors sm:text-sm ${
-        active
-          ? "bg-[#0B68AD] text-white shadow-[0_6px_16px_-6px_rgba(11,104,173,0.7)] dark:bg-[#5CB3F0] dark:text-[#04121F] dark:shadow-[0_6px_16px_-6px_rgba(92,179,240,0.6)]"
-          : "text-[var(--Ctex-text-muted)] hover:bg-[var(--Ctex-bg)] hover:text-[var(--Ctex-text)]"
+        active ? "" : "t-muted"
       }`}
+      style={active ? { background: "var(--ink)", color: "var(--ink-fg)" } : undefined}
     >
       {Icon && <Icon size={14} />}
       {children}
@@ -2112,17 +1950,32 @@ function PricingCalculator() {
   const activeError = tab === "payin" ? payin.errors[0] : payout.errors[0];
   const showError = Boolean(activeError);
 
+  const modeBtn = (mode, label) => (
+    <button
+      type="button"
+      onClick={() => setFeeMode(mode)}
+      aria-pressed={feeMode === mode}
+      className={`flex-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+        feeMode === mode ? "" : "t-muted"
+      }`}
+      style={
+        feeMode === mode
+          ? { background: "var(--ink)", color: "var(--ink-fg)" }
+          : undefined
+      }
+    >
+      {label}
+    </button>
+  );
+
   return (
-    <div className="Ctex-calc relative overflow-hidden rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] shadow-[0_24px_48px_-28px_rgba(11,104,173,0.35)]">
-      <div className="flex items-center gap-2 border-b border-[var(--Ctex-border)] px-4 py-3 sm:px-6 sm:py-4">
-        <Calculator size={16} className={ACCENT} />
-        <p className="text-sm font-medium text-[var(--Ctex-text)]">
-          Pricing calculator
-        </p>
+    <div className="lp-calc lp-card lp-r40 lp-shadow relative overflow-hidden">
+      <div className="lp-bb flex items-center gap-2 px-5 py-4 sm:px-7">
+        <Calculator size={16} className="t-accent" />
+        <p className="t-text text-sm font-medium">Pricing calculator</p>
       </div>
 
-      {/* Tab switch */}
-      <div className="mx-4 mt-4 flex rounded-full bg-[var(--Ctex-elevated)] p-1 sm:mx-6">
+      <div className="lp-soft mx-5 mt-5 flex !rounded-full p-1 sm:mx-7">
         <TabButton
           active={tab === "payin"}
           onClick={() => setTab("payin")}
@@ -2139,7 +1992,7 @@ function PricingCalculator() {
         </TabButton>
       </div>
 
-      <div className="space-y-5 p-4 sm:p-6">
+      <div className="space-y-5 p-5 sm:p-7">
         <AnimatePresence mode="wait">
           {tab === "payin" ? (
             <motion.div
@@ -2151,13 +2004,11 @@ function PricingCalculator() {
               className="space-y-4"
             >
               <label className="block">
-                <span className="text-xs font-medium text-[var(--Ctex-text-muted)]">
+                <span className="t-muted text-xs font-medium">
                   Customer pays (NGN)
                 </span>
-                <div className="mt-1.5 flex items-center rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-elevated)] pl-3 focus-within:border-Ctex-blue">
-                  <span className="pr-2 font-mono text-sm text-[var(--Ctex-text-muted)]">
-                    ₦
-                  </span>
+                <div className="lp-input mt-1.5">
+                  <span className="t-muted pr-2 font-mono text-sm">₦</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -2165,27 +2016,23 @@ function PricingCalculator() {
                     step="0.01"
                     value={payinInput}
                     onChange={(e) => setPayinInput(e.target.value)}
-                    className="h-11 w-full rounded-r-xl bg-transparent pr-3 text-sm text-[var(--Ctex-text)] outline-none"
+                    className="t-text h-11 w-full bg-transparent pr-3 text-sm outline-none"
                     placeholder="25000"
                     aria-label="Payin amount in naira"
                   />
                 </div>
               </label>
 
-              <div className="rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-4">
+              <div className="lp-soft !rounded-2xl p-4">
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[var(--Ctex-text-muted)]">
-                      C-TEX service fee
-                    </span>
-                    <span className="font-mono text-[var(--Ctex-text)]">
+                    <span className="t-muted">C-TEX service fee</span>
+                    <span className="t-text font-mono">
                       {showError ? "—" : formatNairaFromKobo(payin.serviceFee)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-3 border-t border-[var(--Ctex-border)] pt-2">
-                    <span className="font-medium text-[var(--Ctex-text)]">
-                      You receive
-                    </span>
+                  <div className="lp-bt flex items-center justify-between gap-3 pt-2">
+                    <span className="t-text font-medium">You receive</span>
                     <span className="font-mono font-semibold text-emerald-500">
                       {showError ? "—" : formatNairaFromKobo(payin.merchantNet)}
                     </span>
@@ -2193,7 +2040,7 @@ function PricingCalculator() {
                 </div>
               </div>
 
-              <p className="flex items-start gap-2 text-[11px] leading-relaxed text-[var(--Ctex-text-muted)]">
+              <p className="t-muted flex items-start gap-2 text-[11px] leading-relaxed">
                 <Info size={13} className="mt-0.5 shrink-0" />
                 Based on {DEFAULT_PAYIN_PRICING.percentageRateBps / 100}% +{" "}
                 {formatNairaFromKobo(DEFAULT_PAYIN_PRICING.fixedAmount)} per
@@ -2212,13 +2059,11 @@ function PricingCalculator() {
               className="space-y-4"
             >
               <label className="block">
-                <span className="text-xs font-medium text-[var(--Ctex-text-muted)]">
+                <span className="t-muted text-xs font-medium">
                   Withdrawal amount (NGN)
                 </span>
-                <div className="mt-1.5 flex items-center rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-elevated)] pl-3 focus-within:border-Ctex-blue">
-                  <span className="pr-2 font-mono text-sm text-[var(--Ctex-text-muted)]">
-                    ₦
-                  </span>
+                <div className="lp-input mt-1.5">
+                  <span className="t-muted pr-2 font-mono text-sm">₦</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -2226,7 +2071,7 @@ function PricingCalculator() {
                     step="0.01"
                     value={payoutInput}
                     onChange={(e) => setPayoutInput(e.target.value)}
-                    className="h-11 w-full rounded-r-xl bg-transparent pr-3 text-sm text-[var(--Ctex-text)] outline-none"
+                    className="t-text h-11 w-full bg-transparent pr-3 text-sm outline-none"
                     placeholder="25000"
                     aria-label="Payout amount in naira"
                   />
@@ -2234,71 +2079,37 @@ function PricingCalculator() {
               </label>
 
               <div>
-                <span className="text-xs font-medium text-[var(--Ctex-text-muted)]">
-                  Charge mode
-                </span>
-                <div className="mt-1.5 flex rounded-full bg-[var(--Ctex-elevated)] p-1">
-                  <button
-                    type="button"
-                    onClick={() => setFeeMode("FEE_ON_TOP")}
-                    aria-pressed={feeMode === "FEE_ON_TOP"}
-                    className={`flex-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-                      feeMode === "FEE_ON_TOP"
-                        ? "bg-[#0B68AD] text-white shadow-[0_2px_8px_-2px_rgba(11,104,173,0.5)] dark:bg-[#5CB3F0] dark:text-[#04121F]"
-                        : "text-[var(--Ctex-text-muted)] hover:bg-[var(--Ctex-bg)] hover:text-[var(--Ctex-text)]"
-                    }`}
-                  >
-                    Fee on top
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFeeMode("DEDUCT_FROM_AMOUNT")}
-                    aria-pressed={feeMode === "DEDUCT_FROM_AMOUNT"}
-                    className={`flex-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-                      feeMode === "DEDUCT_FROM_AMOUNT"
-                        ? "bg-[#0B68AD] text-white shadow-[0_2px_8px_-2px_rgba(11,104,173,0.5)] dark:bg-[#5CB3F0] dark:text-[#04121F]"
-                        : "text-[var(--Ctex-text-muted)] hover:bg-[var(--Ctex-bg)] hover:text-[var(--Ctex-text)]"
-                    }`}
-                  >
-                    Deduct from amount
-                  </button>
+                <span className="t-muted text-xs font-medium">Charge mode</span>
+                <div className="lp-soft mt-1.5 flex !rounded-full p-1">
+                  {modeBtn("FEE_ON_TOP", "Fee on top")}
+                  {modeBtn("DEDUCT_FROM_AMOUNT", "Deduct from amount")}
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-4">
+              <div className="lp-soft !rounded-2xl p-4">
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[var(--Ctex-text-muted)]">
-                      Withdrawal charge
-                    </span>
-                    <span className="font-mono text-[var(--Ctex-text)]">
+                    <span className="t-muted">Withdrawal charge</span>
+                    <span className="t-text font-mono">
                       {showError ? "—" : formatNairaFromKobo(payout.feeAmount)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[var(--Ctex-text-muted)]">
-                      Wallet debit
-                    </span>
-                    <span className="font-mono text-[var(--Ctex-text)]">
-                      {showError
-                        ? "—"
-                        : formatNairaFromKobo(payout.walletDebit)}
+                    <span className="t-muted">Wallet debit</span>
+                    <span className="t-text font-mono">
+                      {showError ? "—" : formatNairaFromKobo(payout.walletDebit)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-3 border-t border-[var(--Ctex-border)] pt-2">
-                    <span className="font-medium text-[var(--Ctex-text)]">
-                      Beneficiary receives
-                    </span>
+                  <div className="lp-bt flex items-center justify-between gap-3 pt-2">
+                    <span className="t-text font-medium">Beneficiary receives</span>
                     <span className="font-mono font-semibold text-emerald-500">
-                      {showError
-                        ? "—"
-                        : formatNairaFromKobo(payout.beneficiary)}
+                      {showError ? "—" : formatNairaFromKobo(payout.beneficiary)}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <p className="flex items-start gap-2 text-[11px] leading-relaxed text-[var(--Ctex-text-muted)]">
+              <p className="t-muted flex items-start gap-2 text-[11px] leading-relaxed">
                 <Info size={13} className="mt-0.5 shrink-0" />
                 Fixed tier charges:{" "}
                 {PAYOUT_TIERS.map((t, i) => (
@@ -2319,7 +2130,7 @@ function PricingCalculator() {
         {showError && (
           <p
             role="alert"
-            className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400"
+            className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400"
           >
             {activeError}
           </p>
@@ -2338,37 +2149,35 @@ function Pricing() {
   ];
 
   return (
-    <section
-      id="pricing"
-      className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-28"
-    >
+    <section id="pricing" className="lp-wrap py-14 sm:py-24">
       <Reveal>
         <SectionHeading
+          align="center"
           eyebrow="Pricing"
           title="Simple, transparent transaction pricing."
           sub="Estimate exactly what you'll earn on a payin, or what a payout will cost — before you build."
         />
       </Reveal>
 
-      <div className="mt-8 grid gap-6 sm:mt-12 lg:grid-cols-[1fr_minmax(0,480px)] lg:items-start">
+      <div className="mt-8 grid gap-4 sm:mt-12 lg:grid-cols-[1fr_minmax(0,480px)] lg:items-stretch">
         <Reveal delay={0.05}>
-          <div className="relative overflow-hidden rounded-2xl border border-Ctex-blue/40 bg-gradient-to-br from-Ctex-blue/10 via-[var(--Ctex-surface)] to-[var(--Ctex-surface)] p-6 shadow-[0_24px_48px_-28px_rgba(11,104,173,0.55)] sm:p-8">
-            <p className="font-display text-xl font-semibold text-[var(--Ctex-text)] sm:text-2xl">
+          <div className="lp-bento lp-tone-accent lp-r40 p-6 sm:p-10">
+            <p className="font-display text-xl font-medium sm:text-2xl">
               Transaction fee
             </p>
-            <p className="mt-1.5 text-xs text-[var(--Ctex-text-muted)] sm:mt-2 sm:text-sm">
+            <p className="t-muted mt-1.5 text-xs sm:mt-2 sm:text-sm">
               Configured by C-TEX PAY per merchant. No setup fees, no monthly
               minimums.
             </p>
-            <ul className="mt-5 space-y-2.5 text-xs text-[var(--Ctex-text-muted)] sm:mt-6 sm:space-y-3 sm:text-sm">
+            <ul className="mt-5 flex-1 space-y-2.5 text-xs sm:mt-6 sm:space-y-3 sm:text-sm">
               {features.map((t) => (
                 <li key={t} className="flex items-center gap-2">
-                  <CheckCircle2 size={14} className={`shrink-0 ${ACCENT}`} />
+                  <CheckCircle2 size={14} className="shrink-0 text-white" />
                   {t}
                 </li>
               ))}
             </ul>
-            <Button as={Link} to="/signup" className="mt-6 w-full sm:mt-8">
+            <Button as={Link} to="/signup" variant="light" className="mt-6 w-full sm:mt-8">
               Get Started
               <ArrowRight size={15} />
             </Button>
@@ -2389,23 +2198,18 @@ function Pricing() {
 
 function DocsCTA() {
   return (
-    <section
-      id="docs"
-      className="border-y border-[var(--Ctex-border)] bg-[var(--Ctex-surface)]"
-    >
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:gap-10 sm:px-6 sm:py-24 lg:grid-cols-2 lg:items-center">
+    <section id="docs" className="lp-wrap py-6 sm:py-10">
+      <div className="lp-soft lp-r40 grid gap-8 p-6 sm:gap-10 sm:p-12 lg:grid-cols-2 lg:items-center">
         <Reveal>
           <Eyebrow>Documentation</Eyebrow>
-          <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:mt-3 sm:text-4xl md:text-[2.75rem] md:leading-[1.1]">
-            Ready to integrate?
-          </h2>
-          <div className="mt-6 flex flex-wrap gap-2 sm:mt-8 sm:gap-3">
+          <h2 className="lp-h2 mt-3">Ready to integrate?</h2>
+          <div className="mt-6 flex flex-wrap items-center gap-2 sm:mt-8 sm:gap-3">
             <Button as="a" href="/docs">
               Read Documentation
-              <ArrowRight size={15} />
             </Button>
-            <Button as={Link} to="/signup" variant="secondary">
+            <Button as={Link} to="/signup" variant="ghost">
               Create Account
+              <ArrowRight size={15} />
             </Button>
           </div>
         </Reveal>
@@ -2464,56 +2268,48 @@ function FAQ() {
   const [open, setOpen] = useState(0);
 
   return (
-    <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-28">
-      <Reveal>
-        <SectionHeading eyebrow="FAQ" title="Common questions." />
-      </Reveal>
+    <section className="lp-wrap py-14 sm:py-24">
+      <div className="grid gap-10 lg:grid-cols-[0.75fr_1.25fr] lg:gap-14">
+        <Reveal>
+          <SectionHeading eyebrow="FAQ" title="Common questions." />
+        </Reveal>
 
-      <div className="mt-8 space-y-3 sm:mt-10">
-        {faqs.map((f, i) => {
-          const isOpen = open === i;
-          return (
-            <div
-              key={f.q}
-              className={`rounded-2xl border px-5 transition-colors duration-200 ${
-                isOpen
-                  ? "border-Ctex-blue/40 bg-[var(--Ctex-surface)]"
-                  : "border-[var(--Ctex-border)]"
-              }`}
-            >
-              <button
-                onClick={() => setOpen(isOpen ? -1 : i)}
-                aria-expanded={isOpen}
-                className="flex w-full items-center justify-between gap-3 py-4 text-left sm:gap-4 sm:py-5"
-              >
-                <span className="text-sm font-medium text-[var(--Ctex-text)] sm:text-base">
-                  {f.q}
-                </span>
-                <ChevronDown
-                  size={15}
-                  className={`shrink-0 text-[var(--Ctex-text-muted)] transition-transform duration-200 ${
-                    isOpen ? "rotate-180 text-[var(--Ctex-accent)]" : ""
-                  }`}
-                />
-              </button>
-              <AnimatePresence initial={false}>
-                {isOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className="overflow-hidden"
-                  >
-                    <p className="pb-4 text-xs leading-relaxed text-[var(--Ctex-text-muted)] sm:pb-5 sm:text-sm">
-                      {f.a}
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
+        <div className="space-y-3">
+          {faqs.map((f, i) => {
+            const isOpen = open === i;
+            return (
+              <div key={f.q} className={`lp-faq ${isOpen ? "is-open" : ""}`}>
+                <button
+                  onClick={() => setOpen(isOpen ? -1 : i)}
+                  aria-expanded={isOpen}
+                  className="flex w-full items-center justify-between gap-3 py-1 text-left sm:gap-4"
+                >
+                  <span className="t-text text-sm font-medium sm:text-base">
+                    {f.q}
+                  </span>
+                  <span className="lp-plus">
+                    {isOpen ? <X size={16} /> : <Plus size={16} />}
+                  </span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="overflow-hidden"
+                    >
+                      <p className="t-muted pb-4 pr-12 pt-1 text-xs leading-relaxed sm:text-sm">
+                        {f.a}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
@@ -2525,40 +2321,125 @@ function FAQ() {
 
 function FinalCTA() {
   return (
-    <DarkBand>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={dotGrid}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-0 h-[420px] w-full max-w-[900px] -translate-x-1/2 bg-[radial-gradient(closest-side,hsl(205.56deg_88.04%_46%_/_0.35),transparent)]"
-      />
-      <div className="relative mx-auto max-w-7xl px-4 py-20 text-center sm:px-6 sm:py-32">
-        <Reveal>
-          <h2 className="mx-auto max-w-3xl font-display text-3xl font-semibold tracking-tight text-[var(--Ctex-text)] sm:text-5xl sm:leading-[1.08]">
-            Your payments. Your API. Your business.
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-sm text-[var(--Ctex-text-muted)] sm:mt-5 sm:text-base">
-            Build your payment flow with infrastructure designed around
-            developers.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-2 sm:mt-10 sm:gap-3">
-            <Button as={Link} to="/signup" variant="light">
-              Get Started
-              <ArrowRight size={15} />
-            </Button>
-            <Button as="a" href="#docs" variant="secondary">
-              Explore Documentation
-            </Button>
+    <section className="lp-wrap py-3 sm:py-6">
+      <div className="lp-card lp-r40 relative px-6 py-7 sm:px-12 sm:py-8 lg:py-7">
+        {/* Decorative glow — clipped inside the banner */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+        >
+          <div className="lp-glow absolute -right-24 top-0 h-[420px] w-[620px]" />
+        </div>
+
+        {/*
+          Content grid:
+          - overflow-visible so the image can extend above the banner
+          - items-stretch + relative so children can anchor to bottom
+        */}
+        <div className="relative grid min-h-[260px] items-stretch gap-4 overflow-visible md:min-h-[250px] lg:min-h-[280px] lg:grid-cols-[1.05fr_0.95fr]">
+          {/* Left side — heading, description, CTAs */}
+          <Reveal>
+            <div className="relative z-10 flex max-w-xl flex-col justify-center py-2 md:py-4">
+              <h2 className="lp-h2 max-w-xl !text-[clamp(2rem,3.5vw,2.75rem)] !leading-tight">
+                The future of payments
+                <br />
+                is <span className="text-blue-500">borderless</span>
+              </h2>
+
+              <p className="t-muted mt-2 max-w-md text-sm leading-snug sm:text-base">
+                Your business deserves to be world-class. Join thousands of
+                merchants and businesses already scaling with C-TEX PAY.
+              </p>
+
+              <div className="mt-6 flex flex-wrap items-center gap-3 sm:mt-8">
+                <Button as={Link} to="/signup">
+                  Get started now
+                </Button>
+
+                <Button as="a" href="#docs" variant="ghost">
+                  View documentation
+                  <ArrowRight size={15} />
+                </Button>
+              </div>
+            </div>
+          </Reveal>
+
+          {/*
+            Right side — image with edge-to-edge fade applied TO THE IMAGE
+            ───────────────────────────────────────────────────────────────
+            Instead of an overlay div (which has hard rectangular edges),
+            we apply mask-image directly on the <img>. The fade follows
+            the image's own transparent shape → zero visible seams.
+          */}
+          <div className="relative hidden md:block">
+            <img
+              src={ImageLogo.Women}
+              alt="Businesswoman using C-TEX PAY"
+              draggable="false"
+              className="
+                pointer-events-none
+                absolute
+                bottom-0
+                right-[-1.5rem]
+                h-[360px]
+                w-auto
+                max-w-none
+                select-none
+                object-contain
+                object-bottom
+                md:h-[390px]
+                lg:right-[-2rem]
+                lg:h-[440px]
+              "
+              style={{
+                /*
+                  Vertical mask: image fully visible until 65% down,
+                  then fades to transparent by 100%.
+                  Horizontal mask (applied as a second layer) removes
+                  the fade near the left edge so it never cuts into
+                  the text side — even though the image doesn't reach
+                  that far, we keep it clean for safety.
+                */
+                maskImage: `
+                  linear-gradient(to bottom,
+                    black 0%,
+                    black 65%,
+                    rgba(0,0,0,0.85) 75%,
+                    rgba(0,0,0,0.4) 88%,
+                    transparent 100%
+                  ),
+                  linear-gradient(to right,
+                    transparent 0%,
+                    black 8%,
+                    black 92%,
+                    transparent 100%
+                  )
+                `,
+                WebkitMaskImage: `
+                  linear-gradient(to bottom,
+                    black 0%,
+                    black 65%,
+                    rgba(0,0,0,0.85) 75%,
+                    rgba(0,0,0,0.4) 88%,
+                    transparent 100%
+                  ),
+                  linear-gradient(to right,
+                    transparent 0%,
+                    black 8%,
+                    black 92%,
+                    transparent 100%
+                  )
+                `,
+                maskComposite: "intersect",
+                WebkitMaskComposite: "source-in",
+              }}
+            />
           </div>
-        </Reveal>
+        </div>
       </div>
-    </DarkBand>
+    </section>
   );
 }
-
 /* ------------------------------------------------------------------ */
 /* Footer                                                              */
 /* ------------------------------------------------------------------ */
@@ -2591,37 +2472,47 @@ function Footer() {
   ];
 
   return (
-    <footer className="border-t border-[var(--Ctex-border)]">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16">
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-4 sm:gap-10">
-          {columns.map((col) => (
-            <div key={col.title}>
-              <p className="text-xs font-medium text-[var(--Ctex-text)] sm:text-sm">
-                {col.title}
-              </p>
-              <ul className="mt-3 space-y-2 sm:mt-4 sm:space-y-2.5">
-                {col.links.map((link) => (
-                  <li key={link}>
-                    <a
-                      href="#"
-                      className="text-xs text-[var(--Ctex-text-muted)] hover:text-[var(--Ctex-accent)] sm:text-sm"
-                    >
-                      {link}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-[var(--Ctex-border)] pt-6 sm:mt-14 sm:flex-row sm:items-center sm:gap-4 sm:pt-8">
+    <footer className="relative mt-10 overflow-hidden">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-72"
+        style={{
+          background:
+            "radial-gradient(60% 100% at 50% 100%, var(--tint), transparent)",
+        }}
+      />
+      <div className="lp-wrap relative py-12 sm:py-16">
+        <div className="grid gap-10 lg:grid-cols-[1fr_2fr]">
           <img
             src={ImageLogo.Logo}
             alt="Ctex PAY"
-            className="h-[20px] w-[100px] rounded-full"
+            className="h-9 w-[130px] object-contain object-left"
           />
-          <p className="text-[10px] text-[var(--Ctex-text-muted)] sm:text-xs">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4 sm:gap-10">
+            {columns.map((col) => (
+              <div key={col.title}>
+                <p className="t-text text-xs font-medium sm:text-sm">
+                  {col.title}
+                </p>
+                <ul className="mt-3 space-y-2 sm:mt-4 sm:space-y-2.5">
+                  {col.links.map((link) => (
+                    <li key={link}>
+                      <a
+                        href="#"
+                        className="t-muted text-xs hover:opacity-70 sm:text-sm"
+                      >
+                        {link}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="lp-bt mt-12 pt-6 sm:mt-16 sm:pt-8">
+          <p className="t-muted text-[10px] sm:text-xs">
             © 2026 Ctex PAY. All rights reserved.
           </p>
         </div>
@@ -2638,7 +2529,7 @@ export default function LandingPage() {
   const [theme, setTheme] = useTheme();
 
   return (
-    <div className="min-h-screen bg-[var(--Ctex-bg)] font-body text-[var(--Ctex-text)]">
+    <div className="lp min-h-screen font-body">
       <GlobalStyles />
       <Navbar theme={theme} setTheme={setTheme} />
       <main>
