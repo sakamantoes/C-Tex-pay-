@@ -1206,7 +1206,7 @@ function Features() {
 
 function DeveloperSection() {
   const tabs = {
-    "Node.js": `const res = await fetch("https://api.Ctexpay.com/v1/payments", {
+    "Node.js": `const res = await fetch("https://api.Ctexpay.online/v1/payments", {
   method: "POST",
   headers: {
     Authorization: \`Bearer \${process.env.Ctex_SECRET_KEY}\`,
@@ -1222,7 +1222,7 @@ function DeveloperSection() {
 
 const payment = await res.json();`,
     cURL: `curl https://api.Ctexpay.com/v1/payments \\
-  -H "Authorization: Bearer $Ctex_SECRET_KEY" \\
+  -H "Authorization: Bearer $Ctex_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "amount": 500000,
@@ -1233,7 +1233,7 @@ const payment = await res.json();`,
     Python: `import requests
 
 response = requests.post(
-    "https://api.Ctexpay.com/v1/payments",
+    "https://api.Ctexpay.online/v1/payments",
     headers={
         "Authorization": f"Bearer {Ctex_SECRET_KEY}",
         "Content-Type": "application/json",
@@ -1247,7 +1247,7 @@ response = requests.post(
 )
 
 payment = response.json()`,
-    PHP: `$ch = curl_init("https://api.Ctexpay.com/v1/payments");
+    PHP: `$ch = curl_init("https://api.Ctexpay.online/v1/payments");
 
 curl_setopt_array($ch, [
     CURLOPT_POST => true,
@@ -1265,7 +1265,7 @@ curl_setopt_array($ch, [
 ]);
 
 $payment = json_decode(curl_exec($ch), true);`,
-    JavaScript: `const res = await fetch("https://api.Ctexpay.com/v1/payments", {
+    JavaScript: `const res = await fetch("https://api.Ctexpay.online/v1/payments", {
   method: "POST",
   headers: {
     Authorization: "Bearer Ctex_SECRET_KEY",
@@ -2250,7 +2250,7 @@ function DocsCTA() {
           <CodeWindow
             label="quickstart.sh"
             lines={`curl https://api.Ctexpay.com/v1/payments \\
-  -H "Authorization: Bearer $Ctex_SECRET_KEY" \\
+  -H "Authorization: Bearer $Ctex_API_KEY" \\
   -d amount=500000 -d currency=NGN`}
           />
         </Reveal>
