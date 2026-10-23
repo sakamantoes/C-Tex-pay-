@@ -1209,7 +1209,7 @@ function DeveloperSection() {
     "Node.js": `const res = await fetch("https://api.Ctexpay.online/v1/payments", {
   method: "POST",
   headers: {
-    Authorization: \`Bearer \${process.env.Ctex_SECRET_KEY}\`,
+    Authorization: \`Bearer \${process.env.Ctex_API_KEY}\`,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
@@ -1221,7 +1221,7 @@ function DeveloperSection() {
 });
 
 const payment = await res.json();`,
-    cURL: `curl https://api.Ctexpay.com/v1/payments \\
+    cURL: `curl https://api.Ctexpay.online/v1/payments \\
   -H "Authorization: Bearer $Ctex_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -1235,7 +1235,7 @@ const payment = await res.json();`,
 response = requests.post(
     "https://api.Ctexpay.online/v1/payments",
     headers={
-        "Authorization": f"Bearer {Ctex_SECRET_KEY}",
+        "Authorization": f"Bearer {Ctex_API_KEY}",
         "Content-Type": "application/json",
     },
     json={
@@ -1253,7 +1253,7 @@ curl_setopt_array($ch, [
     CURLOPT_POST => true,
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_HTTPHEADER => [
-        "Authorization: Bearer " . getenv("Ctex_SECRET_KEY"),
+        "Authorization: Bearer " . getenv("Ctex_API_KEY"),
         "Content-Type: application/json",
     ],
     CURLOPT_POSTFIELDS => json_encode([
@@ -1268,7 +1268,7 @@ $payment = json_decode(curl_exec($ch), true);`,
     JavaScript: `const res = await fetch("https://api.Ctexpay.online/v1/payments", {
   method: "POST",
   headers: {
-    Authorization: "Bearer Ctex_SECRET_KEY",
+    Authorization: "Bearer Ctex_API_KEY",
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
