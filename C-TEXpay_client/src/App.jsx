@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -62,7 +62,6 @@ import PaymentLinkCheckoutPage from "./page/public/PaymentLinkCheckoutPage.jsx";
 import DirectCheckoutPage from "./page/public/DirectCheckoutPage.jsx";
 import WalletPage from "./page/MerchantDashboard/WalletPage.jsx";
 
-
 const PUBLIC_PATHS = [
   "/",
   "/login",
@@ -73,10 +72,12 @@ const PUBLIC_PATHS = [
   "/reset-password",
   "/accept-invitation",
   "/pay",
-"/checkout",  
+  "/checkout",
 ];
 
 const MERCHANT_WORKSPACE_ROLES = [ROLES.USER, ROLES.MERCHANT];
+
+const MIN_LOADER_MS = 2000; // how long the loader stays at minimum
 
 const isPublicPath = (pathname) =>
   PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -96,6 +97,7 @@ const AppRoutes = () => {
     useAuthStore();
   const location = useLocation();
   const hasBootstrappedSession = useRef(false);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
   useEffect(() => {
     if (hasBootstrappedSession.current) return;
@@ -103,7 +105,12 @@ const AppRoutes = () => {
     getMe();
   }, [getMe]);
 
-  if (!initialized) return <FullScreenLoader />;
+  useEffect(() => {
+    const timer = setTimeout(() => setMinTimeElapsed(true), MIN_LOADER_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!initialized || !minTimeElapsed) return <FullScreenLoader />;
 
   if (verificationRequired && !isPublicPath(location.pathname)) {
     const email = verificationEmail
@@ -212,9 +219,36 @@ const AppRoutes = () => {
         }
       />
 
-      <Route path="/merchant/dashboard/wallet" element={<ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}><PermissionGuard permission="ledger.read"><WalletPage /></PermissionGuard></ProtectedRoute>} />
-      <Route path="/merchant/dashboard/wallet/transactions" element={<ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}><PermissionGuard permission="ledger.read"><WalletPage /></PermissionGuard></ProtectedRoute>} />
-      <Route path="/merchant/dashboard/wallet/withdraw" element={<ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}><PermissionGuard permission="payouts.create"><WalletPage /></PermissionGuard></ProtectedRoute>} />
+      <Route
+        path="/merchant/dashboard/wallet"
+        element={
+          <ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}>
+            <PermissionGuard permission="ledger.read">
+              <WalletPage />
+            </PermissionGuard>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/merchant/dashboard/wallet/transactions"
+        element={
+          <ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}>
+            <PermissionGuard permission="ledger.read">
+              <WalletPage />
+            </PermissionGuard>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/merchant/dashboard/wallet/withdraw"
+        element={
+          <ProtectedRoute allowedRoles={MERCHANT_WORKSPACE_ROLES}>
+            <PermissionGuard permission="payouts.create">
+              <WalletPage />
+            </PermissionGuard>
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/merchant/dashboard/webhooks"
@@ -333,9 +367,30 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route path="/admin/merchants" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><PlatformMerchantsPage platformRole="ADMIN" /></ProtectedRoute>} />
-      <Route path="/admin/merchants/:merchantId" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><PlatformMerchantsPage platformRole="ADMIN" /></ProtectedRoute>} />
-      <Route path="/admin/audit-logs" element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]}><PlatformAuditLogsPage platformRole="ADMIN" /></ProtectedRoute>} />
+      <Route
+        path="/admin/merchants"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+            <PlatformMerchantsPage platformRole="ADMIN" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/merchants/:merchantId"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+            <PlatformMerchantsPage platformRole="ADMIN" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/audit-logs"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+            <PlatformAuditLogsPage platformRole="ADMIN" />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/super-admin/dashboard"
         element={
@@ -360,11 +415,46 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route path="/super-admin/merchants" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformMerchantsPage platformRole="SUPER_ADMIN" /></ProtectedRoute>} />
-      <Route path="/super-admin/merchants/:merchantId" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformMerchantsPage platformRole="SUPER_ADMIN" /></ProtectedRoute>} />
-      <Route path="/super-admin/audit-logs" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformAuditLogsPage platformRole="SUPER_ADMIN" /></ProtectedRoute>} />
-      <Route path="/super-admin/financials" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><PlatformFinancialsPage /></ProtectedRoute>} />
-      <Route path="/super-admin/withdrawal-fees" element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}><WithdrawalFeeSettingsPage /></ProtectedRoute>} />
+      <Route
+        path="/super-admin/merchants"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <PlatformMerchantsPage platformRole="SUPER_ADMIN" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/super-admin/merchants/:merchantId"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <PlatformMerchantsPage platformRole="SUPER_ADMIN" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/super-admin/audit-logs"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <PlatformAuditLogsPage platformRole="SUPER_ADMIN" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/super-admin/financials"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <PlatformFinancialsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/super-admin/withdrawal-fees"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <WithdrawalFeeSettingsPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="*"
