@@ -221,9 +221,42 @@ function Button({
   );
 }
 
-function IconChip({ icon: Icon }) {
+/*
+  IconChip — accepts a `tone` prop.
+  Supported tones: "accent" (default blue), "green", "orange", "oxblood".
+  Uses inline style so it overrides the .lp-hchip gradient background
+  without needing new CSS tokens.
+*/
+const CHIP_TONES = {
+  accent: {
+    background: "linear-gradient(135deg,var(--accent-2),var(--accent))",
+    boxShadow: "0 10px 22px -10px var(--accent)",
+  },
+  green: {
+    background: "linear-gradient(135deg,#22C55E,#15803D)",
+    boxShadow: "0 10px 22px -10px #15803D",
+  },
+  orange: {
+    background: "linear-gradient(135deg,#FBBF24,#EA580C)",
+    boxShadow: "0 10px 22px -10px #EA580C",
+  },
+  oxblood: {
+    background: "linear-gradient(135deg,#9F1239,#4C0519)",
+    boxShadow: "0 10px 22px -10px #7F1D1D",
+  },
+};
+
+function IconChip({ icon: Icon, tone = "accent" }) {
+  const palette = CHIP_TONES[tone] || CHIP_TONES.accent;
   return (
-    <span className="lp-hchip" aria-hidden>
+    <span
+      className="lp-hchip"
+      aria-hidden
+      style={{
+        background: palette.background,
+        boxShadow: palette.boxShadow,
+      }}
+    >
       <Icon strokeWidth={2.2} />
     </span>
   );
@@ -832,9 +865,9 @@ function Hero() {
             </span>
           </div>
           <h1 className="t-text mt-5 font-display text-[2.7rem] font-medium leading-[1.05] tracking-tight sm:text-6xl lg:text-[4.25rem]">
-            Accept <IconChip icon={Wallet} /> payments.
+            Accept <IconChip icon={Wallet} tone="green" /> payments.
             <span className="t-muted block">
-              Build <IconChip icon={Webhook} /> faster.
+              Build <IconChip icon={Webhook} tone="orange" /> faster.
             </span>
           </h1>
           <p className="t-text mt-5 max-w-md text-sm leading-relaxed sm:mt-6 sm:text-[15px]">
@@ -2331,13 +2364,7 @@ function FinalCTA() {
           <div className="lp-glow absolute -right-24 top-0 h-[420px] w-[620px]" />
         </div>
 
-        {/*
-          Content grid:
-          - overflow-visible so the image can extend above the banner
-          - items-stretch + relative so children can anchor to bottom
-        */}
         <div className="relative grid min-h-[260px] items-stretch gap-4 overflow-visible md:min-h-[250px] lg:min-h-[280px] lg:grid-cols-[1.05fr_0.95fr]">
-          {/* Left side — heading, description, CTAs */}
           <Reveal>
             <div className="relative z-10 flex max-w-xl flex-col justify-center py-2 md:py-4">
               <h2 className="lp-h2 max-w-xl !text-[clamp(2rem,3.5vw,2.75rem)] !leading-tight">
@@ -2364,13 +2391,6 @@ function FinalCTA() {
             </div>
           </Reveal>
 
-          {/*
-            Right side — image with edge-to-edge fade applied TO THE IMAGE
-            ───────────────────────────────────────────────────────────────
-            Instead of an overlay div (which has hard rectangular edges),
-            we apply mask-image directly on the <img>. The fade follows
-            the image's own transparent shape → zero visible seams.
-          */}
           <div className="relative hidden md:block">
             <img
               src={ImageLogo.Women}
@@ -2392,14 +2412,6 @@ function FinalCTA() {
                 lg:h-[440px]
               "
               style={{
-                /*
-                  Vertical mask: image fully visible until 65% down,
-                  then fades to transparent by 100%.
-                  Horizontal mask (applied as a second layer) removes
-                  the fade near the left edge so it never cuts into
-                  the text side — even though the image doesn't reach
-                  that far, we keep it clean for safety.
-                */
                 maskImage: `
                   linear-gradient(to bottom,
                     black 0%,
