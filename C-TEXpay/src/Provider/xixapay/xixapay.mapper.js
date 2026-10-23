@@ -52,7 +52,7 @@ export function normalizeXixapayPhone(value) {
 
   if (!/^0[789]\d{9}$/.test(nationalNumber)) {
     const err = new Error(
-      "Xixapay requires an 11-digit Nigerian phone number, such as 08012345678 or +2348012345678."
+      "Ctexpay requires an 11-digit Nigerian phone number, such as 08012345678 or +2348012345678."
     );
     err.code = "XIXAPAY_PHONE_FORMAT_UNSUPPORTED";
     throw err;
