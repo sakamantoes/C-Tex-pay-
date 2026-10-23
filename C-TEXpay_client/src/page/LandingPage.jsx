@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
@@ -23,12 +23,13 @@ import {
   Circle,
   Clock,
   XCircle,
+  Calculator,
+  Info,
 } from "lucide-react";
 import { ImageLogo } from "../utils/image";
 
 /* ------------------------------------------------------------------ */
-/* Global styles — accent + code colours as CSS vars, three cheap      */
-/* transform-only animations (all disabled for reduced-motion users)   */
+/* Global styles                                                       */
 /* ------------------------------------------------------------------ */
 
 function GlobalStyles() {
@@ -46,8 +47,6 @@ function GlobalStyles() {
       @keyframes Ctex-bar-fill{0%{width:0%}100%{width:100%}}
       @keyframes Ctex-count{0%{opacity:0}100%{opacity:1}}
       @keyframes Ctex-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
-      @keyframes Ctex-slide-in{0%{opacity:0;transform:translateY(-10px);max-height:0}100%{opacity:1;transform:translateY(0);max-height:60px}}
-      @keyframes Ctex-slide-out{0%{opacity:1;transform:translateY(0);max-height:60px}100%{opacity:0;transform:translateY(10px);max-height:0}}
       .Ctex-marquee{animation:Ctex-marquee 38s linear infinite}
       .Ctex-float{animation:Ctex-float 6s ease-in-out infinite}
       .Ctex-ping{animation:Ctex-ping 2s cubic-bezier(0,0,.2,1) infinite}
@@ -59,6 +58,10 @@ function GlobalStyles() {
       .Ctex-count{animation:Ctex-count 0.3s ease forwards}
       .Ctex-shimmer{background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.15) 50%,transparent 100%);background-size:200% 100%;animation:Ctex-shimmer 1.8s ease infinite}
       @media (prefers-reduced-motion:reduce){.Ctex-marquee,.Ctex-float,.Ctex-ping,.Ctex-spin,.Ctex-check-draw,.Ctex-fade-up,.Ctex-pulse-ring,.Ctex-bar-fill,.Ctex-count,.Ctex-shimmer{animation:none}}
+      /* Remove number input spinners for a cleaner calculator UI */
+      .Ctex-calc input[type=number]::-webkit-outer-spin-button,
+      .Ctex-calc input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+      .Ctex-calc input[type=number]{-moz-appearance:textfield;appearance:textfield}
     `}</style>
   );
 }
@@ -342,7 +345,6 @@ function AnimatedOrderCard() {
 
   return (
     <div className="Ctex-float relative overflow-hidden rounded-2xl border border-Ctex-blue/30 bg-[var(--Ctex-bg)] p-4 shadow-[0_28px_56px_-20px_rgba(11,104,173,0.55)] sm:p-5">
-      {/* Animated shimmer overlay */}
       {!reduceMotion && stage < 4 && (
         <div
           aria-hidden
@@ -351,7 +353,6 @@ function AnimatedOrderCard() {
       )}
 
       <div className="relative z-20">
-        {/* Stage 0: Pending */}
         <AnimatePresence mode="wait">
           {stage === 0 && (
             <motion.div
@@ -395,7 +396,6 @@ function AnimatedOrderCard() {
             </motion.div>
           )}
 
-          {/* Stage 1: Processing / verifying */}
           {stage === 1 && (
             <motion.div
               key="processing"
@@ -442,7 +442,6 @@ function AnimatedOrderCard() {
             </motion.div>
           )}
 
-          {/* Stage 2: Webhook delivered */}
           {stage === 2 && (
             <motion.div
               key="webhook"
@@ -489,7 +488,6 @@ function AnimatedOrderCard() {
             </motion.div>
           )}
 
-          {/* Stage 3: Almost done */}
           {stage === 3 && (
             <motion.div
               key="almost"
@@ -533,7 +531,6 @@ function AnimatedOrderCard() {
             </motion.div>
           )}
 
-          {/* Stage 4: Order Completed */}
           {stage === 4 && (
             <motion.div
               key="completed"
@@ -611,7 +608,7 @@ function AnimatedOrderCard() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Navbar — adapts to whichever section is currently underneath it     */
+/* Navbar                                                              */
 /* ------------------------------------------------------------------ */
 
 function Navbar({ theme, setTheme }) {
@@ -627,7 +624,6 @@ function Navbar({ theme, setTheme }) {
       raf = 0;
       setScrolled(window.scrollY > 8);
 
-      // Probe the vertical middle of the header and see if a dark band is under it
       const header = headerRef.current;
       const probeY = header ? header.offsetHeight / 2 : 40;
       const bands = document.querySelectorAll("[data-dark-band]");
@@ -653,7 +649,6 @@ function Navbar({ theme, setTheme }) {
     };
   }, []);
 
-  // True when the nav is visually on a dark surface (dark theme OR over a dark section)
   const isDarkUI = theme === "dark" || overDark;
 
   const links = [
@@ -664,7 +659,6 @@ function Navbar({ theme, setTheme }) {
     { label: "Documentation", href: "#docs" },
   ];
 
-  // When over a dark section, force the dark palette + an explicit dark translucent background
   const headerStyle = overDark
     ? {
         ...darkVars,
@@ -683,12 +677,12 @@ function Navbar({ theme, setTheme }) {
       }`}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 sm:py-3">
-        <div className=" w-[400px]">
+        <div className="w-[180px] sm:w-[240px] lg:w-[280px]">
           <Link to="/" className="flex items-center">
             <img
               src={ImageLogo.Logo2}
               alt="Ctex PAY"
-              className="h-20 w-auto sm:h-30 sm:w-auto md:h-30 md:w-auto lg:h-2 lg:w-[140px]"
+              className="h-14 sm:h-16 lg:h-20 w-auto"
             />
           </Link>
         </div>
@@ -795,11 +789,9 @@ function Navbar({ theme, setTheme }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Hero — the one memorable element is the product composition:        */
-/* a live checkout card floating over a transaction feed.              */
+/* Hero                                                                */
 /* ------------------------------------------------------------------ */
 
-/* Pool of mock transactions that will rotate through the live feed */
 const TRANSACTION_POOL = [
   { ref: "order_10234", amount: "₦5,000.00", status: "success" },
   { ref: "order_10233", amount: "₦12,500.00", status: "success" },
@@ -822,17 +814,14 @@ function LiveTransactionFeed() {
 
   useEffect(() => {
     if (reduceMotion) return;
-
     const interval = setInterval(() => {
       setFeed((prev) => {
         const nextItem =
           TRANSACTION_POOL[nextIndexRef.current % TRANSACTION_POOL.length];
         nextIndexRef.current += 1;
-        // Push new item to top, drop the last one
         return [nextItem, ...prev].slice(0, 4);
       });
     }, 2800);
-
     return () => clearInterval(interval);
   }, [reduceMotion]);
 
@@ -884,7 +873,6 @@ function HeroVisual() {
         className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-Ctex-blue/20 via-transparent to-Ctex-blue/5"
       />
 
-      {/* Back: live transaction feed */}
       <motion.div
         initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -906,7 +894,6 @@ function HeroVisual() {
         <LiveTransactionFeed />
       </motion.div>
 
-      {/* Front: animated order card (replaces static checkout) */}
       <motion.div
         initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -1122,7 +1109,7 @@ function ProblemSolution() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Core features — bento with small live-UI visuals                    */
+/* Core features                                                       */
 /* ------------------------------------------------------------------ */
 
 function BentoCell({ icon: Icon, title, desc, children, className = "" }) {
@@ -1319,7 +1306,7 @@ function Features() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Developers + Webhooks — one dark stage                              */
+/* Developers + Webhooks                                               */
 /* ------------------------------------------------------------------ */
 
 function DeveloperSection() {
@@ -1532,7 +1519,6 @@ app.post("/webhooks/Ctexpay", (req, res) => {
           </Reveal>
         </div>
 
-        {/* Webhooks */}
         <div className="mt-20 border-t border-[var(--Ctex-border)] pt-16 sm:mt-28 sm:pt-24">
           <Reveal>
             <SectionHeading
@@ -1832,7 +1818,7 @@ function DashboardPreview() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Merchant + customer experience                                      */
+/* Merchant + customer experience                                     */
 /* ------------------------------------------------------------------ */
 
 function MerchantFlow() {
@@ -1951,10 +1937,406 @@ function CustomerFlow() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Pricing                                                             */
+/* Pricing + Calculator                                                */
 /* ------------------------------------------------------------------ */
 
+/* All money math in kobo to avoid float drift. Rates in basis points. */
+
+const BPS_ONE_HUNDRED_PERCENT = 10_000;
+const PAYIN_MIN_KOBO = 5_000; // ₦50
+const PAYIN_MAX_KOBO = 100_000_000_000; // ₦1,000,000,000
+const PAYOUT_MIN_KOBO = 10_000; // ₦100
+const PAYOUT_MAX_KOBO = 500_000_000; // ₦5,000,000
+
+/* Payout tier mirror of the C-TEX backend withdrawal fee tiers. */
+const PAYOUT_TIERS = [
+  { key: "UNDER_10000", min: 1, maxExclusive: 1_000_000, feeKobo: 2_000 }, // ₦0.01–₦9,999.99 → ₦20 fee
+  {
+    key: "FROM_10000_TO_50000",
+    min: 1_000_000,
+    maxExclusive: 5_000_000,
+    feeKobo: 4_000,
+  }, // ₦10,000–₦49,999.99 → ₦40 fee
+  { key: "FROM_50000", min: 5_000_000, maxExclusive: null, feeKobo: 8_000 }, // ₦50,000+ → ₦80 fee
+];
+
+/* Default payin pricing for the calculator — these are illustrative
+ * and configurable from your C-TEX dashboard per merchant. */
+const DEFAULT_PAYIN_PRICING = {
+  percentageRateBps: 160, // 1.60%
+  fixedAmount: 0, // ₦0
+  minimumFee: 0,
+  maximumFee: 210_000, // ₦2,100 cap
+};
+
+function formatNairaFromKobo(kobo) {
+  if (!Number.isFinite(Number(kobo))) return "—";
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(kobo) / 100);
+}
+
+function pickPayoutTier(amountKobo) {
+  if (!Number.isFinite(amountKobo) || amountKobo <= 0) return null;
+  return (
+    PAYOUT_TIERS.find(
+      (t) =>
+        amountKobo >= t.min &&
+        (t.maxExclusive == null || amountKobo < t.maxExclusive),
+    ) || null
+  );
+}
+
+/* Pure payin calculation: returns serviceFee, merchantNet, errors */
+function computePayinBreakdown({ grossKobo, pricing = DEFAULT_PAYIN_PRICING }) {
+  const errors = [];
+  if (!Number.isInteger(grossKobo)) {
+    errors.push("Enter a valid amount");
+    return { serviceFee: 0, merchantNet: 0, errors };
+  }
+  if (grossKobo < PAYIN_MIN_KOBO)
+    errors.push(`Minimum payment is ${formatNairaFromKobo(PAYIN_MIN_KOBO)}`);
+  if (grossKobo > PAYIN_MAX_KOBO)
+    errors.push(`Maximum payment is ${formatNairaFromKobo(PAYIN_MAX_KOBO)}`);
+  if (errors.length) return { serviceFee: 0, merchantNet: 0, errors };
+
+  const percentage = Math.round(
+    (grossKobo * Number(pricing.percentageRateBps || 0)) /
+      BPS_ONE_HUNDRED_PERCENT,
+  );
+  let fee = percentage + Number(pricing.fixedAmount || 0);
+
+  const minFee = Number(pricing.minimumFee || 0);
+  if (fee < minFee) fee = minFee;
+
+  if (pricing.maximumFee != null) {
+    const maxFee = Number(pricing.maximumFee);
+    if (fee > maxFee) fee = maxFee;
+  }
+  if (fee > grossKobo) fee = grossKobo;
+
+  return {
+    serviceFee: fee,
+    merchantNet: grossKobo - fee,
+    errors: [],
+  };
+}
+
+/* Pure payout calculation using fixed tiers */
+function computePayoutBreakdown({ amountKobo, feeMode }) {
+  const errors = [];
+  if (!Number.isInteger(amountKobo) || amountKobo <= 0) {
+    errors.push("Enter a valid amount");
+    return { feeAmount: 0, walletDebit: 0, beneficiary: 0, tier: null, errors };
+  }
+  if (amountKobo < PAYOUT_MIN_KOBO)
+    errors.push(
+      `Minimum withdrawal is ${formatNairaFromKobo(PAYOUT_MIN_KOBO)}`,
+    );
+  if (amountKobo > PAYOUT_MAX_KOBO)
+    errors.push(
+      `Maximum withdrawal is ${formatNairaFromKobo(PAYOUT_MAX_KOBO)}`,
+    );
+  if (errors.length)
+    return { feeAmount: 0, walletDebit: 0, beneficiary: 0, tier: null, errors };
+
+  const tier = pickPayoutTier(amountKobo);
+  if (!tier) {
+    errors.push("No fee tier covers this amount");
+    return { feeAmount: 0, walletDebit: 0, beneficiary: 0, tier: null, errors };
+  }
+
+  const feeAmount = tier.feeKobo;
+  const walletDebit =
+    feeMode === "FEE_ON_TOP" ? amountKobo + feeAmount : amountKobo;
+  const beneficiary =
+    feeMode === "FEE_ON_TOP" ? amountKobo : amountKobo - feeAmount;
+
+  if (beneficiary <= 0) {
+    errors.push("Amount is too small after the applicable charge");
+    return { feeAmount, walletDebit, beneficiary: 0, tier, errors };
+  }
+  if (walletDebit > PAYOUT_MAX_KOBO)
+    errors.push(`Total debit exceeds ${formatNairaFromKobo(PAYOUT_MAX_KOBO)}`);
+
+  return { feeAmount, walletDebit, beneficiary, tier, errors };
+}
+
+function TabButton({ active, onClick, children, icon: Icon }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs font-semibold transition-colors sm:text-sm ${
+        active
+          ? "bg-[#0B68AD] text-white shadow-[0_6px_16px_-6px_rgba(11,104,173,0.7)] dark:bg-[#5CB3F0] dark:text-[#04121F] dark:shadow-[0_6px_16px_-6px_rgba(92,179,240,0.6)]"
+          : "text-[var(--Ctex-text-muted)] hover:bg-[var(--Ctex-bg)] hover:text-[var(--Ctex-text)]"
+      }`}
+    >
+      {Icon && <Icon size={14} />}
+      {children}
+    </button>
+  );
+}
+
+function PricingCalculator() {
+  const [tab, setTab] = useState("payin");
+  const [payinInput, setPayinInput] = useState("25000");
+  const [payoutInput, setPayoutInput] = useState("25000");
+  const [feeMode, setFeeMode] = useState("FEE_ON_TOP");
+
+  const payinKobo = useMemo(() => {
+    const n = Number(payinInput);
+    return Number.isFinite(n) ? Math.round(n * 100) : NaN;
+  }, [payinInput]);
+
+  const payoutKobo = useMemo(() => {
+    const n = Number(payoutInput);
+    return Number.isFinite(n) ? Math.round(n * 100) : NaN;
+  }, [payoutInput]);
+
+  const payin = useMemo(
+    () => computePayinBreakdown({ grossKobo: payinKobo }),
+    [payinKobo],
+  );
+
+  const payout = useMemo(
+    () => computePayoutBreakdown({ amountKobo: payoutKobo, feeMode }),
+    [payoutKobo, feeMode],
+  );
+
+  const activeError = tab === "payin" ? payin.errors[0] : payout.errors[0];
+  const showError = Boolean(activeError);
+
+  return (
+    <div className="Ctex-calc relative overflow-hidden rounded-2xl border border-[var(--Ctex-border)] bg-[var(--Ctex-surface)] shadow-[0_24px_48px_-28px_rgba(11,104,173,0.35)]">
+      <div className="flex items-center gap-2 border-b border-[var(--Ctex-border)] px-4 py-3 sm:px-6 sm:py-4">
+        <Calculator size={16} className={ACCENT} />
+        <p className="text-sm font-medium text-[var(--Ctex-text)]">
+          Pricing calculator
+        </p>
+      </div>
+
+      {/* Tab switch */}
+      <div className="mx-4 mt-4 flex rounded-full bg-[var(--Ctex-elevated)] p-1 sm:mx-6">
+        <TabButton
+          active={tab === "payin"}
+          onClick={() => setTab("payin")}
+          icon={Receipt}
+        >
+          Payin
+        </TabButton>
+        <TabButton
+          active={tab === "payout"}
+          onClick={() => setTab("payout")}
+          icon={ArrowDownToLine}
+        >
+          Payout
+        </TabButton>
+      </div>
+
+      <div className="space-y-5 p-4 sm:p-6">
+        <AnimatePresence mode="wait">
+          {tab === "payin" ? (
+            <motion.div
+              key="payin"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className="space-y-4"
+            >
+              <label className="block">
+                <span className="text-xs font-medium text-[var(--Ctex-text-muted)]">
+                  Customer pays (NGN)
+                </span>
+                <div className="mt-1.5 flex items-center rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-elevated)] pl-3 focus-within:border-Ctex-blue">
+                  <span className="pr-2 font-mono text-sm text-[var(--Ctex-text-muted)]">
+                    ₦
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={payinInput}
+                    onChange={(e) => setPayinInput(e.target.value)}
+                    className="h-11 w-full rounded-r-xl bg-transparent pr-3 text-sm text-[var(--Ctex-text)] outline-none"
+                    placeholder="25000"
+                    aria-label="Payin amount in naira"
+                  />
+                </div>
+              </label>
+
+              <div className="rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-4">
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[var(--Ctex-text-muted)]">
+                      C-TEX service fee
+                    </span>
+                    <span className="font-mono text-[var(--Ctex-text)]">
+                      {showError ? "—" : formatNairaFromKobo(payin.serviceFee)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-[var(--Ctex-border)] pt-2">
+                    <span className="font-medium text-[var(--Ctex-text)]">
+                      You receive
+                    </span>
+                    <span className="font-mono font-semibold text-emerald-500">
+                      {showError ? "—" : formatNairaFromKobo(payin.merchantNet)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="flex items-start gap-2 text-[11px] leading-relaxed text-[var(--Ctex-text-muted)]">
+                <Info size={13} className="mt-0.5 shrink-0" />
+                Based on {DEFAULT_PAYIN_PRICING.percentageRateBps / 100}% +{" "}
+                {formatNairaFromKobo(DEFAULT_PAYIN_PRICING.fixedAmount)} per
+                successful payment, capped at{" "}
+                {formatNairaFromKobo(DEFAULT_PAYIN_PRICING.maximumFee)}. Actual
+                pricing is set per merchant in the dashboard.
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="payout"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className="space-y-4"
+            >
+              <label className="block">
+                <span className="text-xs font-medium text-[var(--Ctex-text-muted)]">
+                  Withdrawal amount (NGN)
+                </span>
+                <div className="mt-1.5 flex items-center rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-elevated)] pl-3 focus-within:border-Ctex-blue">
+                  <span className="pr-2 font-mono text-sm text-[var(--Ctex-text-muted)]">
+                    ₦
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={payoutInput}
+                    onChange={(e) => setPayoutInput(e.target.value)}
+                    className="h-11 w-full rounded-r-xl bg-transparent pr-3 text-sm text-[var(--Ctex-text)] outline-none"
+                    placeholder="25000"
+                    aria-label="Payout amount in naira"
+                  />
+                </div>
+              </label>
+
+              <div>
+                <span className="text-xs font-medium text-[var(--Ctex-text-muted)]">
+                  Charge mode
+                </span>
+                <div className="mt-1.5 flex rounded-full bg-[var(--Ctex-elevated)] p-1">
+                  <button
+                    type="button"
+                    onClick={() => setFeeMode("FEE_ON_TOP")}
+                    aria-pressed={feeMode === "FEE_ON_TOP"}
+                    className={`flex-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                      feeMode === "FEE_ON_TOP"
+                        ? "bg-[#0B68AD] text-white shadow-[0_2px_8px_-2px_rgba(11,104,173,0.5)] dark:bg-[#5CB3F0] dark:text-[#04121F]"
+                        : "text-[var(--Ctex-text-muted)] hover:bg-[var(--Ctex-bg)] hover:text-[var(--Ctex-text)]"
+                    }`}
+                  >
+                    Fee on top
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeeMode("DEDUCT_FROM_AMOUNT")}
+                    aria-pressed={feeMode === "DEDUCT_FROM_AMOUNT"}
+                    className={`flex-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                      feeMode === "DEDUCT_FROM_AMOUNT"
+                        ? "bg-[#0B68AD] text-white shadow-[0_2px_8px_-2px_rgba(11,104,173,0.5)] dark:bg-[#5CB3F0] dark:text-[#04121F]"
+                        : "text-[var(--Ctex-text-muted)] hover:bg-[var(--Ctex-bg)] hover:text-[var(--Ctex-text)]"
+                    }`}
+                  >
+                    Deduct from amount
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[var(--Ctex-border)] bg-[var(--Ctex-bg)] p-4">
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[var(--Ctex-text-muted)]">
+                      Withdrawal charge
+                    </span>
+                    <span className="font-mono text-[var(--Ctex-text)]">
+                      {showError ? "—" : formatNairaFromKobo(payout.feeAmount)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[var(--Ctex-text-muted)]">
+                      Wallet debit
+                    </span>
+                    <span className="font-mono text-[var(--Ctex-text)]">
+                      {showError
+                        ? "—"
+                        : formatNairaFromKobo(payout.walletDebit)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-[var(--Ctex-border)] pt-2">
+                    <span className="font-medium text-[var(--Ctex-text)]">
+                      Beneficiary receives
+                    </span>
+                    <span className="font-mono font-semibold text-emerald-500">
+                      {showError
+                        ? "—"
+                        : formatNairaFromKobo(payout.beneficiary)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="flex items-start gap-2 text-[11px] leading-relaxed text-[var(--Ctex-text-muted)]">
+                <Info size={13} className="mt-0.5 shrink-0" />
+                Fixed tier charges:{" "}
+                {PAYOUT_TIERS.map((t, i) => (
+                  <React.Fragment key={t.key}>
+                    {i > 0 ? " · " : ""}
+                    {formatNairaFromKobo(t.feeKobo)} under{" "}
+                    {t.maxExclusive == null
+                      ? "any amount"
+                      : formatNairaFromKobo(t.maxExclusive)}
+                  </React.Fragment>
+                ))}
+                . Actual rates are configured in the dashboard.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {showError && (
+          <p
+            role="alert"
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400"
+          >
+            {activeError}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Pricing() {
+  const features = [
+    "Pay only for successful transactions",
+    "No hidden integration costs",
+    "Full access to the dashboard and API",
+    "Transparent fee breakdown on every transaction",
+  ];
+
   return (
     <section
       id="pricing"
@@ -1964,35 +2346,39 @@ function Pricing() {
         <SectionHeading
           eyebrow="Pricing"
           title="Simple, transparent transaction pricing."
+          sub="Estimate exactly what you'll earn on a payin, or what a payout will cost — before you build."
         />
       </Reveal>
 
-      <Reveal delay={0.08}>
-        <div className="relative mt-8 max-w-lg overflow-hidden rounded-2xl border border-Ctex-blue/40 bg-gradient-to-br from-Ctex-blue/10 via-[var(--Ctex-surface)] to-[var(--Ctex-surface)] p-6 shadow-[0_24px_48px_-28px_rgba(11,104,173,0.55)] sm:mt-12 sm:p-8">
-          <p className="font-display text-xl font-semibold text-[var(--Ctex-text)] sm:text-2xl">
-            Transaction fee
-          </p>
-          <p className="mt-1.5 text-xs text-[var(--Ctex-text-muted)] sm:mt-2 sm:text-sm">
-            Configured by Ctex PAY per merchant. No setup fees, no monthly
-            minimums.
-          </p>
-          <ul className="mt-5 space-y-2.5 text-xs text-[var(--Ctex-text-muted)] sm:mt-6 sm:space-y-3 sm:text-sm">
-            {[
-              "Pay only for successful transactions",
-              "No hidden integration costs",
-              "Full access to the dashboard and API",
-            ].map((t) => (
-              <li key={t} className="flex items-center gap-2">
-                <CheckCircle2 size={14} className={`shrink-0 ${ACCENT}`} />
-                {t}
-              </li>
-            ))}
-          </ul>
-          <Button as={Link} to="/signup" className="mt-6 w-full sm:mt-8">
-            Get Started
-          </Button>
-        </div>
-      </Reveal>
+      <div className="mt-8 grid gap-6 sm:mt-12 lg:grid-cols-[1fr_minmax(0,480px)] lg:items-start">
+        <Reveal delay={0.05}>
+          <div className="relative overflow-hidden rounded-2xl border border-Ctex-blue/40 bg-gradient-to-br from-Ctex-blue/10 via-[var(--Ctex-surface)] to-[var(--Ctex-surface)] p-6 shadow-[0_24px_48px_-28px_rgba(11,104,173,0.55)] sm:p-8">
+            <p className="font-display text-xl font-semibold text-[var(--Ctex-text)] sm:text-2xl">
+              Transaction fee
+            </p>
+            <p className="mt-1.5 text-xs text-[var(--Ctex-text-muted)] sm:mt-2 sm:text-sm">
+              Configured by C-TEX PAY per merchant. No setup fees, no monthly
+              minimums.
+            </p>
+            <ul className="mt-5 space-y-2.5 text-xs text-[var(--Ctex-text-muted)] sm:mt-6 sm:space-y-3 sm:text-sm">
+              {features.map((t) => (
+                <li key={t} className="flex items-center gap-2">
+                  <CheckCircle2 size={14} className={`shrink-0 ${ACCENT}`} />
+                  {t}
+                </li>
+              ))}
+            </ul>
+            <Button as={Link} to="/signup" className="mt-6 w-full sm:mt-8">
+              Get Started
+              <ArrowRight size={15} />
+            </Button>
+          </div>
+        </Reveal>
+
+        <Reveal delay={0.1}>
+          <PricingCalculator />
+        </Reveal>
+      </div>
     </section>
   );
 }
@@ -2174,7 +2560,7 @@ function FinalCTA() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Footer                                                               */
+/* Footer                                                              */
 /* ------------------------------------------------------------------ */
 
 function Footer() {
@@ -2245,7 +2631,7 @@ function Footer() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Page                                                                 */
+/* Page                                                                */
 /* ------------------------------------------------------------------ */
 
 export default function LandingPage() {
