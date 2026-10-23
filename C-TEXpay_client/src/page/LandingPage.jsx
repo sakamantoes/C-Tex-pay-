@@ -682,7 +682,7 @@ function Navbar({ theme, setTheme }) {
             <img
               src={ImageLogo.Logo2}
               alt="Ctex PAY"
-              className="h-14 sm:h-16 lg:h-20 w-auto"
+              className="h-14 sm:h-12 lg:h-13 sm:w-[150px] lg:w-[180px] w-[120px] object-contain"
             />
           </Link>
         </div>

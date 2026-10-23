@@ -1,81 +1,128 @@
+import { motion, useReducedMotion } from "framer-motion";
 import { ImageLogo } from "../utils/image";
 
-export function FullScreenLoader() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-ctex-bg text-ctex-text">
-      <div className="flex flex-col items-center gap-3">
-        <div className="relative">
-          {/* Soft pulsing glow behind the logo */}
-          <span
-            aria-hidden
-            className="ctex-loader-glow pointer-events-none absolute inset-0 rounded-full bg-ctex-blue/20 blur-2xl"
-          />
+const CIRCUMFERENCE = 2 * Math.PI * 52;
 
-          {/* Logo with float + subtle scale */}
-          <img
+export function FullScreenLoader() {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ctex-bg text-ctex-text"
+    >
+      <span className="sr-only">Loading</span>
+
+      {/* Soft ambient glow behind the logo */}
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute h-72 w-72 rounded-full blur-3xl"
+        style={{
+          background: "color-mix(in srgb, var(--ctex-accent) 14%, transparent)",
+        }}
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={
+          reduceMotion
+            ? { opacity: 1, scale: 1 }
+            : { opacity: [0.6, 1, 0.6], scale: [0.95, 1.05, 0.95] }
+        }
+        transition={
+          reduceMotion
+            ? { duration: 0.4 }
+            : { duration: 3.2, repeat: Infinity, ease: "easeInOut" }
+        }
+      />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="relative flex flex-col items-center gap-8"
+      >
+        <div className="relative flex h-28 w-28 items-center justify-center">
+          {/* Expanding ripple rings */}
+          {!reduceMotion &&
+            [0, 1].map((i) => (
+              <motion.span
+                key={i}
+                aria-hidden="true"
+                className="absolute inset-0 rounded-full border border-ctex-accent/40"
+                initial={{ opacity: 0.5, scale: 0.8 }}
+                animate={{ opacity: 0, scale: 1.7 }}
+                transition={{
+                  duration: 2.4,
+                  delay: i * 1.2,
+                  repeat: Infinity,
+                  ease: "easeOut",
+                }}
+              />
+            ))}
+
+          {/* Track + spinning arc */}
+          <svg
+            viewBox="0 0 112 112"
+            className="absolute inset-0 h-28 w-28"
+            aria-hidden="true"
+          >
+            <circle
+              cx="56"
+              cy="56"
+              r="52"
+              fill="none"
+              stroke="var(--ctex-border)"
+              strokeWidth="2"
+            />
+            <motion.circle
+              cx="56"
+              cy="56"
+              r="52"
+              fill="none"
+              stroke="var(--ctex-accent)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeDasharray={`${CIRCUMFERENCE * 0.28} ${CIRCUMFERENCE}`}
+              style={{ originX: "56px", originY: "56px" }}
+              animate={reduceMotion ? undefined : { rotate: 360 }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: "linear" }}
+            />
+          </svg>
+
+          {/* Logo */}
+          <motion.img
             src={ImageLogo.Logo2}
-            alt="Loading C-TEX PAY"
-            className="ctex-loader-img relative h-20 w-auto select-none"
-            draggable="false"
+            alt=""
+            className="relative h-14 w-14 object-contain"
+            animate={
+              reduceMotion ? undefined : { scale: [1, 1.06, 1], y: [0, -2, 0] }
+            }
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
           />
         </div>
 
-        {/* Optional: shimmering "Loading" label */}
-        <p className="ctex-loader-label font-mono text-[11px] tracking-[0.25em] text-ctex-text-muted">
-          LOADING
-        </p>
-      </div>
-
-      {/* Scoped styles — keyframes + reduced-motion fallback */}
-      <style>{`
-        @keyframes ctex-loader-float {
-          0%, 100% { transform: translateY(0) scale(1); }
-          50%      { transform: translateY(-6px) scale(1.03); }
-        }
-        @keyframes ctex-loader-glow {
-          0%, 100% { opacity: 0.35; transform: scale(0.95); }
-          50%      { opacity: 0.7;  transform: scale(1.08); }
-        }
-        @keyframes ctex-loader-shimmer {
-          0%   { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-
-        .ctex-loader-img {
-          animation: ctex-loader-float 2.4s ease-in-out infinite;
-          filter: drop-shadow(0 6px 16px rgba(11, 104, 173, 0.18));
-          will-change: transform;
-        }
-
-        .ctex-loader-glow {
-          animation: ctex-loader-glow 2.4s ease-in-out infinite;
-        }
-
-        .ctex-loader-label {
-          background: linear-gradient(
-            90deg,
-            var(--ctex-text-muted) 0%,
-            var(--ctex-text) 50%,
-            var(--ctex-text-muted) 100%
-          );
-          background-size: 200% 100%;
-          -webkit-background-clip: text;
-          background-clip: text;
-          -webkit-text-fill-color: transparent;
-          animation: ctex-loader-shimmer 2s ease-in-out infinite;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .ctex-loader-img,
-          .ctex-loader-glow,
-          .ctex-loader-label {
-            animation: none !important;
-          }
-          .ctex-loader-label {
-            -webkit-text-fill-color: var(--ctex-text-muted);
-          }
-        }
-      `}</style>
+        {/* Indeterminate progress bar */}
+        <div
+          aria-hidden="true"
+          className="relative h-1 w-32 overflow-hidden rounded-full bg-ctex-border"
+        >
+          <motion.span
+            className="absolute inset-y-0 w-1/2 rounded-full"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent, var(--ctex-accent), transparent)",
+            }}
+            initial={{ x: "-100%" }}
+            animate={reduceMotion ? { x: "50%" } : { x: "200%" }}
+            transition={{
+              duration: 1.4,
+              repeat: reduceMotion ? 0 : Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        </div>
+      </motion.div>
     </div>
   );
 }
+
+export default FullScreenLoader;
