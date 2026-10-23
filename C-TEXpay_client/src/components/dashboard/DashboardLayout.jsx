@@ -135,10 +135,10 @@ function IconButton({ label, onClick, children, className = "" }) {
       aria-label={label}
       title={label}
       className={[
-        "relative inline-flex h-9 w-9 items-center justify-center rounded-xl",
+        "relative inline-flex h-9 w-9 items-center justify-center rounded-full",
         "border border-ctex-border bg-ctex-surface text-ctex-text-muted",
-        "transition-all duration-200 hover:border-ctex-blue/40 hover:text-ctex-blue",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ctex-blue/40",
+        "transition-all duration-200 hover:bg-ctex-panel hover:text-ctex-text",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ctex-accent/40",
         className,
       ].join(" ")}
     >
@@ -414,11 +414,11 @@ const DashboardLayout = ({
      SIDEBAR NAV (shared between desktop + mobile)
      -------------------------------------------------------------------- */
   const renderNav = ({ compact = false, onNavigate } = {}) => (
-    <nav className="flex-1 space-y-5 overflow-y-auto overflow-x-hidden px-2 pb-4">
+    <nav className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden px-2 pb-4">
       {effectiveNavSections.map((section) => (
         <div key={section.title} className="space-y-1">
           {!compact && (
-            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ctex-text-muted/70">
+            <p className="px-3 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-ctex-text-muted/70">
               {section.title}
             </p>
           )}
@@ -432,6 +432,7 @@ const DashboardLayout = ({
             );
             const isSelected = selectedKey === item.key || childSelected;
             const flyoutActive = flyoutKey === item.key;
+            const isActive = isSelected || flyoutActive;
 
             return (
               <div key={item.key} className="relative">
@@ -449,15 +450,23 @@ const DashboardLayout = ({
                   className={[
                     "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                     compact ? "justify-center px-2" : "justify-between",
-                    isSelected || flyoutActive
-                      ? "text-ctex-blue"
-                      : "text-ctex-text-muted hover:bg-ctex-elevated hover:text-ctex-text",
+                    isActive
+                      ? "text-ctex-text"
+                      : "text-ctex-text-muted hover:bg-ctex-panel hover:text-ctex-text",
                   ].join(" ")}
                 >
-                  {(isSelected || flyoutActive) && !compact && (
+                  {/* Left-edge active indicator */}
+                  {isActive && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -left-2 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-ctex-accent"
+                    />
+                  )}
+
+                  {isActive && !compact && (
                     <motion.span
                       layoutId="nav-active"
-                      className="absolute inset-0 -z-10 rounded-xl bg-ctex-blue/10 ring-1 ring-ctex-blue/20"
+                      className="absolute inset-0 -z-10 rounded-xl bg-ctex-panel"
                       transition={
                         prefersReducedMotion
                           ? { duration: 0 }
@@ -465,8 +474,8 @@ const DashboardLayout = ({
                       }
                     />
                   )}
-                  {(isSelected || flyoutActive) && compact && (
-                    <span className="absolute inset-0 -z-10 rounded-xl bg-ctex-blue/10" />
+                  {isActive && compact && (
+                    <span className="absolute inset-0 -z-10 rounded-xl bg-ctex-panel" />
                   )}
 
                   <span
@@ -475,7 +484,11 @@ const DashboardLayout = ({
                       compact ? "justify-center" : "",
                     ].join(" ")}
                   >
-                    <Icon size={18} strokeWidth={2.2} />
+                    <Icon
+                      size={18}
+                      strokeWidth={2}
+                      className={isActive ? "text-ctex-accent" : ""}
+                    />
                     {!compact && <span className="truncate">{item.label}</span>}
                   </span>
 
@@ -487,6 +500,13 @@ const DashboardLayout = ({
                         <ChevronRight size={15} />
                       )}
                     </span>
+                  )}
+
+                  {!hasChildren && !compact && isSelected && (
+                    <ChevronRight
+                      size={15}
+                      className="flex-shrink-0 text-ctex-text-muted"
+                    />
                   )}
                 </button>
 
@@ -512,13 +532,13 @@ const DashboardLayout = ({
                             className={[
                               "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors",
                               selectedKey === child.key
-                                ? "text-ctex-blue"
+                                ? "font-medium text-ctex-text"
                                 : "text-ctex-text-muted hover:text-ctex-text",
                             ].join(" ")}
                           >
                             <span className="truncate">{child.label}</span>
                             {selectedKey === child.key && (
-                              <span className="h-1 w-1 rounded-full bg-ctex-blue" />
+                              <span className="h-1 w-1 rounded-full bg-ctex-accent" />
                             )}
                           </button>
                         ))}
@@ -553,13 +573,13 @@ const DashboardLayout = ({
                             className={[
                               "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[13px] transition",
                               selectedKey === child.key
-                                ? "bg-ctex-blue/10 text-ctex-blue"
-                                : "text-ctex-text-muted hover:bg-ctex-elevated hover:text-ctex-text",
+                                ? "bg-ctex-panel font-medium text-ctex-text"
+                                : "text-ctex-text-muted hover:bg-ctex-panel hover:text-ctex-text",
                             ].join(" ")}
                           >
                             <span className="truncate">{child.label}</span>
                             {selectedKey === child.key && (
-                              <span className="h-1 w-1 rounded-full bg-ctex-blue" />
+                              <span className="h-1 w-1 rounded-full bg-ctex-accent" />
                             )}
                           </button>
                         ))}
@@ -620,7 +640,7 @@ const DashboardLayout = ({
               setProfileOpen(false);
               navigate("/merchant/dashboard/business");
             }}
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-ctex-text-muted hover:bg-ctex-elevated hover:text-ctex-text"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-ctex-text-muted hover:bg-ctex-panel hover:text-ctex-text"
           >
             <UserCircle2 size={16} />
             My profile
@@ -631,7 +651,7 @@ const DashboardLayout = ({
               setProfileOpen(false);
               navigate("/merchant/dashboard/settings");
             }}
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-ctex-text-muted hover:bg-ctex-elevated hover:text-ctex-text"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-ctex-text-muted hover:bg-ctex-panel hover:text-ctex-text"
           >
             <Settings size={16} />
             Security
@@ -665,7 +685,7 @@ const DashboardLayout = ({
      RENDER
      -------------------------------------------------------------------- */
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-ctex-bg text-ctex-text">
+    <div className="flex h-screen w-full overflow-hidden bg-ctex-surface text-ctex-text">
       {/* ================= DESKTOP SIDEBAR ================= */}
       <motion.aside
         animate={{ width: railCollapsed ? 76 : 264 }}
@@ -674,7 +694,7 @@ const DashboardLayout = ({
             ? { duration: 0 }
             : { type: "spring", stiffness: 260, damping: 30 }
         }
-        className="relative hidden h-screen flex-shrink-0 flex-col border-r border-ctex-border bg-ctex-surface/70 backdrop-blur-xl lg:flex"
+        className="relative hidden h-screen flex-shrink-0 flex-col border-r border-ctex-border bg-ctex-surface lg:flex"
       >
         {/* ---------- Brand row ---------- */}
         <div
@@ -688,7 +708,7 @@ const DashboardLayout = ({
             onClick={() => navigate("/")}
             title="Go to homepage"
             className={[
-              "flex items-center rounded-xl py-1 transition hover:bg-ctex-elevated",
+              "flex items-center rounded-xl py-1 transition hover:bg-ctex-panel",
               railCollapsed ? "justify-center px-1" : "gap-3 px-1",
             ].join(" ")}
           >
@@ -730,7 +750,7 @@ const DashboardLayout = ({
         )}
 
         {/* ---------- Nav ---------- */}
-        <div className="flex flex-1 flex-col overflow-visible">
+        <div className="flex flex-1 flex-col overflow-visible border-t border-ctex-border/60 pt-4">
           {renderNav({ compact: railCollapsed })}
         </div>
 
@@ -749,23 +769,29 @@ const DashboardLayout = ({
             aria-expanded={profileOpen}
             title={railCollapsed ? profileName : undefined}
             className={[
-              "flex items-center gap-3 rounded-xl p-2 transition hover:bg-ctex-elevated",
+              "flex items-center gap-3 rounded-xl p-2 transition hover:bg-ctex-panel",
               railCollapsed ? "justify-center" : "w-full",
-              profileOpen ? "bg-ctex-elevated" : "",
+              profileOpen ? "bg-ctex-panel" : "",
             ].join(" ")}
           >
-            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-ctex-blue/10 text-ctex-blue">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-ctex-accent/10 text-ctex-accent">
               <UserCircle2 size={18} />
             </span>
             {!railCollapsed && (
-              <span className="min-w-0 flex-1 text-left">
-                <span className="block truncate text-sm font-medium text-ctex-text">
-                  {profileName}
+              <>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block truncate text-sm font-medium text-ctex-text">
+                    {profileName}
+                  </span>
+                  <span className="block truncate text-[11px] text-ctex-text-muted">
+                    {profileRole || `${title} account`}
+                  </span>
                 </span>
-                <span className="block truncate text-[11px] text-ctex-text-muted">
-                  {profileRole || `${title} account`}
-                </span>
-              </span>
+                <ChevronRight
+                  size={15}
+                  className="flex-shrink-0 text-ctex-text-muted"
+                />
+              </>
             )}
           </button>
 
@@ -775,21 +801,24 @@ const DashboardLayout = ({
 
       {/* ================= MAIN COLUMN ================= */}
       <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex-shrink-0 border-b border-ctex-border bg-ctex-bg/85 backdrop-blur-xl">
-          <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-5 lg:px-6 lg:py-3">
+        <header className="flex-shrink-0 bg-ctex-surface">
+          <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-5 lg:px-8 lg:py-4">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ctex-border bg-ctex-surface text-ctex-text lg:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-ctex-border bg-ctex-surface text-ctex-text lg:hidden"
             >
               <Menu size={18} />
             </button>
 
             <div className="min-w-0 flex-1">
+              <h1 className="truncate text-base font-semibold text-ctex-text sm:text-lg">
+                {activeLabel}
+              </h1>
               <nav
                 aria-label="Breadcrumb"
-                className="flex items-center gap-1 overflow-hidden text-[10px] uppercase tracking-[0.18em] text-ctex-text-muted"
+                className="mt-0.5 flex items-center gap-1 overflow-hidden text-xs text-ctex-text-muted"
               >
                 {breadcrumbs.map((crumb, i) => {
                   const isLast = i === breadcrumbs.length - 1;
@@ -803,7 +832,7 @@ const DashboardLayout = ({
                           "truncate",
                           isLast
                             ? "text-ctex-text-muted"
-                            : "text-ctex-text-muted/60",
+                            : "text-ctex-text-muted/70",
                         ].join(" ")}
                       >
                         {crumb.label}
@@ -818,9 +847,6 @@ const DashboardLayout = ({
                   );
                 })}
               </nav>
-              <h1 className="mt-0.5 truncate text-base font-semibold text-ctex-text sm:text-lg">
-                {activeLabel}
-              </h1>
             </div>
 
             {/* Workspace switcher */}
@@ -829,9 +855,9 @@ const DashboardLayout = ({
                 <button
                   type="button"
                   onClick={() => setWorkspaceOpen((v) => !v)}
-                  className="flex h-9 items-center gap-2 rounded-xl border border-ctex-border bg-ctex-surface px-2.5 text-xs font-medium text-ctex-text transition hover:border-ctex-blue/40 sm:px-3"
+                  className="flex h-9 items-center gap-2 rounded-full border border-ctex-border bg-ctex-surface px-3 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel sm:px-3.5"
                 >
-                  <Building2 size={14} className="text-ctex-blue" />
+                  <Building2 size={14} className="text-ctex-accent" />
                   <span className="max-w-[120px] truncate">
                     {activeMembership?.isOwner
                       ? "My merchant"
@@ -871,16 +897,16 @@ const DashboardLayout = ({
                               className={[
                                 "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition",
                                 active
-                                  ? "bg-ctex-blue/10 text-ctex-blue"
-                                  : "text-ctex-text-muted hover:bg-ctex-elevated hover:text-ctex-text",
+                                  ? "bg-ctex-panel text-ctex-text"
+                                  : "text-ctex-text-muted hover:bg-ctex-panel hover:text-ctex-text",
                               ].join(" ")}
                             >
                               <span
                                 className={[
                                   "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-xs font-semibold",
                                   active
-                                    ? "bg-ctex-blue text-white"
-                                    : "bg-ctex-elevated text-ctex-text",
+                                    ? "bg-ctex-accent text-white"
+                                    : "bg-ctex-panel text-ctex-text",
                                 ].join(" ")}
                               >
                                 {m.isOwner ? "M" : "T"}
@@ -898,7 +924,7 @@ const DashboardLayout = ({
                               {active && (
                                 <Check
                                   size={14}
-                                  className="text-ctex-blue"
+                                  className="text-ctex-accent"
                                 />
                               )}
                             </button>
@@ -915,11 +941,11 @@ const DashboardLayout = ({
               type="button"
               onClick={() => navigate(resolvedNotificationsPath)}
               aria-label="Notifications"
-              className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ctex-border bg-ctex-surface text-ctex-text-muted transition hover:border-ctex-blue/40 hover:text-ctex-blue"
+              className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-ctex-border bg-ctex-surface text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-text"
             >
               <Bell size={16} />
               {resolvedNotificationCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ctex-blue px-1 text-[9px] font-semibold text-white">
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ctex-accent px-1 text-[9px] font-semibold text-white">
                   {resolvedNotificationCount > 9
                     ? "9+"
                     : resolvedNotificationCount}
@@ -931,31 +957,27 @@ const DashboardLayout = ({
               type="button"
               onClick={() => navigate("/merchant/dashboard/business")}
               aria-label="My profile"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-ctex-blue/10 text-ctex-blue lg:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-ctex-accent/10 text-ctex-accent lg:hidden"
             >
               <UserCircle2 size={18} />
             </button>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-5 sm:py-6 lg:px-6">
-          <div className="mb-5 overflow-hidden rounded-2xl border border-ctex-border bg-gradient-to-br from-ctex-surface via-ctex-surface to-ctex-elevated p-4 shadow-lg shadow-black/5 sm:p-5 lg:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ctex-blue">
-                  {title}
-                </p>
-                <h2 className="mt-1.5 truncate text-xl font-semibold text-ctex-text sm:text-2xl lg:text-3xl">
-                  {subtitle}
-                </h2>
-              </div>
-              <div className="flex items-center gap-2 rounded-full border border-ctex-border bg-ctex-bg/60 px-3 py-1.5 text-[11px] font-medium text-ctex-text-muted">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                </span>
-                Live operations
-              </div>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-8 pt-2 sm:px-5 lg:px-8">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-ctex-accent">{title}</p>
+              <h2 className="mt-1 truncate text-xl font-semibold text-ctex-text sm:text-2xl">
+                {subtitle}
+              </h2>
+            </div>
+            <div className="flex w-fit items-center gap-2 rounded-full border border-ctex-border bg-ctex-surface px-3 py-1.5 text-[11px] font-medium text-ctex-text-muted">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
+              Live operations
             </div>
           </div>
 
@@ -999,7 +1021,7 @@ const DashboardLayout = ({
                   type="button"
                   onClick={() => setMobileOpen(false)}
                   aria-label="Close navigation"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ctex-border text-ctex-text-muted"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-ctex-border text-ctex-text-muted"
                 >
                   <X size={16} />
                 </button>
@@ -1009,7 +1031,7 @@ const DashboardLayout = ({
 
               <div className="border-t border-ctex-border p-3">
                 <div className="flex items-center gap-3 rounded-xl p-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ctex-blue/10 text-ctex-blue">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ctex-accent/10 text-ctex-accent">
                     <UserCircle2 size={18} />
                   </span>
                   <div className="min-w-0 flex-1">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { CircleAlert } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuthStore } from "../store/auth.store";
 import AuthLayout from "../components/auth/AuthLayout";
@@ -90,15 +91,15 @@ export default function RegisterPage() {
             to={invitationToken
               ? `/login?redirect=${encodeURIComponent(`/accept-invitation?token=${encodeURIComponent(invitationToken)}`)}`
               : "/login"}
-            className="font-medium text-ctex-blue hover:text-ctex-blue-light hover:underline"
+            className="font-medium text-ctex-accent hover:underline"
           >
             Sign in
           </Link>
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <TextField
             label="First name"
             name="firstName"
@@ -141,51 +142,54 @@ export default function RegisterPage() {
           onChange={handleChange}
         />
 
-        <TextField
-          label="Password"
-          name="password"
-          type="password"
-          placeholder="At least 8 characters"
-          autoComplete="new-password"
-          value={form.password}
-          onChange={handleChange}
-          required
-        />
+        <div className="space-y-3">
+          <TextField
+            label="Password"
+            name="password"
+            type="password"
+            placeholder="At least 8 characters"
+            autoComplete="new-password"
+            value={form.password}
+            onChange={handleChange}
+            required
+          />
 
-        {/* Password strength meter */}
-        <AnimatePresence>
-          {form.password && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="-mt-2 overflow-hidden"
-            >
-              <div className="flex items-center gap-2">
-                <div className="flex h-1.5 flex-1 gap-1">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-full flex-1 rounded-full bg-ctex-border transition-colors"
-                      style={{
-                        backgroundColor:
-                          i < strength.score
-                            ? strength.color
-                            : undefined,
-                      }}
-                    />
-                  ))}
+          {/* Password strength meter */}
+          <AnimatePresence>
+            {form.password && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+                aria-live="polite"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-1.5 flex-1 gap-1.5">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-full flex-1 rounded-full bg-ctex-border transition-colors duration-300"
+                        style={{
+                          backgroundColor:
+                            i < strength.score
+                              ? strength.color
+                              : undefined,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <span
+                    className="w-12 text-right text-xs font-medium"
+                    style={{ color: strength.color }}
+                  >
+                    {strength.label}
+                  </span>
                 </div>
-                <span
-                  className="text-[10px] font-semibold uppercase tracking-wide"
-                  style={{ color: strength.color }}
-                >
-                  {strength.label}
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         <TextField
           label="Confirm password"
@@ -204,9 +208,11 @@ export default function RegisterPage() {
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500"
+              role="alert"
+              className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500"
             >
-              {displayError}
+              <CircleAlert className="mt-px h-4 w-4 flex-shrink-0" />
+              <span>{displayError}</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -215,18 +221,18 @@ export default function RegisterPage() {
           {isLoading ? "Creating account…" : "Create account"}
         </PrimaryButton>
 
-        <p className="text-center text-[11px] leading-relaxed text-ctex-text-muted">
+        <p className="text-xs leading-relaxed text-ctex-text-muted">
           By creating an account, you agree to our{" "}
           <a
             href="/terms"
-            className="text-ctex-blue hover:underline"
+            className="font-medium text-ctex-text underline-offset-2 hover:text-ctex-accent hover:underline"
           >
             Terms of Service
           </a>{" "}
           and{" "}
           <a
             href="/privacy"
-            className="text-ctex-blue hover:underline"
+            className="font-medium text-ctex-text underline-offset-2 hover:text-ctex-accent hover:underline"
           >
             Privacy Policy
           </a>

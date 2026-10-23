@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { CircleAlert, CircleCheck, Info } from "lucide-react";
 import { toast } from "react-toastify";
 import { useAuthStore } from "../store/auth.store";
 import { getDashboardPath } from "../utils/role";
@@ -102,7 +103,7 @@ export default function LoginPage() {
             to={redirectTo?.startsWith("/accept-invitation?")
               ? `/signup?invitationToken=${encodeURIComponent(new URLSearchParams(redirectTo.split("?")[1]).get("token") || "")}&email=${encodeURIComponent(requestedEmail)}`
               : "/signup"}
-            className="font-medium text-ctex-blue hover:text-ctex-blue-light hover:underline"
+            className="font-medium text-ctex-accent hover:underline"
           >
             Create one
           </Link>
@@ -119,7 +120,7 @@ export default function LoginPage() {
             className="overflow-hidden"
           >
             <Banner type="success">
-              ✅ Email verified successfully. You can now sign in.
+              Email verified successfully. You can now sign in.
             </Banner>
           </motion.div>
         )}
@@ -132,7 +133,7 @@ export default function LoginPage() {
             className="overflow-hidden"
           >
             <Banner type="success">
-              ✅ Password reset successfully. Please sign in with your new
+              Password reset successfully. Please sign in with your new
               password.
             </Banner>
           </motion.div>
@@ -146,13 +147,13 @@ export default function LoginPage() {
             className="overflow-hidden"
           >
             <Banner type="success">
-              ✅ Password changed. Please sign in again.
+              Password changed. Please sign in again.
             </Banner>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         <TextField
           label="Email"
           name="email"
@@ -165,25 +166,26 @@ export default function LoginPage() {
           required
         />
 
-        <TextField
-          label="Password"
-          name="password"
-          type="password"
-          placeholder="••••••••"
-          autoComplete="current-password"
-          value={form.password}
-          onChange={handleChange}
-          icon={<LockIcon className="h-4 w-4" />}
-          required
-        />
-
-        <div className="flex justify-end">
-          <Link
-            to="/forgot-password"
-            className="text-xs font-medium text-ctex-text-muted transition hover:text-ctex-blue"
-          >
-            Forgot password?
-          </Link>
+        <div className="space-y-2">
+          <TextField
+            label="Password"
+            name="password"
+            type="password"
+            placeholder="••••••••"
+            autoComplete="current-password"
+            value={form.password}
+            onChange={handleChange}
+            icon={<LockIcon className="h-4 w-4" />}
+            required
+          />
+          <div className="flex justify-end">
+            <Link
+              to="/forgot-password"
+              className="rounded text-xs font-medium text-ctex-text-muted transition hover:text-ctex-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ctex-accent/40"
+            >
+              Forgot password?
+            </Link>
+          </div>
         </div>
 
         <AnimatePresence>
@@ -192,9 +194,11 @@ export default function LoginPage() {
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500"
+              role="alert"
+              className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500"
             >
-              {displayError}
+              <CircleAlert className="mt-px h-4 w-4 flex-shrink-0" />
+              <span>{displayError}</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -216,20 +220,24 @@ function Banner({ type = "info", children }) {
     success:
       "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     error: "border-red-500/30 bg-red-500/10 text-red-500",
-    info: "border-ctex-blue/30 bg-ctex-blue/10 text-ctex-blue",
+    info: "border-ctex-accent/30 bg-ctex-accent/10 text-ctex-accent",
     warning:
       "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
   };
 
+  const Icon =
+    type === "success" ? CircleCheck : type === "info" ? Info : CircleAlert;
+
   return (
     <div
       className={[
-        "rounded-xl border px-3.5 py-2.5 text-xs",
+        "flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-xs",
         styles[type] || styles.info,
       ].join(" ")}
       role="status"
     >
-      {children}
+      <Icon className="mt-px h-4 w-4 flex-shrink-0" />
+      <span>{children}</span>
     </div>
   );
 }

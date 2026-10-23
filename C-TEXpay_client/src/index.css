@@ -14,6 +14,12 @@
   --ctex-text: #0b1220;
   --ctex-text-muted: #475467;
   --ctex-border: rgba(15, 23, 42, 0.12);
+
+  /* Dashboard accent — defaults to brand blue. Swap to #6d4aff for purple. */
+  --ctex-accent: var(--ctex-blue);
+  /* Soft gray panel used for stat grid, active nav item, table header */
+  --ctex-panel: #f4f5f7;
+
   color-scheme: light;
 }
 
@@ -26,6 +32,10 @@ html.dark {
   --ctex-text: #f8fafc;
   --ctex-text-muted: #cbd5e1;
   --ctex-border: rgba(148, 163, 184, 0.22);
+
+  --ctex-accent: var(--ctex-blue);
+  --ctex-panel: #111827;
+
   color-scheme: dark;
 }
 
@@ -38,6 +48,8 @@ html.dark {
   --color-ctex-text: var(--ctex-text);
   --color-ctex-text-muted: var(--ctex-text-muted);
   --color-ctex-border: var(--ctex-border);
+  --color-ctex-accent: var(--ctex-accent);
+  --color-ctex-panel: var(--ctex-panel);
 
   --font-display: "Rebond Grotesque", "Inter", "Segoe UI", Arial, sans-serif;
   --font-body: "Inter", "Segoe UI", Arial, sans-serif;
