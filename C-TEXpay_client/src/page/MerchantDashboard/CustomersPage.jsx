@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  BadgeCheck,
+  Copy,
+  Mail,
+  Pencil,
+  Phone,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import { useAuthStore } from "../../store/auth.store";
 import { useMerchantStore } from "../../store/merchant.store";
@@ -7,76 +19,35 @@ import { useCustomerStore } from "../../store/customer.store";
 import { hasPermission } from "../../utils/permissions";
 import CustomerFormModal from "../../components/customers/CustomerFormModal";
 import DeleteConfirmModal from "../../components/customers/DeleteConfirmModal";
+import { buildMerchantNav } from "./merchantNav";
 
-/*
-|--------------------------------------------------------------------------
-| NAV
-|--------------------------------------------------------------------------
-*/
-const buildNav = () => [
-  {
-    title: "Overview",
-    items: [
-      {
-        key: "dashboard",
-        label: "Dashboard",
-        icon: "dashboard",
-        path: "/merchant/dashboard",
-      },
-      {
-        key: "payments",
-        label: "Payments",
-        icon: "payments",
-        children: [
-          {
-            key: "transactions",
-            label: "Transactions",
-            path: "/merchant/dashboard/transactions",
-            permission: "transactions.read",
-          },
-          {
-            key: "payment-links",
-            label: "Payment Links",
-            path: "/merchant/dashboard/payment-links",
-            permission: "payment_links.read",
-          },
-          {
-            key: "customers",
-            label: "Customers",
-            path: "/merchant/dashboard/customers",
-            permission: "customers.read",
-          },
-        ],
-      },
-      {
-        key: "business",
-        label: "Business",
-        icon: "business",
-        children: [
-          {
-            key: "business-profile",
-            label: "Business Profile",
-            path: "/merchant/dashboard/business",
-            permission: "business.read",
-          },
-          {
-            key: "team-members",
-            label: "Team Members",
-            path: "/merchant/dashboard/team",
-            permission: "team.read",
-          },
-          {
-            key: "roles-permissions",
-            label: "Roles & Permissions",
-            path: "/merchant/dashboard/roles",
-            permission: "roles.read",
-          },
-        ],
-      },
-    ],
+/* --------------------------------------------------------------------------
+   BRAND TONES (shared with MerchantDashboard)
+   -------------------------------------------------------------------------- */
+const TONES = {
+  blue: {
+    background: "linear-gradient(135deg,#2f95de,#0B68AD)",
+    boxShadow: "0 10px 22px -10px #0B68AD",
   },
-];
+  green: {
+    background: "linear-gradient(135deg,#22C55E,#15803D)",
+    boxShadow: "0 10px 22px -10px #15803D",
+  },
+  orange: {
+    background: "linear-gradient(135deg,#FBBF24,#EA580C)",
+    boxShadow: "0 10px 22px -10px #EA580C",
+  },
+  oxblood: {
+    background: "linear-gradient(135deg,#9F1239,#4C0519)",
+    boxShadow: "0 10px 22px -10px #7F1D1D",
+  },
+};
 
+const HERO_BG = "linear-gradient(160deg,#2f95de 0%,#0B68AD 100%)";
+
+/* --------------------------------------------------------------------------
+   OPTIONS
+   -------------------------------------------------------------------------- */
 const STATUS_OPTIONS = [
   { value: "", label: "All" },
   { value: "ACTIVE", label: "Active" },
@@ -86,10 +57,89 @@ const STATUS_OPTIONS = [
 
 const LIMIT_OPTIONS = [10, 20, 50];
 
+/* --------------------------------------------------------------------------
+   HELPERS
+   -------------------------------------------------------------------------- */
+function formatDate(date) {
+  if (!date) return "—";
+  try {
+    return new Date(date).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function statusTone(status) {
+  switch (status) {
+    case "ACTIVE":
+      return "success";
+    case "INACTIVE":
+      return "warning";
+    case "BLOCKED":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function toneClasses(tone) {
+  switch (tone) {
+    case "success":
+      return "bg-emerald-500/10 text-emerald-500";
+    case "warning":
+      return "bg-amber-500/10 text-amber-500";
+    case "danger":
+      return "bg-red-500/10 text-red-500";
+    default:
+      return "bg-ctex-border/40 text-ctex-text-muted";
+  }
+}
+
+function dotClass(tone) {
+  switch (tone) {
+    case "success":
+      return "bg-emerald-500";
+    case "warning":
+      return "bg-amber-500";
+    case "danger":
+      return "bg-red-500";
+    default:
+      return "bg-ctex-text-muted";
+  }
+}
+
+function buildPageNumbers(current, total) {
+  const out = [];
+  const window = 1;
+
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) out.push(i);
+    return out;
+  }
+
+  out.push(1);
+  if (current - window > 2) out.push("…");
+
+  const start = Math.max(2, current - window);
+  const end = Math.min(total - 1, current + window);
+
+  for (let i = start; i <= end; i++) out.push(i);
+
+  if (current + window < total - 1) out.push("…");
+  out.push(total);
+
+  return out;
+}
+
+/* --------------------------------------------------------------------------
+   PAGE
+   -------------------------------------------------------------------------- */
 export default function CustomersPage() {
   const { user } = useAuthStore();
-
-  // ✅ FIX: pull `permissions` out of the store
   const {
     roles,
     permissions,
@@ -110,33 +160,24 @@ export default function CustomersPage() {
     clearError,
   } = useCustomerStore();
 
-  // Filters
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
-  // Modals
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Bootstrap merchant + membership (works on direct visit / refresh)
-  |--------------------------------------------------------------------------
-  */
+  /* Bootstrap */
   useEffect(() => {
     if (!businessProfile) getMyMerchant();
     if (!permissions || permissions.length === 0) getMyMembership();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /*
-  |--------------------------------------------------------------------------
-  | Fetch customers (debounced search)
-  |--------------------------------------------------------------------------
-  */
+  /* Fetch (debounced) */
   useEffect(() => {
     const handle = setTimeout(() => {
       getCustomers({
@@ -151,17 +192,16 @@ export default function CustomersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, search, statusFilter]);
 
-  const navSections = useMemo(() => buildNav(), []);
+  const navSections = useMemo(
+    () => buildMerchantNav(permissions),
+    [permissions]
+  );
 
   const canCreate = hasPermission(permissions, "customers.create");
   const canUpdate = hasPermission(permissions, "customers.update");
   const canDelete = hasPermission(permissions, "customers.delete");
 
-  /*
-  |--------------------------------------------------------------------------
-  | Handlers
-  |--------------------------------------------------------------------------
-  */
+  /* Handlers */
   const handleCreate = () => {
     setEditing(null);
     setFormOpen(true);
@@ -183,14 +223,8 @@ export default function CustomersPage() {
       }
       return res;
     }
-
-    // Backend returns the freshly created customer; store prepends it.
-    // No need to refetch — but if you want to be safe, uncomment below.
     const res = await createCustomer(payload);
-    if (res.success) {
-      setFormOpen(false);
-      // getCustomers({ page, limit, search, status: statusFilter || undefined });
-    }
+    if (res.success) setFormOpen(false);
     return res;
   };
 
@@ -209,43 +243,97 @@ export default function CustomersPage() {
     setPage(1);
   };
 
+  const handleCopyEmail = async (email, id) => {
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch {
+      window.prompt("Copy email:", email);
+    }
+  };
+
   const totalPages = pagination?.pages || 1;
+  const total = pagination?.total ?? 0;
+  const start = total === 0 ? 0 : (page - 1) * limit + 1;
+  const end = Math.min(page * limit, total);
+  const isFiltered = Boolean(search || statusFilter);
+
+  const displayName = user
+    ? `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+      "Merchant Admin"
+    : "Merchant Admin";
 
   return (
     <DashboardLayout
       title={businessProfile?.businessName || "Merchant"}
       subtitle="Customers"
       navSections={navSections}
-      profileName={
-        user ? `${user.firstName} ${user.lastName}`.trim() : "Merchant Admin"
-      }
+      profileName={displayName}
       profileRole={roles?.[0]?.name}
     >
-      {/* Header */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-ctex-text">Customers</h1>
-          <p className="mt-1 text-sm text-ctex-text-muted">
-            Manage the customers linked to your merchant account.
-          </p>
+      {/* ─── HERO ──────────────────────────────────────────────── */}
+      <motion.section
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        className="relative overflow-hidden rounded-[28px] p-5 text-white sm:p-6 lg:p-8"
+        style={{ background: HERO_BG }}
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/10 blur-2xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-28 right-24 h-64 w-64 rounded-full bg-white/10 blur-3xl"
+        />
+
+        <div className="relative flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-white/70 sm:text-[11px]">
+              Customers
+            </p>
+            <h2 className="mt-2 text-xl font-medium tracking-tight sm:mt-3 sm:text-2xl lg:text-3xl">
+              {total.toLocaleString()} customer{total === 1 ? "" : "s"}
+            </h2>
+            <p className="mt-1.5 text-sm text-white/75">
+              Manage the customers linked to your merchant account.
+            </p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-5">
+              <HeroPill icon={BadgeCheck}>
+                <span className="capitalize">
+                  {businessProfile?.businessName || "Workspace"}
+                </span>
+              </HeroPill>
+              {isFiltered && (
+                <HeroPill icon={Search}>
+                  Filters active
+                </HeroPill>
+              )}
+            </div>
+          </div>
+
+          {canCreate && (
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={handleCreate}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-[#0B3E66] transition hover:-translate-y-px hover:bg-white/90"
+              >
+                <Plus className="h-4 w-4" />
+                Add customer
+              </button>
+            </div>
+          )}
         </div>
+      </motion.section>
 
-        {canCreate && (
-          <button
-            type="button"
-            onClick={handleCreate}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-ctex-blue px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ctex-blue/25 transition hover:bg-ctex-blue-light"
-          >
-            <PlusIcon className="h-4 w-4" />
-            Add customer
-          </button>
-        )}
-      </div>
-
-      {/* Filters */}
-      <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-ctex-border bg-ctex-surface p-4 sm:flex-row sm:items-center">
-        <div className="relative flex-1 min-w-0">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ctex-text-muted" />
+      {/* ─── FILTERS ──────────────────────────────────────────── */}
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <label className="relative flex flex-1 items-center gap-2 rounded-xl border border-ctex-border bg-ctex-surface px-3 py-2.5 text-sm text-ctex-text-muted">
+          <Search size={16} className="shrink-0" />
           <input
             type="text"
             placeholder="Search by name, email, or phone…"
@@ -254,9 +342,22 @@ export default function CustomersPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="h-10 w-full rounded-xl border border-ctex-border bg-ctex-elevated/60 pl-9 pr-3 text-sm text-ctex-text placeholder:text-ctex-text-muted/60 outline-none transition focus:border-ctex-blue focus:ring-2 focus:ring-ctex-blue/20"
+            className="w-full bg-transparent text-sm text-ctex-text placeholder:text-ctex-text-muted/60 outline-none"
           />
-        </div>
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setPage(1);
+              }}
+              className="rounded-full p-1 text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-text"
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </label>
 
         <div className="flex flex-wrap items-center gap-2">
           {STATUS_OPTIONS.map((opt) => (
@@ -268,21 +369,21 @@ export default function CustomersPage() {
                 setPage(1);
               }}
               className={[
-                "rounded-lg border px-3 py-1.5 text-xs font-medium transition",
+                "rounded-full border px-3.5 py-1.5 text-xs font-medium transition",
                 statusFilter === opt.value
-                  ? "border-ctex-blue bg-ctex-blue/10 text-ctex-blue"
-                  : "border-ctex-border bg-ctex-elevated/60 text-ctex-text-muted hover:border-ctex-blue/40 hover:text-ctex-blue",
+                  ? "border-ctex-accent bg-ctex-accent/10 text-ctex-accent"
+                  : "border-ctex-border bg-ctex-surface text-ctex-text-muted hover:border-ctex-accent/40 hover:text-ctex-accent",
               ].join(" ")}
             >
               {opt.label}
             </button>
           ))}
 
-          {(search || statusFilter) && (
+          {isFiltered && (
             <button
               type="button"
               onClick={handleResetFilters}
-              className="text-xs font-medium text-ctex-text-muted hover:text-ctex-blue hover:underline"
+              className="text-xs font-medium text-ctex-text-muted transition hover:text-ctex-accent hover:underline"
             >
               Reset
             </button>
@@ -290,226 +391,344 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Error banner */}
+      {/* ─── ERROR ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {error && (
           <motion.div
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500"
+            className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500"
           >
             {error}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-ctex-border bg-ctex-surface shadow-lg shadow-black/10">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-ctex-border">
-            <thead className="bg-ctex-elevated/60">
-              <tr>
-                <Th>Customer</Th>
-                <Th>Email</Th>
-                <Th>Phone</Th>
-                <Th>Status</Th>
-                <Th>Created</Th>
-                <Th align="right">Actions</Th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-ctex-border">
-              {isLoading && customers.length === 0 && (
-                <SkeletonRows rows={5} cols={6} />
-              )}
-
-              {!isLoading && customers.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center">
-                    <div className="mx-auto flex max-w-xs flex-col items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ctex-elevated text-ctex-text-muted">
-                        <UserIcon className="h-6 w-6" />
-                      </div>
-                      <p className="text-sm font-medium text-ctex-text">
-                        No customers yet
-                      </p>
-                      <p className="text-xs text-ctex-text-muted">
-                        {search || statusFilter
-                          ? "No customers match your filters. Try resetting them."
-                          : "Add your first customer to get started."}
-                      </p>
-                      {canCreate && !search && !statusFilter && (
-                        <button
-                          type="button"
-                          onClick={handleCreate}
-                          className="mt-1 text-xs font-medium text-ctex-blue hover:underline"
-                        >
-                          Add customer →
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-
-              <AnimatePresence initial={false}>
-                {customers.map((customer) => (
-                  <motion.tr
-                    key={customer.id}
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="transition-colors hover:bg-ctex-elevated/40"
-                  >
-                    <Td>
-                      <div className="flex items-center gap-3">
-                        <Avatar
-                          firstName={customer.firstName}
-                          lastName={customer.lastName}
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-ctex-text">
-                            {customer.firstName} {customer.lastName}
-                          </p>
-                          <p className="truncate text-xs text-ctex-text-muted">
-                            {customer.id.slice(0, 8)}…
-                          </p>
-                        </div>
-                      </div>
-                    </Td>
-                    <Td>
-                      <span className="text-sm text-ctex-text">
-                        {customer.email}
-                      </span>
-                    </Td>
-                    <Td>
-                      <span className="text-sm text-ctex-text-muted">
-                        {customer.phone || "—"}
-                      </span>
-                    </Td>
-                    <Td>
-                      <StatusBadge status={customer.status} />
-                    </Td>
-                    <Td>
-                      <span className="text-xs text-ctex-text-muted">
-                        {formatDate(customer.createdAt)}
-                      </span>
-                    </Td>
-                    <Td align="right">
-                      <div className="flex items-center justify-end gap-1">
-                        {canUpdate && (
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(customer)}
-                            className="rounded-lg p-2 text-ctex-text-muted transition hover:bg-ctex-elevated hover:text-ctex-blue"
-                            aria-label="Edit"
-                          >
-                            <EditIcon className="h-4 w-4" />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            type="button"
-                            onClick={() => setDeleting(customer)}
-                            className="rounded-lg p-2 text-ctex-text-muted transition hover:bg-red-500/10 hover:text-red-500"
-                            aria-label="Delete"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                        )}
-                        {!canUpdate && !canDelete && (
-                          <span className="text-xs text-ctex-text-muted">
-                            —
-                          </span>
-                        )}
-                      </div>
-                    </Td>
-                  </motion.tr>
-                ))}
-              </AnimatePresence>
-            </tbody>
-          </table>
+      {/* ─── LOADING SKELETONS ─────────────────────────────────── */}
+      {isLoading && customers.length === 0 && (
+        <div className="mt-4 grid gap-3 md:hidden">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-[24px] bg-ctex-surface"
+            />
+          ))}
         </div>
+      )}
 
-        {/* Pagination */}
-        {(pagination?.total ?? 0) > 0 && (
-          <div className="flex flex-col items-center justify-between gap-3 border-t border-ctex-border px-4 py-3 sm:flex-row">
-            <div className="flex items-center gap-3 text-xs text-ctex-text-muted">
-              <span>
-                Showing{" "}
-                <strong className="text-ctex-text">
-                  {(page - 1) * limit + 1}–
-                  {Math.min(page * limit, pagination?.total ?? 0)}
-                </strong>{" "}
-                of{" "}
-                <strong className="text-ctex-text">
-                  {pagination?.total ?? 0}
-                </strong>
-              </span>
-
-              <select
-                value={limit}
-                onChange={(e) => {
-                  setLimit(Number(e.target.value));
-                  setPage(1);
-                }}
-                className="rounded-lg border border-ctex-border bg-ctex-elevated/60 px-2 py-1 text-xs text-ctex-text outline-none focus:border-ctex-blue"
+      {/* ─── EMPTY ──────────────────────────────────────────────── */}
+      {!isLoading && customers.length === 0 && (
+        <div className="mt-4 rounded-[28px] border border-dashed border-ctex-border bg-ctex-surface px-6 py-12 text-center sm:py-16">
+          <div className="mx-auto flex max-w-xs flex-col items-center gap-3">
+            <span
+              className="flex h-14 w-14 items-center justify-center rounded-2xl text-white"
+              style={TONES.orange}
+            >
+              <Users className="h-6 w-6" strokeWidth={2.2} />
+            </span>
+            <p className="text-sm font-semibold text-ctex-text">
+              {isFiltered ? "No customers match your filters" : "No customers yet"}
+            </p>
+            <p className="text-xs text-ctex-text-muted">
+              {isFiltered
+                ? "Try adjusting your search or filters."
+                : "Add your first customer to get started."}
+            </p>
+            {canCreate && !isFiltered && (
+              <button
+                type="button"
+                onClick={handleCreate}
+                className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-ctex-accent px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110"
               >
-                {LIMIT_OPTIONS.map((v) => (
-                  <option key={v} value={v}>
-                    {v} / page
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <PaginationButton
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                ← Prev
-              </PaginationButton>
-
-              {buildPageNumbers(page, totalPages).map((p, idx) =>
-                p === "…" ? (
-                  <span
-                    key={`ellipsis-${idx}`}
-                    className="px-2 text-xs text-ctex-text-muted"
-                  >
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPage(p)}
-                    className={[
-                      "min-w-8 rounded-lg px-2.5 py-1 text-xs font-medium transition",
-                      p === page
-                        ? "bg-ctex-blue text-white"
-                        : "text-ctex-text-muted hover:bg-ctex-elevated hover:text-ctex-text",
-                    ].join(" ")}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-
-              <PaginationButton
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next →
-              </PaginationButton>
-            </div>
+                <Plus className="h-3.5 w-3.5" />
+                Add customer
+              </button>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Modals */}
+      {/* ─── TABLE (desktop) ──────────────────────────────────── */}
+      {!isLoading && customers.length > 0 && (
+        <>
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: 0.05 }}
+            className="mt-4 hidden overflow-hidden rounded-[28px] border border-ctex-border bg-ctex-surface md:block"
+          >
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-0 text-left">
+                <thead className="text-xs text-ctex-text-muted">
+                  <tr>
+                    <Th>Customer</Th>
+                    <Th>Email</Th>
+                    <Th>Phone</Th>
+                    <Th>Status</Th>
+                    <Th>Created</Th>
+                    <Th align="right">
+                      <span className="sr-only">Actions</span>
+                    </Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <AnimatePresence initial={false}>
+                    {customers.map((customer) => (
+                      <motion.tr
+                        key={customer.id}
+                        layout
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="group"
+                      >
+                        <Td>
+                          <div className="flex items-center gap-3">
+                            <Avatar
+                              firstName={customer.firstName}
+                              lastName={customer.lastName}
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-ctex-text">
+                                {customer.firstName} {customer.lastName}
+                              </p>
+                              <p className="truncate text-[11px] text-ctex-text-muted">
+                                {customer.id.slice(0, 8)}…
+                              </p>
+                            </div>
+                          </div>
+                        </Td>
+                        <Td>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCopyEmail(customer.email, customer.id)
+                            }
+                            className="inline-flex items-center gap-1.5 text-sm text-ctex-text transition hover:text-ctex-accent"
+                          >
+                            <Mail className="h-3.5 w-3.5 text-ctex-text-muted" />
+                            <span className="truncate">{customer.email}</span>
+                            <Copy
+                              className={[
+                                "h-3 w-3 opacity-0 transition group-hover:opacity-60",
+                                copiedId === customer.id
+                                  ? "!opacity-100 text-emerald-500"
+                                  : "",
+                              ].join(" ")}
+                            />
+                          </button>
+                        </Td>
+                        <Td>
+                          <span className="inline-flex items-center gap-1.5 text-sm text-ctex-text-muted">
+                            <Phone className="h-3.5 w-3.5" />
+                            {customer.phone || "—"}
+                          </span>
+                        </Td>
+                        <Td>
+                          <StatusChip status={customer.status} />
+                        </Td>
+                        <Td>
+                          <span className="whitespace-nowrap text-[11px] text-ctex-text-muted">
+                            {formatDate(customer.createdAt)}
+                          </span>
+                        </Td>
+                        <Td align="right">
+                          <div className="inline-flex items-center gap-1">
+                            {canUpdate && (
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(customer)}
+                                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-accent"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Edit
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleting(customer)}
+                                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-red-500 transition hover:bg-red-500/10"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
+                              </button>
+                            )}
+                            {!canUpdate && !canDelete && (
+                              <span className="text-xs text-ctex-text-muted">
+                                —
+                              </span>
+                            )}
+                          </div>
+                        </Td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </tbody>
+              </table>
+            </div>
+          </motion.section>
+
+          {/* ─── CARDS (mobile) ──────────────────────────────── */}
+          <div className="mt-4 grid gap-3 md:hidden">
+            {customers.map((customer) => (
+              <motion.div
+                key={customer.id}
+                layout
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-[24px] border border-ctex-border bg-ctex-surface p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <Avatar
+                    firstName={customer.firstName}
+                    lastName={customer.lastName}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ctex-text">
+                      {customer.firstName} {customer.lastName}
+                    </p>
+                    <p className="truncate text-[11px] text-ctex-text-muted">
+                      {customer.id.slice(0, 8)}…
+                    </p>
+                  </div>
+                  <StatusChip status={customer.status} />
+                </div>
+
+                <div className="mt-3 space-y-1.5 text-xs text-ctex-text-muted">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyEmail(customer.email, customer.id)}
+                    className="flex w-full items-center gap-2 truncate text-left transition hover:text-ctex-accent"
+                  >
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{customer.email}</span>
+                    <Copy
+                      className={[
+                        "ml-auto h-3 w-3 shrink-0",
+                        copiedId === customer.id
+                          ? "text-emerald-500 opacity-100"
+                          : "opacity-40",
+                      ].join(" ")}
+                    />
+                  </button>
+                  <p className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{customer.phone || "—"}</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <span className="text-[11px] uppercase tracking-wide">
+                      Created
+                    </span>
+                    <span className="truncate">
+                      {formatDate(customer.createdAt)}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {canUpdate && (
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(customer)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-ctex-border bg-ctex-surface px-3 py-2 text-xs font-medium text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-accent"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => setDeleting(customer)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs font-medium text-red-500 transition hover:bg-red-500/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* ─── PAGINATION ──────────────────────────────────── */}
+          {total > 0 && (
+            <div className="mt-4 flex flex-col items-center justify-between gap-3 rounded-[24px] border border-ctex-border bg-ctex-surface px-4 py-3 sm:flex-row">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-ctex-text-muted">
+                <span>
+                  Showing{" "}
+                  <strong className="text-ctex-text">
+                    {start}–{end}
+                  </strong>{" "}
+                  of <strong className="text-ctex-text">{total}</strong>
+                </span>
+
+                <select
+                  value={limit}
+                  onChange={(e) => {
+                    setLimit(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="rounded-full border border-ctex-border bg-ctex-surface px-3 py-1 text-xs text-ctex-text outline-none transition focus:border-ctex-accent"
+                >
+                  {LIMIT_OPTIONS.map((v) => (
+                    <option key={v} value={v}>
+                      {v} / page
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <PaginationButton
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  ← Prev
+                </PaginationButton>
+
+                <div className="flex items-center gap-1">
+                  {buildPageNumbers(page, totalPages).map((p, idx) =>
+                    p === "…" ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="px-1 text-xs text-ctex-text-muted"
+                      >
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setPage(p)}
+                        className={[
+                          "min-w-8 rounded-full px-2.5 py-1 text-xs font-medium transition",
+                          p === page
+                            ? "bg-ctex-accent text-white"
+                            : "text-ctex-text-muted hover:bg-ctex-panel hover:text-ctex-text",
+                        ].join(" ")}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                </div>
+
+                <PaginationButton
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next →
+                </PaginationButton>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ─── MODALS ────────────────────────────────────────────── */}
       <CustomerFormModal
         open={formOpen}
         customer={editing}
@@ -538,33 +757,31 @@ export default function CustomersPage() {
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Small components + helpers + icons (unchanged)                              */
-/* -------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------------
+   SUB-COMPONENTS
+   -------------------------------------------------------------------------- */
 
-function Th({ children, align = "left" }) {
+function HeroPill({ icon: Icon, children }) {
   return (
-    <th
-      className={[
-        "px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ctex-text-muted",
-        align === "right" ? "text-right" : "text-left",
-      ].join(" ")}
-    >
+    <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur">
+      <Icon className="h-3.5 w-3.5 text-white/80" />
       {children}
-    </th>
+    </span>
   );
 }
 
-function Td({ children, align = "left" }) {
+function StatusChip({ status }) {
+  const tone = statusTone(status);
   return (
-    <td
+    <span
       className={[
-        "px-4 py-3",
-        align === "right" ? "text-right" : "text-left",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold",
+        toneClasses(tone),
       ].join(" ")}
     >
-      {children}
-    </td>
+      <span className={`h-1.5 w-1.5 rounded-full ${dotClass(tone)}`} />
+      {status}
+    </span>
   );
 }
 
@@ -596,23 +813,30 @@ function Avatar({ firstName = "", lastName = "" }) {
   );
 }
 
-function StatusBadge({ status }) {
-  const tone =
-    {
-      ACTIVE: "bg-emerald-500/10 text-emerald-500",
-      INACTIVE: "bg-amber-500/10 text-amber-500",
-      BLOCKED: "bg-red-500/10 text-red-500",
-    }[status] || "bg-ctex-border/40 text-ctex-text-muted";
-
+function Th({ children, align = "left" }) {
   return (
-    <span
+    <th
+      scope="col"
       className={[
-        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-        tone,
+        "whitespace-nowrap bg-ctex-panel px-5 py-3 font-medium first:rounded-l-xl last:rounded-r-xl",
+        align === "right" ? "text-right" : "text-left",
       ].join(" ")}
     >
-      {status}
-    </span>
+      {children}
+    </th>
+  );
+}
+
+function Td({ children, align = "left" }) {
+  return (
+    <td
+      className={[
+        "border-b border-ctex-border px-5 py-3.5 text-sm transition group-hover:bg-ctex-panel/60",
+        align === "right" ? "text-right" : "text-left",
+      ].join(" ")}
+    >
+      {children}
+    </td>
   );
 }
 
@@ -622,105 +846,9 @@ function PaginationButton({ children, disabled, onClick }) {
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded-lg px-2.5 py-1 text-xs font-medium text-ctex-text-muted transition hover:bg-ctex-elevated hover:text-ctex-text disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+      className="rounded-full border border-ctex-border bg-ctex-surface px-3.5 py-1.5 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-ctex-surface"
     >
       {children}
     </button>
-  );
-}
-
-function SkeletonRows({ rows, cols }) {
-  return (
-    <>
-      {Array.from({ length: rows }).map((_, r) => (
-        <tr key={r}>
-          {Array.from({ length: cols }).map((_, c) => (
-            <td key={c} className="px-4 py-4">
-              <div className="h-4 w-full animate-pulse rounded bg-ctex-elevated" />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
-  );
-}
-
-function formatDate(date) {
-  if (!date) return "—";
-  try {
-    return new Date(date).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return "—";
-  }
-}
-
-function buildPageNumbers(current, total) {
-  const out = [];
-  const window = 1;
-
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) out.push(i);
-    return out;
-  }
-
-  out.push(1);
-  if (current - window > 2) out.push("…");
-
-  const start = Math.max(2, current - window);
-  const end = Math.min(total - 1, current + window);
-
-  for (let i = start; i <= end; i++) out.push(i);
-
-  if (current + window < total - 1) out.push("…");
-  out.push(total);
-
-  return out;
-}
-
-/* Icons */
-function PlusIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function SearchIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
-  );
-}
-
-function UserIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}
-
-function EditIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
-}
-
-function TrashIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-    </svg>
   );
 }

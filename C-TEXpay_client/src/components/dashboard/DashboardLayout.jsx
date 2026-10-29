@@ -39,6 +39,28 @@ import { useTransactionStore } from "../../store/transaction.store";
 import { useMerchantMemberStore } from "../../store/merchantMember.store";
 
 /* --------------------------------------------------------------------------
+   BRAND TONES (shared with MerchantDashboard)
+   -------------------------------------------------------------------------- */
+const TONES = {
+  blue: {
+    background: "linear-gradient(135deg,#2f95de,#0B68AD)",
+    boxShadow: "0 10px 22px -10px #0B68AD",
+  },
+  green: {
+    background: "linear-gradient(135deg,#22C55E,#15803D)",
+    boxShadow: "0 10px 22px -10px #15803D",
+  },
+  orange: {
+    background: "linear-gradient(135deg,#FBBF24,#EA580C)",
+    boxShadow: "0 10px 22px -10px #EA580C",
+  },
+  oxblood: {
+    background: "linear-gradient(135deg,#9F1239,#4C0519)",
+    boxShadow: "0 10px 22px -10px #7F1D1D",
+  },
+};
+
+/* --------------------------------------------------------------------------
    ICONS
    -------------------------------------------------------------------------- */
 const ICONS = {
@@ -135,9 +157,9 @@ function IconButton({ label, onClick, children, className = "" }) {
       aria-label={label}
       title={label}
       className={[
-        "relative inline-flex h-9 w-9 items-center justify-center rounded-full",
+        "relative inline-flex h-9 w-9 items-center justify-center rounded-xl",
         "border border-ctex-border bg-ctex-surface text-ctex-text-muted",
-        "transition-all duration-200 hover:bg-ctex-panel hover:text-ctex-text",
+        "transition-all duration-200 hover:border-ctex-accent/40 hover:text-ctex-accent",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ctex-accent/40",
         className,
       ].join(" ")}
@@ -195,9 +217,8 @@ const DashboardLayout = ({
   const [profileOpen, setProfileOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
 
-  /* Collapsed-rail flyout state — one flyout at a time */
+  /* Collapsed-rail flyout state */
   const [flyoutKey, setFlyoutKey] = useState(null);
-  const [flyoutTop, setFlyoutTop] = useState(0);
 
   const profileRef = useRef(null);
   const workspaceRef = useRef(null);
@@ -240,10 +261,7 @@ const DashboardLayout = ({
       ) {
         setWorkspaceOpen(false);
       }
-      if (
-        flyoutRef.current &&
-        !flyoutRef.current.contains(event.target)
-      ) {
+      if (flyoutRef.current && !flyoutRef.current.contains(event.target)) {
         setFlyoutKey(null);
       }
     };
@@ -265,7 +283,7 @@ const DashboardLayout = ({
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
-  /* ---------- Close popovers when the rail state changes ---------- */
+  /* ---------- Close popovers when rail state changes ---------- */
   useEffect(() => {
     setProfileOpen(false);
     setFlyoutKey(null);
@@ -357,12 +375,6 @@ const DashboardLayout = ({
     const hasChildren = Boolean(item.children?.length);
 
     if (railCollapsed && hasChildren) {
-      /* Collapsed rail → open flyout to the right of the icon */
-      const rect = event?.currentTarget?.getBoundingClientRect?.();
-      if (rect) {
-        const asideOffset = 0;
-        setFlyoutTop(rect.top + window.scrollY + asideOffset);
-      }
       setFlyoutKey((prev) => (prev === item.key ? null : item.key));
       setManualSelectedKey(item.key);
       return;
@@ -712,7 +724,11 @@ const DashboardLayout = ({
               railCollapsed ? "justify-center px-1" : "gap-3 px-1",
             ].join(" ")}
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-ctex-blue to-ctex-blue-light text-sm font-bold text-white shadow-lg shadow-ctex-blue/30">
+            {/* 👇 Brand chip uses the TONES gradient (from MerchantDashboard) */}
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white"
+              style={TONES.blue}
+            >
               C
             </span>
             {!railCollapsed && (
@@ -774,7 +790,11 @@ const DashboardLayout = ({
               profileOpen ? "bg-ctex-panel" : "",
             ].join(" ")}
           >
-            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-ctex-accent/10 text-ctex-accent">
+            {/* 👇 Avatar chip uses the blue tone gradient */}
+            <span
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-white"
+              style={TONES.blue}
+            >
               <UserCircle2 size={18} />
             </span>
             {!railCollapsed && (
@@ -807,7 +827,7 @@ const DashboardLayout = ({
               type="button"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-ctex-border bg-ctex-surface text-ctex-text lg:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ctex-border bg-ctex-surface text-ctex-text lg:hidden"
             >
               <Menu size={18} />
             </button>
@@ -855,7 +875,7 @@ const DashboardLayout = ({
                 <button
                   type="button"
                   onClick={() => setWorkspaceOpen((v) => !v)}
-                  className="flex h-9 items-center gap-2 rounded-full border border-ctex-border bg-ctex-surface px-3 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel sm:px-3.5"
+                  className="flex h-9 items-center gap-2 rounded-xl border border-ctex-border bg-ctex-surface px-2.5 text-xs font-medium text-ctex-text transition hover:border-ctex-accent/40 sm:px-3"
                 >
                   <Building2 size={14} className="text-ctex-accent" />
                   <span className="max-w-[120px] truncate">
@@ -902,12 +922,12 @@ const DashboardLayout = ({
                               ].join(" ")}
                             >
                               <span
-                                className={[
-                                  "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-xs font-semibold",
+                                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
+                                style={
                                   active
-                                    ? "bg-ctex-accent text-white"
-                                    : "bg-ctex-panel text-ctex-text",
-                                ].join(" ")}
+                                    ? TONES.blue
+                                    : { background: "var(--ctex-panel)" }
+                                }
                               >
                                 {m.isOwner ? "M" : "T"}
                               </span>
@@ -937,11 +957,21 @@ const DashboardLayout = ({
               </div>
             )}
 
+            {/* 👇 RESTORED: Search bar from MerchantDashboard */}
+            <label className="hidden h-9 items-center gap-2 rounded-xl border border-ctex-border bg-ctex-surface px-3 text-sm text-ctex-text-muted md:flex">
+              <Search size={15} />
+              <input
+                placeholder="Search"
+                className="w-32 bg-transparent text-sm text-ctex-text placeholder:text-ctex-text-muted/60 outline-none lg:w-44"
+              />
+              <Kbd>⌘K</Kbd>
+            </label>
+
             <button
               type="button"
               onClick={() => navigate(resolvedNotificationsPath)}
               aria-label="Notifications"
-              className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-ctex-border bg-ctex-surface text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-text"
+              className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ctex-border bg-ctex-surface text-ctex-text-muted transition hover:border-ctex-accent/40 hover:text-ctex-accent"
             >
               <Bell size={16} />
               {resolvedNotificationCount > 0 && (
@@ -957,9 +987,10 @@ const DashboardLayout = ({
               type="button"
               onClick={() => navigate("/merchant/dashboard/business")}
               aria-label="My profile"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-ctex-accent/10 text-ctex-accent lg:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white lg:hidden"
+              style={TONES.blue}
             >
-              <UserCircle2 size={18} />
+              <UserCircle2 size={16} />
             </button>
           </div>
         </header>
@@ -1005,7 +1036,10 @@ const DashboardLayout = ({
             >
               <div className="flex items-center justify-between px-4 py-4">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-ctex-blue to-ctex-blue-light text-sm font-bold text-white shadow-lg shadow-ctex-blue/30">
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white"
+                    style={TONES.blue}
+                  >
                     C
                   </span>
                   <span className="flex flex-col leading-tight">
@@ -1021,7 +1055,7 @@ const DashboardLayout = ({
                   type="button"
                   onClick={() => setMobileOpen(false)}
                   aria-label="Close navigation"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-ctex-border text-ctex-text-muted"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ctex-border text-ctex-text-muted"
                 >
                   <X size={16} />
                 </button>
@@ -1031,7 +1065,10 @@ const DashboardLayout = ({
 
               <div className="border-t border-ctex-border p-3">
                 <div className="flex items-center gap-3 rounded-xl p-2">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ctex-accent/10 text-ctex-accent">
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-white"
+                    style={TONES.blue}
+                  >
                     <UserCircle2 size={18} />
                   </span>
                   <div className="min-w-0 flex-1">
