@@ -81,6 +81,14 @@ const platformAdminService = {
     const { data } = await api.get("/admin/financials/withdrawal-fees/preview", { params });
     return data.data;
   },
+  // Add alongside the other methods
+getMerchantCustomers: async (merchantId, params = {}) => {
+  const { data } = await api.get(
+    `/admin/merchants/${encodeURIComponent(merchantId)}/customers`,
+    { params }
+  );
+  return data;
+},
 };
 
 export default platformAdminService;
