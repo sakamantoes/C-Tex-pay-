@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
-  Check,
   CheckCircle2,
   Copy,
   Eye,
@@ -26,7 +25,7 @@ import { buildMerchantNav } from "./merchantNav";
 const LIMIT = 20;
 
 /* --------------------------------------------------------------------------
-   BRAND TONES (shared with MerchantDashboard)
+   BRAND TONES
    -------------------------------------------------------------------------- */
 const TONES = {
   blue: {
@@ -72,7 +71,13 @@ function statusTone(status) {
 }
 
 function formatDate(value) {
-  return value ? new Date(value).toLocaleString() : "—";
+  if (!value) return "—";
+  return new Date(value).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 const inputBase =
@@ -87,7 +92,10 @@ export default function MerchantWebhooksPage() {
   const canManage = hasPermission(permissions, "webhooks.manage");
   const isOwner = roles.some((role) => role.name === "OWNER");
 
-  const navSections = useMemo(() => buildMerchantNav(permissions), [permissions]);
+  const navSections = useMemo(
+    () => buildMerchantNav(permissions),
+    [permissions]
+  );
 
   const [webhooks, setWebhooks] = useState([]);
   const [events, setEvents] = useState([]);
@@ -283,7 +291,6 @@ export default function MerchantWebhooksPage() {
     setConfirmDelete(null);
     try {
       await merchantWebhookService.deleteWebhook(config.id);
-      // Refetch instead of local filter so multi-config setups stay in sync.
       await loadWebhooks();
       setOneTimeSecret("");
       resetForm();
@@ -407,7 +414,7 @@ export default function MerchantWebhooksPage() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="relative overflow-hidden rounded-[28px] p-5 text-white sm:p-6 lg:p-8"
+        className="relative overflow-hidden rounded-[28px] p-4 text-white sm:p-6 lg:p-8"
         style={{ background: HERO_BG }}
       >
         <div
@@ -419,7 +426,7 @@ export default function MerchantWebhooksPage() {
           className="pointer-events-none absolute -bottom-28 right-24 h-64 w-64 rounded-full bg-white/10 blur-3xl"
         />
 
-        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="relative flex flex-col gap-3 sm:gap-4">
           <div className="min-w-0">
             <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-white/70 sm:text-[11px]">
               Webhook endpoint
@@ -430,24 +437,25 @@ export default function MerchantWebhooksPage() {
             <p className="mt-1.5 text-sm text-white/75">
               C-TEX PAY sends signed payment events to your HTTPS endpoint.
             </p>
-            <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-5">
-              <HeroPill icon={Webhook}>
-                {webhooks.length} configured
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <HeroPill icon={Webhook}>
+              {webhooks.length} configured
+            </HeroPill>
+            {config && (
+              <HeroPill
+                icon={config.enabled ? CheckCircle2 : AlertCircle}
+                tone={config.enabled ? undefined : "warn"}
+              >
+                {config.enabled ? "Enabled" : "Disabled"}
               </HeroPill>
-              {config && (
-                <HeroPill
-                  icon={config.enabled ? CheckCircle2 : AlertCircle}
-                  tone={config.enabled ? undefined : "warn"}
-                >
-                  {config.enabled ? "Endpoint enabled" : "Endpoint disabled"}
-                </HeroPill>
-              )}
-              {!canManage && (
-                <HeroPill icon={Lock} tone="warn">
-                  Read-only access
-                </HeroPill>
-              )}
-            </div>
+            )}
+            {!canManage && (
+              <HeroPill icon={Lock} tone="warn">
+                Read-only
+              </HeroPill>
+            )}
           </div>
         </div>
       </motion.section>
@@ -461,41 +469,46 @@ export default function MerchantWebhooksPage() {
             exit={{ opacity: 0, y: -6, marginTop: 0 }}
             className="rounded-[28px] border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5"
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={TONES.orange}>
-                    <Lock className="h-4 w-4" strokeWidth={2.2} />
-                  </span>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start gap-2">
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white"
+                  style={TONES.orange}
+                >
+                  <Lock className="h-4 w-4" strokeWidth={2.2} />
+                </span>
+                <div className="min-w-0">
                   <h3 className="text-sm font-semibold text-amber-600 dark:text-amber-400">
                     Copy this signing secret now
                   </h3>
+                  <p className="mt-0.5 text-xs text-ctex-text-muted">
+                    It is shown once and cannot be retrieved later.
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-ctex-text-muted">
-                  It is shown once and cannot be retrieved later.
-                </p>
-                <code className="mt-3 block break-all rounded-xl border border-amber-500/30 bg-ctex-surface/50 p-3 font-mono text-xs text-ctex-text">
-                  {oneTimeSecret}
-                </code>
               </div>
-              <div className="flex shrink-0 gap-2">
+
+              <code className="block w-full break-all rounded-xl border border-amber-500/30 bg-ctex-surface/50 p-3 font-mono text-xs text-ctex-text">
+                {oneTimeSecret}
+              </code>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() =>
                     copyToClipboard(oneTimeSecret, "Signing secret copied.")
                   }
-                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-600 dark:text-amber-400 transition hover:bg-amber-500/20"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs font-semibold text-amber-600 transition hover:bg-amber-500/20 sm:py-2 dark:text-amber-400"
                 >
                   <Copy className="h-3.5 w-3.5" />
-                  Copy
+                  Copy secret
                 </button>
                 <button
                   type="button"
                   onClick={() => setOneTimeSecret("")}
-                  aria-label="Dismiss secret"
-                  className="rounded-full p-2 text-amber-500 transition hover:bg-amber-500/10"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-full border border-ctex-border bg-ctex-surface px-4 py-2.5 text-xs font-medium text-ctex-text-muted transition hover:bg-ctex-panel sm:py-2"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
+                  Dismiss
                 </button>
               </div>
             </div>
@@ -509,9 +522,13 @@ export default function MerchantWebhooksPage() {
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           role="alert"
-          className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500"
+          className="mt-4 flex items-start gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500"
         >
-          {error}
+          <AlertCircle
+            className="mt-0.5 h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+          <p>{error}</p>
         </motion.div>
       )}
 
@@ -522,9 +539,9 @@ export default function MerchantWebhooksPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.05 }}
-          className="rounded-[28px] border border-ctex-border bg-ctex-surface p-5 sm:p-6"
+          className="rounded-[28px] border border-ctex-border bg-ctex-surface p-4 sm:p-6"
         >
-          <div className="mb-5 flex items-start gap-3">
+          <div className="mb-4 flex items-start gap-3 sm:mb-5">
             <span
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
               style={TONES.blue}
@@ -557,7 +574,11 @@ export default function MerchantWebhooksPage() {
               <label className="block text-xs font-medium uppercase tracking-wide text-ctex-text-muted">
                 Endpoint URL
                 <input
-                  type="url"
+                  type="text"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required
                   maxLength={2048}
                   value={url}
@@ -596,19 +617,22 @@ export default function MerchantWebhooksPage() {
 
               {!canManage && (
                 <div className="flex items-start gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400">
-                  <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <Lock
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
                   <p className="font-medium">
                     You have read-only access to webhook settings.
                   </p>
                 </div>
               )}
 
-              <div className="flex flex-wrap justify-end gap-2 border-t border-ctex-border pt-4">
+              <div className="flex flex-col gap-2 border-t border-ctex-border pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
                 {editingId && (
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="rounded-full border border-ctex-border bg-ctex-surface px-4 py-2 text-xs font-medium text-ctex-text-muted transition hover:bg-ctex-panel"
+                    className="order-2 rounded-full border border-ctex-border bg-ctex-surface px-4 py-2.5 text-xs font-medium text-ctex-text-muted transition hover:bg-ctex-panel sm:order-1 sm:py-2"
                   >
                     Cancel
                   </button>
@@ -617,7 +641,7 @@ export default function MerchantWebhooksPage() {
                   <button
                     type="submit"
                     disabled={Boolean(action)}
-                    className="inline-flex items-center gap-2 rounded-full bg-ctex-accent px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-ctex-accent/25 transition hover:brightness-110 disabled:opacity-60"
+                    className="order-1 inline-flex items-center justify-center gap-2 rounded-full bg-ctex-accent px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-ctex-accent/25 transition hover:brightness-110 disabled:opacity-60 sm:order-2 sm:py-2"
                   >
                     {action === "save" && (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -633,9 +657,9 @@ export default function MerchantWebhooksPage() {
                   <button
                     type="button"
                     onClick={() => beginEdit(config)}
-                    className="rounded-full border border-ctex-border bg-ctex-surface px-4 py-2 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel"
+                    className="rounded-full border border-ctex-border bg-ctex-surface px-4 py-2.5 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel sm:py-2"
                   >
-                    Edit
+                    Edit endpoint
                   </button>
                 )}
               </div>
@@ -648,9 +672,9 @@ export default function MerchantWebhooksPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.1 }}
-          className="rounded-[28px] border border-ctex-border bg-ctex-surface p-5 sm:p-6"
+          className="rounded-[28px] border border-ctex-border bg-ctex-surface p-4 sm:p-6"
         >
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3">
               <span
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
@@ -663,18 +687,18 @@ export default function MerchantWebhooksPage() {
                   Delivery history
                 </h3>
                 <p className="mt-1 text-xs text-ctex-text-muted">
-                  Recent payment event attempts and responses.
+                  Recent attempts and responses.
                 </p>
               </div>
             </div>
 
             {config && canManage && (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   type="button"
                   disabled={Boolean(action)}
                   onClick={() => handleToggle(config)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-ctex-border bg-ctex-surface px-3 py-1.5 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-ctex-border bg-ctex-surface px-3 py-1.5 text-[11px] font-medium text-ctex-text transition hover:bg-ctex-panel disabled:opacity-50 sm:text-xs"
                 >
                   {action === `toggle-${config.id}` && (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -715,12 +739,20 @@ export default function MerchantWebhooksPage() {
           </div>
 
           {eventError && (
-            <p role="alert" className="mb-3 text-xs text-red-500">
-              {eventError}
+            <p
+              role="alert"
+              className="mb-3 flex items-start gap-2 text-xs text-red-500"
+            >
+              <AlertCircle
+                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span>{eventError}</span>
             </p>
           )}
 
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
               <thead className="text-xs text-ctex-text-muted">
                 <tr>
@@ -789,18 +821,81 @@ export default function MerchantWebhooksPage() {
             </table>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-ctex-border pt-3 text-xs text-ctex-text-muted">
-            <span>
+          {/* Mobile cards */}
+          <ul className="space-y-2 md:hidden">
+            {eventLoading && events.length === 0 ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <li
+                  key={i}
+                  className="h-20 animate-pulse rounded-2xl bg-ctex-panel"
+                />
+              ))
+            ) : events.length === 0 ? (
+              <li className="rounded-2xl border border-dashed border-ctex-border px-4 py-10 text-center text-sm text-ctex-text-muted">
+                No webhook events yet.
+              </li>
+            ) : (
+              events.map((item) => (
+                <li
+                  key={item.id}
+                  className="rounded-2xl border border-ctex-border bg-ctex-panel/40 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-mono text-xs text-ctex-text">
+                        {item.eventId}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-ctex-text-muted">
+                        {item.eventType}
+                      </p>
+                    </div>
+                    <StatusChip status={item.status} />
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-ctex-text-muted">
+                    <div>
+                      <p className="uppercase tracking-wide">Attempts</p>
+                      <p className="mt-0.5 text-sm font-medium text-ctex-text">
+                        {item.attemptCount}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="uppercase tracking-wide">Updated</p>
+                      <p className="mt-0.5 text-sm font-medium text-ctex-text">
+                        {formatDate(
+                          item.deliveredAt ||
+                            item.lastAttemptAt ||
+                            item.createdAt
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleViewEvent(item.eventId)}
+                    className="mt-3 w-full rounded-full border border-ctex-border bg-ctex-surface px-3 py-2 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel"
+                  >
+                    View details
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+
+          {/* Pagination */}
+          <div className="mt-3 flex flex-col gap-2 border-t border-ctex-border pt-3 text-xs text-ctex-text-muted sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-center sm:text-left">
               {pagination.total.toLocaleString()} events · page{" "}
               {Math.max(1, pagination.page)} of{" "}
               {Math.max(1, pagination.totalPages)}
             </span>
-            <div className="flex gap-2">
+            <div className="flex justify-center gap-2 sm:justify-end">
               <button
                 type="button"
                 disabled={pagination.page <= 1 || eventLoading}
                 onClick={() => setEventPage((current) => current - 1)}
-                className="rounded-full border border-ctex-border bg-ctex-surface px-3.5 py-1.5 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel disabled:opacity-40"
+                className="flex-1 rounded-full border border-ctex-border bg-ctex-surface px-3.5 py-1.5 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel disabled:opacity-40 sm:flex-initial"
               >
                 ← Prev
               </button>
@@ -810,7 +905,7 @@ export default function MerchantWebhooksPage() {
                   pagination.page >= pagination.totalPages || eventLoading
                 }
                 onClick={() => setEventPage((current) => current + 1)}
-                className="rounded-full border border-ctex-border bg-ctex-surface px-3.5 py-1.5 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel disabled:opacity-40"
+                className="flex-1 rounded-full border border-ctex-border bg-ctex-surface px-3.5 py-1.5 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel disabled:opacity-40 sm:flex-initial"
               >
                 Next →
               </button>
@@ -823,7 +918,7 @@ export default function MerchantWebhooksPage() {
       <AnimatePresence>
         {eventDetailsOpen && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 sm:items-center sm:p-4"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -835,94 +930,99 @@ export default function MerchantWebhooksPage() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="webhook-event-title"
-              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[24px] border border-ctex-border bg-ctex-surface p-5 shadow-2xl sm:rounded-[28px] sm:p-6"
-              initial={{ y: 24, opacity: 0 }}
+              className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[24px] border border-ctex-border bg-ctex-surface shadow-2xl sm:max-h-[90vh] sm:max-w-2xl sm:rounded-[28px]"
+              initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 24, opacity: 0 }}
+              exit={{ y: 40, opacity: 0 }}
               transition={{ type: "spring", stiffness: 320, damping: 32 }}
             >
-              <div className="flex items-start justify-between gap-3 border-b border-ctex-border pb-4">
-                <div className="flex items-start gap-3">
-                  <span
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
-                    style={TONES.blue}
-                  >
-                    <RefreshCw className="h-4 w-4" strokeWidth={2.2} />
-                  </span>
-                  <div>
-                    <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ctex-text-muted">
-                      Webhook event
-                    </p>
-                    <h2
-                      id="webhook-event-title"
-                      className="mt-0.5 break-all font-mono text-sm font-semibold text-ctex-text"
+              <div className="flex-shrink-0 border-b border-ctex-border px-4 pb-3 pt-3 sm:px-6 sm:pb-4 sm:pt-5">
+                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-ctex-border sm:hidden" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white sm:h-10 sm:w-10"
+                      style={TONES.blue}
                     >
-                      {selectedEvent?.eventId || "Event details"}
-                    </h2>
+                      <RefreshCw className="h-4 w-4" strokeWidth={2.2} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ctex-text-muted">
+                        Webhook event
+                      </p>
+                      <h2
+                        id="webhook-event-title"
+                        className="mt-0.5 break-all font-mono text-xs font-semibold text-ctex-text sm:text-sm"
+                      >
+                        {selectedEvent?.eventId || "Event details"}
+                      </h2>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    aria-label="Close event details"
+                    onClick={closeEventDetails}
+                    className="rounded-full p-1.5 text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-text"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  aria-label="Close event details"
-                  onClick={closeEventDetails}
-                  className="rounded-full p-1.5 text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-text"
-                >
-                  <X className="h-4 w-4" />
-                </button>
               </div>
 
-              {eventLoading ? (
-                <p className="py-8 text-sm text-ctex-text-muted">
-                  Loading event details…
-                </p>
-              ) : eventError ? (
-                <p role="alert" className="py-8 text-sm text-red-500">
-                  {eventError}
-                </p>
-              ) : (
-                selectedEvent && (
-                  <div className="mt-4 space-y-4">
-                    <dl className="grid gap-3 sm:grid-cols-2">
-                      <Detail label="Type" value={selectedEvent.eventType} />
-                      <Detail label="Status" value={selectedEvent.status} />
-                      <Detail
-                        label="Attempts"
-                        value={selectedEvent.attemptCount}
-                      />
-                      <Detail
-                        label="Response status"
-                        value={selectedEvent.responseStatus ?? "—"}
-                      />
-                      <Detail
-                        label="Next retry"
-                        value={formatDate(selectedEvent.nextRetryAt)}
-                      />
-                      <Detail
-                        label="Delivered"
-                        value={formatDate(selectedEvent.deliveredAt)}
-                      />
-                      <Detail
-                        label="Error code"
-                        value={selectedEvent.errorCode || "—"}
-                      />
-                      <Detail
-                        label="Created"
-                        value={formatDate(selectedEvent.createdAt)}
-                      />
-                    </dl>
-                    <JsonBlock
-                      title="C-TEX PAY event payload"
-                      value={selectedEvent.payload}
-                    />
-                    {selectedEvent.responseBody && (
+              <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
+                {eventLoading ? (
+                  <p className="py-8 text-center text-sm text-ctex-text-muted">
+                    Loading event details…
+                  </p>
+                ) : eventError ? (
+                  <p role="alert" className="py-8 text-center text-sm text-red-500">
+                    {eventError}
+                  </p>
+                ) : (
+                  selectedEvent && (
+                    <div className="space-y-4">
+                      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+                        <Detail label="Type" value={selectedEvent.eventType} />
+                        <Detail label="Status" value={selectedEvent.status} />
+                        <Detail
+                          label="Attempts"
+                          value={selectedEvent.attemptCount}
+                        />
+                        <Detail
+                          label="Response"
+                          value={selectedEvent.responseStatus ?? "—"}
+                        />
+                        <Detail
+                          label="Next retry"
+                          value={formatDate(selectedEvent.nextRetryAt)}
+                        />
+                        <Detail
+                          label="Delivered"
+                          value={formatDate(selectedEvent.deliveredAt)}
+                        />
+                        <Detail
+                          label="Error code"
+                          value={selectedEvent.errorCode || "—"}
+                        />
+                        <Detail
+                          label="Created"
+                          value={formatDate(selectedEvent.createdAt)}
+                        />
+                      </dl>
                       <JsonBlock
-                        title="Endpoint response"
-                        value={selectedEvent.responseBody}
+                        title="Event payload"
+                        value={selectedEvent.payload}
                       />
-                    )}
-                  </div>
-                )
-              )}
+                      {selectedEvent.responseBody && (
+                        <JsonBlock
+                          title="Endpoint response"
+                          value={selectedEvent.responseBody}
+                        />
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
             </motion.section>
           </motion.div>
         )}
@@ -932,7 +1032,7 @@ export default function MerchantWebhooksPage() {
       <AnimatePresence>
         {secretModalConfig && (
           <motion.div
-            className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-3 sm:items-center sm:p-4"
+            className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -944,170 +1044,183 @@ export default function MerchantWebhooksPage() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="webhook-secret-title"
-              className="w-full max-w-md rounded-[24px] border border-ctex-border bg-ctex-surface p-5 shadow-2xl sm:rounded-[28px]"
-              initial={{ y: 24, opacity: 0 }}
+              className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[24px] border border-ctex-border bg-ctex-surface shadow-2xl sm:max-w-md sm:rounded-[28px]"
+              initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 24, opacity: 0 }}
+              exit={{ y: 40, opacity: 0 }}
               transition={{ type: "spring", stiffness: 320, damping: 32 }}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <span
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
-                    style={TONES.orange}
-                  >
-                    <Lock className="h-4 w-4" strokeWidth={2.2} />
-                  </span>
-                  <div>
-                    <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ctex-text-muted">
-                      Sensitive credential
-                    </p>
-                    <h2
-                      id="webhook-secret-title"
-                      className="mt-0.5 text-sm font-semibold text-ctex-text"
+              <div className="flex-shrink-0 border-b border-ctex-border px-4 pb-3 pt-3 sm:px-5 sm:pb-4 sm:pt-4">
+                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-ctex-border sm:hidden" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white sm:h-10 sm:w-10"
+                      style={TONES.orange}
                     >
-                      Webhook signing secret
-                    </h2>
+                      <Lock className="h-4 w-4" strokeWidth={2.2} />
+                    </span>
+                    <div>
+                      <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ctex-text-muted">
+                        Sensitive credential
+                      </p>
+                      <h2
+                        id="webhook-secret-title"
+                        className="mt-0.5 text-sm font-semibold text-ctex-text"
+                      >
+                        Webhook signing secret
+                      </h2>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    aria-label="Close secret dialog"
+                    onClick={closeSecretReveal}
+                    className="rounded-full p-1.5 text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-text"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  aria-label="Close secret dialog"
-                  onClick={closeSecretReveal}
-                  className="rounded-full p-1.5 text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-text"
-                >
-                  <X className="h-4 w-4" />
-                </button>
               </div>
 
-              {!revealedSecret ? (
-                <form onSubmit={handleRevealSecret} className="mt-4 space-y-4">
-                  <div className="flex items-start gap-2 rounded-2xl bg-ctex-panel/60 p-3 text-xs text-ctex-text-muted">
-                    <Lock
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ctex-accent"
-                      aria-hidden="true"
-                    />
-                    <p>
-                      Confirm your account password to reveal this merchant's
-                      signing secret.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ctex-text-muted">
-                      Account password
-                    </label>
-                    <div
-                      className={`relative flex items-center rounded-xl border bg-ctex-panel/60 transition-all duration-200 ${
-                        secretRevealError
-                          ? "border-red-500/70 ring-2 ring-red-500/15"
-                          : "border-ctex-border focus-within:border-ctex-accent focus-within:ring-2 focus-within:ring-ctex-accent/20"
-                      }`}
-                    >
+              <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
+                {!revealedSecret ? (
+                  <form
+                    onSubmit={handleRevealSecret}
+                    className="space-y-4"
+                  >
+                    <div className="flex items-start gap-2 rounded-2xl bg-ctex-panel/60 p-3 text-xs text-ctex-text-muted">
                       <Lock
-                        className="pointer-events-none absolute left-3 h-4 w-4 text-ctex-text-muted"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ctex-accent"
                         aria-hidden="true"
                       />
-                      <input
-                        type={showRevealPassword ? "text" : "password"}
-                        required
-                        maxLength={256}
-                        autoComplete="current-password"
-                        value={revealPassword}
-                        onChange={(event) =>
-                          setRevealPassword(event.target.value)
-                        }
-                        className="h-11 w-full rounded-xl bg-transparent pl-10 pr-11 text-sm text-ctex-text outline-none"
-                      />
+                      <p>
+                        Confirm your account password to reveal this merchant's
+                        signing secret.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ctex-text-muted">
+                        Account password
+                      </label>
+                      <div
+                        className={`relative flex items-center rounded-xl border bg-ctex-panel/60 transition-all duration-200 ${
+                          secretRevealError
+                            ? "border-red-500/70 ring-2 ring-red-500/15"
+                            : "border-ctex-border focus-within:border-ctex-accent focus-within:ring-2 focus-within:ring-ctex-accent/20"
+                        }`}
+                      >
+                        <Lock
+                          className="pointer-events-none absolute left-3 h-4 w-4 text-ctex-text-muted"
+                          aria-hidden="true"
+                        />
+                        <input
+                          type={showRevealPassword ? "text" : "password"}
+                          required
+                          maxLength={256}
+                          autoComplete="current-password"
+                          value={revealPassword}
+                          onChange={(event) =>
+                            setRevealPassword(event.target.value)
+                          }
+                          className="h-11 w-full rounded-xl bg-transparent pl-10 pr-11 text-sm text-ctex-text outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRevealPassword((s) => !s)}
+                          tabIndex={-1}
+                          aria-label={
+                            showRevealPassword
+                              ? "Hide password"
+                              : "Show password"
+                          }
+                          className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg text-ctex-text-muted transition hover:bg-ctex-border/40 hover:text-ctex-text"
+                        >
+                          {showRevealPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {secretRevealError && (
+                      <p
+                        role="alert"
+                        className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500"
+                      >
+                        <AlertCircle
+                          className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                          aria-hidden="true"
+                        />
+                        <span>{secretRevealError}</span>
+                      </p>
+                    )}
+
+                    <div className="flex flex-col gap-2 border-t border-ctex-border pt-4 sm:flex-row sm:justify-end">
                       <button
                         type="button"
-                        onClick={() => setShowRevealPassword((s) => !s)}
-                        tabIndex={-1}
-                        aria-label={
-                          showRevealPassword ? "Hide password" : "Show password"
-                        }
-                        className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg text-ctex-text-muted transition hover:bg-ctex-border/40 hover:text-ctex-text"
+                        onClick={closeSecretReveal}
+                        className="order-2 rounded-full border border-ctex-border bg-ctex-surface px-4 py-2.5 text-sm font-medium text-ctex-text transition hover:bg-ctex-panel sm:order-1 sm:py-2"
                       >
-                        {showRevealPassword ? (
-                          <EyeOff className="h-4 w-4" />
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={secretRevealLoading || !revealPassword}
+                        className="order-1 inline-flex items-center justify-center gap-2 rounded-full bg-ctex-accent px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ctex-accent/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:order-2 sm:py-2"
+                      >
+                        {secretRevealLoading ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Verifying…
+                          </>
                         ) : (
-                          <Eye className="h-4 w-4" />
+                          "Verify and reveal"
                         )}
                       </button>
                     </div>
+                  </form>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
+                      <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                        Keep this secret private
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-ctex-text-muted">
+                        Closing this dialog clears it from the page.
+                      </p>
+                    </div>
+                    <code className="block max-h-36 overflow-auto break-all rounded-xl border border-ctex-border bg-ctex-panel/60 p-3 font-mono text-xs text-ctex-text">
+                      {revealedSecret}
+                    </code>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          copyToClipboard(
+                            revealedSecret,
+                            "Signing secret copied."
+                          )
+                        }
+                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-ctex-border bg-ctex-surface px-4 py-2.5 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel sm:py-2"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={closeSecretReveal}
+                        className="rounded-full bg-ctex-accent px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-ctex-accent/25 transition hover:brightness-110 sm:py-2"
+                      >
+                        Done
+                      </button>
+                    </div>
                   </div>
-
-                  {secretRevealError && (
-                    <p
-                      role="alert"
-                      className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500"
-                    >
-                      <AlertCircle
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                        aria-hidden="true"
-                      />
-                      <span>{secretRevealError}</span>
-                    </p>
-                  )}
-
-                  <div className="flex flex-col gap-2 border-t border-ctex-border pt-4 sm:flex-row sm:justify-end">
-                    <button
-                      type="button"
-                      onClick={closeSecretReveal}
-                      className="order-2 rounded-full border border-ctex-border bg-ctex-surface px-4 py-2.5 text-sm font-medium text-ctex-text transition hover:bg-ctex-panel sm:order-1 sm:py-2"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={secretRevealLoading || !revealPassword}
-                      className="order-1 inline-flex items-center justify-center gap-2 rounded-full bg-ctex-accent px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ctex-accent/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:order-2 sm:py-2"
-                    >
-                      {secretRevealLoading ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Verifying…
-                        </>
-                      ) : (
-                        "Verify and reveal"
-                      )}
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
-                    <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                      Keep this secret private
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-ctex-text-muted">
-                      Closing this dialog clears it from the page.
-                    </p>
-                  </div>
-                  <code className="block max-h-36 overflow-auto break-all rounded-xl border border-ctex-border bg-ctex-panel/60 p-3 font-mono text-xs text-ctex-text">
-                    {revealedSecret}
-                  </code>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        copyToClipboard(revealedSecret, "Signing secret copied.")
-                      }
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-ctex-border bg-ctex-surface px-4 py-2.5 text-xs font-medium text-ctex-text transition hover:bg-ctex-panel sm:py-2"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </button>
-                    <button
-                      type="button"
-                      onClick={closeSecretReveal}
-                      className="rounded-full bg-ctex-accent px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-ctex-accent/25 transition hover:brightness-110 sm:py-2"
-                    >
-                      Done
-                    </button>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </motion.section>
           </motion.div>
         )}
@@ -1122,7 +1235,7 @@ export default function MerchantWebhooksPage() {
             description={
               <>
                 Future events will no longer be sent to{" "}
-                <strong className="text-ctex-text">
+                <strong className="break-all text-ctex-text">
                   {confirmDelete.url}
                 </strong>
                 . This action cannot be undone.
@@ -1168,7 +1281,7 @@ function HeroPill({ icon: Icon, children, tone }) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium backdrop-blur",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium backdrop-blur sm:gap-2 sm:px-3 sm:py-1.5 sm:text-xs",
         tone === "warn"
           ? "border-amber-300/40 bg-amber-300/15 text-white"
           : "border-white/25 bg-white/15 text-white",
@@ -1176,7 +1289,7 @@ function HeroPill({ icon: Icon, children, tone }) {
     >
       <Icon
         className={[
-          "h-3.5 w-3.5",
+          "h-3 w-3 sm:h-3.5 sm:w-3.5",
           tone === "warn" ? "text-amber-200" : "text-white/80",
         ].join(" ")}
       />
@@ -1190,7 +1303,7 @@ function StatusChip({ status }) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold sm:px-2.5 sm:py-1 sm:text-[11px]",
         STATUS_TONES[tone],
       ].join(" ")}
     >
@@ -1215,7 +1328,7 @@ function ConfirmModal({
   };
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -1224,13 +1337,14 @@ function ConfirmModal({
       }}
     >
       <motion.div
-        initial={{ y: 24, opacity: 0 }}
+        initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 24, opacity: 0 }}
+        exit={{ y: 40, opacity: 0 }}
         transition={{ type: "spring", stiffness: 320, damping: 32 }}
-        className="w-full max-w-md overflow-hidden rounded-[24px] border border-ctex-border bg-ctex-surface shadow-2xl sm:rounded-[28px]"
+        className="w-full max-w-md overflow-hidden rounded-t-[24px] border border-ctex-border bg-ctex-surface shadow-2xl sm:rounded-[28px]"
       >
-        <div className="p-5">
+        <div className="px-4 pb-3 pt-3 sm:p-5">
+          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-ctex-border sm:hidden" />
           <div className="flex items-start gap-3">
             <span
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
@@ -1243,7 +1357,9 @@ function ConfirmModal({
               )}
             </span>
             <div className="min-w-0">
-              <h3 className="text-base font-semibold text-ctex-text">{title}</h3>
+              <h3 className="text-base font-semibold text-ctex-text">
+                {title}
+              </h3>
               <p className="mt-1 text-sm text-ctex-text-muted">
                 {description}
               </p>
@@ -1251,12 +1367,12 @@ function ConfirmModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-ctex-border bg-ctex-panel/40 px-5 py-3">
+        <div className="flex flex-col gap-2 border-t border-ctex-border bg-ctex-panel/40 px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
           <button
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="rounded-full border border-ctex-border bg-ctex-surface px-4 py-2 text-sm font-medium text-ctex-text transition hover:bg-ctex-panel disabled:opacity-60"
+            className="order-2 rounded-full border border-ctex-border bg-ctex-surface px-4 py-2.5 text-sm font-medium text-ctex-text transition hover:bg-ctex-panel disabled:opacity-60 sm:order-1 sm:py-2"
           >
             Cancel
           </button>
@@ -1265,7 +1381,7 @@ function ConfirmModal({
             onClick={onConfirm}
             disabled={loading}
             className={[
-              "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70",
+              "order-1 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70 sm:order-2 sm:py-2",
               tone === "danger"
                 ? "bg-red-500 hover:bg-red-600"
                 : "bg-amber-500 hover:bg-amber-600",
@@ -1287,7 +1403,7 @@ function Th({ children, align = "left" }) {
     <th
       scope="col"
       className={[
-        "whitespace-nowrap bg-ctex-panel px-4 py-3 font-medium first:rounded-l-xl last:rounded-r-xl",
+        "whitespace-nowrap bg-ctex-panel px-3 py-2.5 font-medium first:rounded-l-xl last:rounded-r-xl sm:px-4 sm:py-3",
         align === "right" ? "text-right" : "text-left",
       ].join(" ")}
     >
@@ -1300,7 +1416,7 @@ function Td({ children, align = "left" }) {
   return (
     <td
       className={[
-        "border-b border-ctex-border px-4 py-3.5 transition group-hover:bg-ctex-panel/60",
+        "border-b border-ctex-border px-3 py-2.5 transition group-hover:bg-ctex-panel/60 sm:px-4 sm:py-3.5",
         align === "right" ? "text-right" : "text-left",
       ].join(" ")}
     >
@@ -1312,7 +1428,7 @@ function Td({ children, align = "left" }) {
 function Detail({ label, value }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] uppercase tracking-wide text-ctex-text-muted">
+      <dt className="text-[10px] uppercase tracking-wide text-ctex-text-muted sm:text-[11px]">
         {label}
       </dt>
       <dd className="mt-1 break-all text-sm font-medium text-ctex-text">
@@ -1331,7 +1447,7 @@ function JsonBlock({ title, value }) {
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ctex-text-muted">
         {title}
       </h3>
-      <pre className="max-h-64 overflow-auto rounded-xl border border-ctex-border bg-ctex-panel/60 p-3 text-xs text-ctex-text">
+      <pre className="max-h-48 overflow-auto rounded-xl border border-ctex-border bg-ctex-panel/60 p-3 text-[11px] text-ctex-text sm:max-h-64 sm:text-xs">
         {text || "—"}
       </pre>
     </section>
@@ -1344,7 +1460,7 @@ function SkeletonRows({ rows, cols }) {
       {Array.from({ length: rows }).map((_, r) => (
         <tr key={r}>
           {Array.from({ length: cols }).map((_, c) => (
-            <td key={c} className="px-4 py-4">
+            <td key={c} className="px-3 py-4 sm:px-4">
               <div className="h-4 w-full animate-pulse rounded bg-ctex-panel" />
             </td>
           ))}
