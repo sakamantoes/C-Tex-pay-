@@ -1,17 +1,57 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  Lock,
+  X,
+} from "lucide-react";
 import { useApiKeyStore } from "../../store/apiKey.store";
 
+/* --------------------------------------------------------------------------
+   BRAND TONES (shared with MerchantDashboard)
+   -------------------------------------------------------------------------- */
+const TONES = {
+  blue: {
+    background: "linear-gradient(135deg,#2f95de,#0B68AD)",
+    boxShadow: "0 10px 22px -10px #0B68AD",
+  },
+  green: {
+    background: "linear-gradient(135deg,#22C55E,#15803D)",
+    boxShadow: "0 10px 22px -10px #15803D",
+  },
+  orange: {
+    background: "linear-gradient(135deg,#FBBF24,#EA580C)",
+    boxShadow: "0 10px 22px -10px #EA580C",
+  },
+  oxblood: {
+    background: "linear-gradient(135deg,#9F1239,#4C0519)",
+    boxShadow: "0 10px 22px -10px #7F1D1D",
+  },
+};
+
+/* =========================================================
+ * MODAL
+ * ======================================================= */
 export default function RevealKeyModal({ open, apiKey, onClose }) {
-  const { revealApiKey, revealLoading, revealedKey, clearRevealedKey, clearError } =
-    useApiKeyStore();
+  const {
+    revealApiKey,
+    revealLoading,
+    revealedKey,
+    clearRevealedKey,
+    clearError,
+  } = useApiKeyStore();
 
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // 👈 new
+  const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Reset when opened
   const handleClose = useCallback(() => {
     setPassword("");
     setShowPassword(false);
@@ -48,7 +88,9 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      setLocalError("Clipboard access failed. Select and copy the key manually.");
+      setLocalError(
+        "Clipboard access failed. Select and copy the key manually."
+      );
     }
   };
 
@@ -62,80 +104,102 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-4"
           onClick={handleClose}
         >
           <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            exit={{ opacity: 0, y: 24, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-ctex-border bg-ctex-surface shadow-2xl"
+            className="w-full max-w-md overflow-hidden rounded-[24px] border border-ctex-border bg-ctex-surface shadow-2xl sm:rounded-[28px]"
           >
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3 border-b border-ctex-border px-5 py-4">
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold text-ctex-text">
-                  Reveal Your C-Tex pay API key
-                </h2>
-                {apiKey?.name && (
-                  <p className="mt-0.5 truncate text-xs text-ctex-text-muted">
-                    {apiKey.name} · {apiKey.environment}
+            {/* ─── HEADER ─────────────────────────────────── */}
+            <div className="flex items-start justify-between gap-3 border-b border-ctex-border px-4 py-4 sm:px-5">
+              <div className="flex min-w-0 items-start gap-3">
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
+                  style={TONES.orange}
+                >
+                  <KeyRound className="h-4 w-4" strokeWidth={2.2} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ctex-text-muted">
+                    Reveal API key
                   </p>
-                )}
+                  <h2 className="mt-0.5 truncate text-base font-semibold text-ctex-text">
+                    {apiKey?.name || "Secret key"}
+                  </h2>
+                  {apiKey?.environment && (
+                    <p className="mt-0.5 truncate text-xs text-ctex-text-muted">
+                      {apiKey.environment} · Stored securely
+                    </p>
+                  )}
+                </div>
               </div>
               <button
                 type="button"
                 onClick={handleClose}
-                className="rounded-lg p-1.5 text-ctex-text-muted transition hover:bg-ctex-elevated hover:text-ctex-text"
+                className="rounded-full p-1.5 text-ctex-text-muted transition hover:bg-ctex-panel hover:text-ctex-text"
                 aria-label="Close"
               >
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Body */}
-            <div className="space-y-4 p-5">
+            {/* ─── BODY ───────────────────────────────────── */}
+            <div className="space-y-4 p-4 sm:p-5">
               {revealedKey ? (
                 <>
                   {/* Revealed key display */}
-                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
-                    <p className="text-xs font-semibold text-amber-500">
-                      Copy this key now
-                    </p>
-                    <p className="mt-1 break-all font-mono text-xs text-ctex-text">
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/20 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                        !
+                      </span>
+                      <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                        Copy this key now
+                      </p>
+                    </div>
+                    <p className="mt-2 break-all rounded-lg bg-ctex-surface/50 px-3 py-2 font-mono text-xs text-ctex-text">
                       {revealedKey.key}
                     </p>
                   </div>
 
                   {localError && (
-                    <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500">
+                    <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500">
                       {localError}
-                    </p>
+                    </div>
                   )}
 
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                     <button
                       type="button"
                       onClick={handleCopy}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-ctex-border bg-ctex-surface px-3 py-2 text-xs font-medium text-ctex-text transition hover:bg-ctex-elevated"
+                      className={[
+                        "inline-flex items-center justify-center gap-1.5 rounded-full border px-4 py-2.5 text-xs font-medium transition sm:py-2",
+                        copied
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+                          : "border-ctex-border bg-ctex-surface text-ctex-text hover:bg-ctex-panel",
+                      ].join(" ")}
                     >
-                      {copied ? "Copied!" : "Copy key"}
+                      {copied ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy key
+                        </>
+                      )}
                     </button>
                     <button
                       type="button"
                       onClick={handleClose}
-                      className="rounded-xl bg-ctex-blue px-4 py-2 text-xs font-semibold text-white transition hover:bg-ctex-blue-light"
+                      className="inline-flex items-center justify-center rounded-full bg-ctex-accent px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-ctex-accent/25 transition hover:brightness-110 sm:py-2"
                     >
                       Done
                     </button>
@@ -143,12 +207,17 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
                 </>
               ) : (
                 <form onSubmit={handleReveal} className="space-y-4">
-                  <p className="text-sm text-ctex-text-muted">
-                    For your security, re-enter your account password to
-                    reveal this API key.
-                  </p>
+                  <div className="flex items-start gap-2 rounded-2xl bg-ctex-panel/60 p-3 text-xs text-ctex-text-muted">
+                    <Lock
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ctex-accent"
+                      aria-hidden="true"
+                    />
+                    <p>
+                      For your security, re-enter your account password to
+                      reveal this API key.
+                    </p>
+                  </div>
 
-                  {/* Password field with show/hide toggle */}
                   <div>
                     <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ctex-text-muted">
                       Password
@@ -156,12 +225,18 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
 
                     <div
                       className={[
-                        "group relative flex items-center rounded-xl border bg-ctex-elevated/60 transition-all duration-200",
+                        "group relative flex items-center rounded-xl border bg-ctex-panel/60 transition-all duration-200",
                         "border-ctex-border",
-                        "focus-within:border-ctex-blue focus-within:ring-2 focus-within:ring-ctex-blue/20",
-                        localError ? "border-red-500/70 ring-2 ring-red-500/15" : "",
+                        "focus-within:border-ctex-accent focus-within:ring-2 focus-within:ring-ctex-accent/20",
+                        localError
+                          ? "border-red-500/70 ring-2 ring-red-500/15"
+                          : "",
                       ].join(" ")}
                     >
+                      <Lock
+                        className="pointer-events-none absolute left-3 h-4 w-4 text-ctex-text-muted"
+                        aria-hidden="true"
+                      />
                       <input
                         type={showPassword ? "text" : "password"}
                         value={password}
@@ -171,20 +246,22 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
                         }}
                         autoFocus
                         autoComplete="current-password"
-                        className="h-11 w-full rounded-xl bg-transparent pl-3.5 pr-11 text-sm text-ctex-text outline-none"
+                        className="h-11 w-full rounded-xl bg-transparent pl-10 pr-11 text-sm text-ctex-text outline-none"
                       />
 
                       <button
                         type="button"
                         onClick={() => setShowPassword((s) => !s)}
                         tabIndex={-1}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={
+                          showPassword ? "Hide password" : "Show password"
+                        }
                         className="absolute right-2 flex h-8 w-8 items-center justify-center rounded-lg text-ctex-text-muted transition hover:bg-ctex-border/40 hover:text-ctex-text"
                       >
                         {showPassword ? (
-                          <EyeOffIcon className="h-4 w-4" />
+                          <EyeOff className="h-4 w-4" />
                         ) : (
-                          <EyeIcon className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         )}
                       </button>
                     </div>
@@ -194,29 +271,40 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
                     <motion.div
                       initial={{ opacity: 0, y: -4 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500"
+                      className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-500"
                     >
-                      {localError}
+                      <AlertCircle
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <p>{localError}</p>
                     </motion.div>
                   )}
 
-                  <div className="flex items-center justify-end gap-2 pt-1">
+                  <div className="flex flex-col gap-2 border-t border-ctex-border pt-4 sm:flex-row sm:justify-end">
                     <button
                       type="button"
                       onClick={handleClose}
-                      className="rounded-xl border border-ctex-border bg-ctex-surface px-4 py-2 text-sm font-medium text-ctex-text transition hover:bg-ctex-elevated"
+                      className="order-2 inline-flex items-center justify-center rounded-full border border-ctex-border bg-ctex-surface px-4 py-2.5 text-sm font-medium text-ctex-text transition hover:bg-ctex-panel sm:order-1 sm:py-2"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={revealLoading}
-                      className="inline-flex items-center gap-2 rounded-xl bg-ctex-blue px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-ctex-blue/25 transition hover:bg-ctex-blue-light disabled:cursor-not-allowed disabled:opacity-70"
+                      className="order-1 inline-flex items-center justify-center gap-2 rounded-full bg-ctex-accent px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ctex-accent/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70 sm:order-2 sm:py-2"
                     >
-                      {revealLoading && (
-                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      {revealLoading ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Revealing…
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-3.5 w-3.5" />
+                          Reveal key
+                        </>
                       )}
-                      Reveal
                     </button>
                   </div>
                 </form>
@@ -226,45 +314,5 @@ export default function RevealKeyModal({ open, apiKey, onClose }) {
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-/* ---------------------------------------------------------------------------
-| ICONS
---------------------------------------------------------------------------- */
-
-function EyeIcon({ className }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function EyeOffIcon({ className }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-6.5 0-10-7-10-7a18.77 18.77 0 0 1 4.06-5.06" />
-      <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c6.5 0 10 7 10 7a18.77 18.77 0 0 1-2.16 3.19" />
-      <path d="M1 1l22 22" />
-      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
-    </svg>
   );
 }
