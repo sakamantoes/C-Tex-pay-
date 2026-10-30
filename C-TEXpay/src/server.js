@@ -19,6 +19,7 @@ import {
   stopPaymentExpiryWorker,
 } from "./jobs/paymentExpiry.job.js";
 import {ensureWithdrawalFeeTiersExist} from "./service/withdrawalFee.service.js";
+import adminUserPermissionSeed from "./seeders/20261030-admin-user-permissions.js";
 
 const PORT = Number(envConfig.PORT) || 5000;
 const NODE_ENV = envConfig.NODE_ENV || "development";
@@ -126,6 +127,7 @@ async function startServer() {
     await reconciliationPermissionSeed.seed();
     await paymentLinkPermissionSeed.seed();
     await ensureWithdrawalFeeTiersExist();
+    await adminUserPermissionSeed.seed();
     // eslint-disable-next-line no-console
     console.log("[startup] Permission seed:", permissionSeed.message, {
       inserted: permissionSeed.inserted,

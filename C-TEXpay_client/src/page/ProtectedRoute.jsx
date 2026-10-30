@@ -1,32 +1,30 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuthStore } from "../store/auth.store";
-import { getDashboardPath } from "../utils/role";
+import { useAuthStore } from "../../src/store/auth.store.js";
+import { FullScreenLoader } from "../../src/components/Spin.jsx";
 
-const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const { isAuthenticated, user, initialized } = useAuthStore();
+export default function ProtectedRoute({ allowedRoles = [], children }) {
+  const { initialized, isAuthenticated, user, verificationRequired } =
+    useAuthStore();
   const location = useLocation();
 
-  if (!initialized) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
+  if (!initialized) return <FullScreenLoader />;
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return (
+      <Navigate
+        to={`/login?redirect=${encodeURIComponent(location.pathname)}`}
+        replace
+      />
+    );
   }
 
-  if (allowedRoles.length > 0) {
-    const userRole = user?.role;
-    const roleArray = Array.isArray(user?.roles) ? user.roles : [];
-    const hasAccess =
-      allowedRoles.includes(userRole) || roleArray.some((role) => allowedRoles.includes(role));
+  if (verificationRequired) {
+    return <Navigate to="/verify-email-sent" replace />;
+  }
 
-    if (!hasAccess) {
-      const fallbackPath = user?.role ? getDashboardPath(user) : "/login";
-      return <Navigate to={fallbackPath} replace state={{ from: location.pathname }} />;
-    }
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
-};
-
-export default ProtectedRoute;
+}

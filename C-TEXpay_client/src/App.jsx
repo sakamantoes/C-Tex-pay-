@@ -62,6 +62,8 @@ import PaymentLinksPage from "./page/MerchantDashboard/PaymentLinksPage.jsx";
 import PaymentLinkCheckoutPage from "./page/public/PaymentLinkCheckoutPage.jsx";
 import DirectCheckoutPage from "./page/public/DirectCheckoutPage.jsx";
 import WalletPage from "./page/MerchantDashboard/WalletPage.jsx";
+import UsersPage from "./page/AdminDashboard/UsersPage.jsx";
+import UserDetailPage from "./page/AdminDashboard/UserDetailPage.jsx";
 
 const PUBLIC_PATHS = [
   "/",
@@ -461,6 +463,22 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
             <PlatformFinancialsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/super-admin/users"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <UsersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/super-admin/users/:userId"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <UserDetailPage />
           </ProtectedRoute>
         }
       />
