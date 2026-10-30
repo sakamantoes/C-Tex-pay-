@@ -29,6 +29,7 @@ import publicPaymentLinkRoutes from "./routes/publicPaymentLink.routes.js";
 import publicCheckoutRoutes from "./routes/publicCheckout.routes.js";
 import adminMerchantRoutes from "./routes/adminMerchant.routes.js";
 
+
 const app = express();
 
 // Webhooks MUST be mounted BEFORE express.json() so their raw body
@@ -89,6 +90,8 @@ app.use("/api/v1/admin/reconciliations", reconciliationRoutes);
 app.use("/api/v1/payment-links", paymentLinkRoutes);
 app.use("/api/v1/public/payment-links", publicPaymentLinkRoutes);
 app.use("/api/v1/public/checkout", publicCheckoutRoutes);
+app.use("/api/v1/admin/merchants", adminMerchantRoutes);
+
 
 app.get("/", (req, res) => {
   res.json({
