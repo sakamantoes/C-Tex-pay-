@@ -19,6 +19,7 @@ import AdminDashboard from "./page/AdminDashboard/AdminDashboard.jsx";
 import PlatformFeesPage from "./page/AdminDashboard/PlatformFeesPage.jsx";
 import PlatformTransactionsPage from "./page/AdminDashboard/PlatformTransactionsPage.jsx";
 import PlatformMerchantsPage from "./page/AdminDashboard/PlatformMerchantsPage.jsx";
+import PlatformCustomerDetailPage from "./page/AdminDashboard/PlatformCustomerDetailPage.jsx";
 import PlatformAuditLogsPage from "./page/AdminDashboard/PlatformAuditLogsPage.jsx";
 import PlatformFinancialsPage from "./page/AdminDashboard/PlatformFinancialsPage.jsx";
 import WithdrawalFeeSettingsPage from "./page/AdminDashboard/WithdrawalFeeSettingsPage.jsx";
@@ -77,7 +78,7 @@ const PUBLIC_PATHS = [
 
 const MERCHANT_WORKSPACE_ROLES = [ROLES.USER, ROLES.MERCHANT];
 
-const MIN_LOADER_MS = 2000; // how long the loader stays at minimum
+const MIN_LOADER_MS = 2000;
 
 const isPublicPath = (pathname) =>
   PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -182,8 +183,6 @@ const AppRoutes = () => {
 
       {/* ============================================================
           MERCHANT DASHBOARD
-          Each page renders its own DashboardLayout with its own
-          navSections. We only guard by role + permission here.
       ============================================================ */}
 
       <Route
@@ -342,7 +341,7 @@ const AppRoutes = () => {
       <Route path="/pay/:slug" element={<PaymentLinkCheckoutPage />} />
       <Route path="/checkout/:token" element={<DirectCheckoutPage />} />
 
-      {/* ADMIN + SUPER ADMIN */}
+      {/* ADMIN */}
       <Route
         path="/admin/dashboard"
         element={
@@ -384,6 +383,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/admin/merchants/:merchantId/customers/:customerId"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+            <PlatformCustomerDetailPage platformRole="ADMIN" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/audit-logs"
         element={
           <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
@@ -391,6 +398,8 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+
+      {/* SUPER ADMIN */}
       <Route
         path="/super-admin/dashboard"
         element={
@@ -428,6 +437,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
             <PlatformMerchantsPage platformRole="SUPER_ADMIN" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/super-admin/merchants/:merchantId/customers/:customerId"
+        element={
+          <ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
+            <PlatformCustomerDetailPage platformRole="SUPER_ADMIN" />
           </ProtectedRoute>
         }
       />

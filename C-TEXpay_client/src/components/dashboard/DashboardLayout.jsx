@@ -169,6 +169,13 @@ function IconButton({ label, onClick, children, className = "" }) {
   );
 }
 
+/* Thin, unobtrusive scrollbar for the sidebar nav */
+const NAV_SCROLL_CLASS =
+  "[scrollbar-width:thin] [scrollbar-color:var(--ctex-border)_transparent] " +
+  "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent " +
+  "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-ctex-border " +
+  "hover:[&::-webkit-scrollbar-thumb]:bg-ctex-text-muted/40";
+
 /* --------------------------------------------------------------------------
    Main layout
    -------------------------------------------------------------------------- */
@@ -217,8 +224,9 @@ const DashboardLayout = ({
   const [profileOpen, setProfileOpen] = useState(false);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
 
-  /* Collapsed-rail flyout state */
+  /* Collapsed-rail flyout state (fixed-positioned so the scrollable nav can't clip it) */
   const [flyoutKey, setFlyoutKey] = useState(null);
+  const [flyoutPos, setFlyoutPos] = useState({ top: 0, left: 0 });
 
   const profileRef = useRef(null);
   const workspaceRef = useRef(null);
@@ -288,6 +296,13 @@ const DashboardLayout = ({
     setProfileOpen(false);
     setFlyoutKey(null);
   }, [railCollapsed]);
+
+  /* ---------- Close flyout on window resize ---------- */
+  useEffect(() => {
+    const handleResize = () => setFlyoutKey(null);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   /* ---------- Invited USER → add Personal Dashboard section ---------- */
   const effectiveNavSections = useMemo(() => {
@@ -375,6 +390,16 @@ const DashboardLayout = ({
     const hasChildren = Boolean(item.children?.length);
 
     if (railCollapsed && hasChildren) {
+      /* Position the fixed flyout next to the clicked icon */
+      const rect = event?.currentTarget?.getBoundingClientRect?.();
+      if (rect) {
+        const estimatedHeight = (item.children?.length || 0) * 36 + 52;
+        const maxTop = Math.max(8, window.innerHeight - estimatedHeight - 12);
+        setFlyoutPos({
+          top: Math.min(Math.max(8, rect.top), maxTop),
+          left: rect.right + 8,
+        });
+      }
       setFlyoutKey((prev) => (prev === item.key ? null : item.key));
       setManualSelectedKey(item.key);
       return;
@@ -426,7 +451,15 @@ const DashboardLayout = ({
      SIDEBAR NAV (shared between desktop + mobile)
      -------------------------------------------------------------------- */
   const renderNav = ({ compact = false, onNavigate } = {}) => (
-    <nav className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden px-2 pb-4">
+    <nav
+      onScroll={() => {
+        if (flyoutKey) setFlyoutKey(null);
+      }}
+      className={[
+        "min-h-0 flex-1 space-y-6 overflow-y-auto overflow-x-hidden overscroll-contain px-2 pb-4",
+        NAV_SCROLL_CLASS,
+      ].join(" ")}
+    >
       {effectiveNavSections.map((section) => (
         <div key={section.title} className="space-y-1">
           {!compact && (
@@ -559,7 +592,7 @@ const DashboardLayout = ({
                   )}
                 </AnimatePresence>
 
-                {/* Collapsed rail flyout */}
+                {/* Collapsed rail flyout (fixed → never clipped by the scrolling nav) */}
                 <AnimatePresence>
                   {compact && flyoutActive && hasChildren && (
                     <motion.div
@@ -569,14 +602,15 @@ const DashboardLayout = ({
                       animate={{ opacity: 1, x: 0, scale: 1 }}
                       exit={{ opacity: 0, x: -6, scale: 0.98 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute left-[calc(100%+8px)] top-0 z-40 w-56 overflow-hidden rounded-xl border border-ctex-border bg-ctex-surface shadow-2xl shadow-black/10"
+                      style={{ top: flyoutPos.top, left: flyoutPos.left }}
+                      className="fixed z-50 w-56 overflow-hidden rounded-xl border border-ctex-border bg-ctex-surface shadow-2xl shadow-black/10"
                     >
                       <div className="border-b border-ctex-border px-3 py-2">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ctex-text-muted">
                           {item.label}
                         </p>
                       </div>
-                      <div className="p-1">
+                      <div className="max-h-[70vh] overflow-y-auto p-1">
                         {(item.children || []).map((child) => (
                           <button
                             key={child.key}
@@ -706,12 +740,12 @@ const DashboardLayout = ({
             ? { duration: 0 }
             : { type: "spring", stiffness: 260, damping: 30 }
         }
-        className="relative hidden h-screen flex-shrink-0 flex-col border-r border-ctex-border bg-ctex-surface lg:flex"
+        className="relative hidden h-screen min-h-0 flex-shrink-0 flex-col border-r border-ctex-border bg-ctex-surface lg:flex"
       >
         {/* ---------- Brand row ---------- */}
         <div
           className={[
-            "flex items-center px-3 py-4",
+            "flex flex-shrink-0 items-center px-3 py-4",
             railCollapsed ? "justify-center" : "justify-between",
           ].join(" ")}
         >
@@ -724,7 +758,7 @@ const DashboardLayout = ({
               railCollapsed ? "justify-center px-1" : "gap-3 px-1",
             ].join(" ")}
           >
-            {/* 👇 Brand chip uses the TONES gradient (from MerchantDashboard) */}
+            {/* Brand chip uses the TONES gradient (from MerchantDashboard) */}
             <span
               className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white"
               style={TONES.blue}
@@ -755,7 +789,7 @@ const DashboardLayout = ({
 
         {/* ---------- Dedicated expand row (collapsed only) ---------- */}
         {railCollapsed && (
-          <div className="mb-2 flex justify-center border-t border-ctex-border/60 pt-3">
+          <div className="mb-2 flex flex-shrink-0 justify-center border-t border-ctex-border/60 pt-3">
             <IconButton
               label="Expand sidebar"
               onClick={() => setRailCollapsed(false)}
@@ -765,8 +799,8 @@ const DashboardLayout = ({
           </div>
         )}
 
-        {/* ---------- Nav ---------- */}
-        <div className="flex flex-1 flex-col overflow-visible border-t border-ctex-border/60 pt-4">
+        {/* ---------- Nav (scrolls between the brand row and profile row) ---------- */}
+        <div className="flex min-h-0 flex-1 flex-col border-t border-ctex-border/60 pt-4">
           {renderNav({ compact: railCollapsed })}
         </div>
 
@@ -774,7 +808,7 @@ const DashboardLayout = ({
         <div
           ref={profileRef}
           className={[
-            "relative border-t border-ctex-border p-3",
+            "relative flex-shrink-0 border-t border-ctex-border p-3",
             railCollapsed ? "flex justify-center" : "",
           ].join(" ")}
         >
@@ -790,7 +824,7 @@ const DashboardLayout = ({
               profileOpen ? "bg-ctex-panel" : "",
             ].join(" ")}
           >
-            {/* 👇 Avatar chip uses the blue tone gradient */}
+            {/* Avatar chip uses the blue tone gradient */}
             <span
               className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-white"
               style={TONES.blue}
@@ -957,7 +991,7 @@ const DashboardLayout = ({
               </div>
             )}
 
-            {/* 👇 RESTORED: Search bar from MerchantDashboard */}
+            {/* Search bar from MerchantDashboard */}
             <label className="hidden h-9 items-center gap-2 rounded-xl border border-ctex-border bg-ctex-surface px-3 text-sm text-ctex-text-muted md:flex">
               <Search size={15} />
               <input
@@ -1032,9 +1066,9 @@ const DashboardLayout = ({
               exit={{ x: -40, opacity: 0 }}
               transition={{ type: "spring", stiffness: 320, damping: 32 }}
               onClick={(e) => e.stopPropagation()}
-              className="flex h-full w-[84vw] max-w-sm flex-col overflow-hidden border-r border-ctex-border bg-ctex-surface"
+              className="flex h-full min-h-0 w-[84vw] max-w-sm flex-col overflow-hidden border-r border-ctex-border bg-ctex-surface"
             >
-              <div className="flex items-center justify-between px-4 py-4">
+              <div className="flex flex-shrink-0 items-center justify-between px-4 py-4">
                 <div className="flex items-center gap-3">
                   <span
                     className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white"
@@ -1063,7 +1097,7 @@ const DashboardLayout = ({
 
               {renderNav({ onNavigate: () => setMobileOpen(false) })}
 
-              <div className="border-t border-ctex-border p-3">
+              <div className="flex-shrink-0 border-t border-ctex-border p-3">
                 <div className="flex items-center gap-3 rounded-xl p-2">
                   <span
                     className="flex h-9 w-9 items-center justify-center rounded-full text-white"

@@ -17,14 +17,16 @@ const platformAdminService = {
   },
 
   getMerchant: async (merchantId) => {
-    const { data } = await api.get(`/admin/merchants/${encodeURIComponent(merchantId)}`);
+    const { data } = await api.get(
+      `/admin/merchants/${encodeURIComponent(merchantId)}`,
+    );
     return data;
   },
 
   setMerchantStatus: async (merchantId, payload) => {
     const { data } = await api.patch(
       `/admin/merchants/${encodeURIComponent(merchantId)}/status`,
-      payload
+      payload,
     );
     return data;
   },
@@ -45,12 +47,17 @@ const platformAdminService = {
   },
 
   updateFeeConfiguration: async (id, payload) => {
-    const { data } = await api.patch(`/fees/${encodeURIComponent(id)}`, payload);
+    const { data } = await api.patch(
+      `/fees/${encodeURIComponent(id)}`,
+      payload,
+    );
     return data;
   },
 
   setFeeConfigurationStatus: async (id, status) => {
-    const { data } = await api.patch(`/fees/${encodeURIComponent(id)}/status`, { status });
+    const { data } = await api.patch(`/fees/${encodeURIComponent(id)}/status`, {
+      status,
+    });
     return data;
   },
   getFinancialSummary: async (params = {}) => {
@@ -62,7 +69,10 @@ const platformAdminService = {
     return data;
   },
   reconcileFinancialSettlement: async (paymentReference, payload) => {
-    const { data } = await api.patch(`/admin/financials/payments/${encodeURIComponent(paymentReference)}/settlement`, payload);
+    const { data } = await api.patch(
+      `/admin/financials/payments/${encodeURIComponent(paymentReference)}/settlement`,
+      payload,
+    );
     return data.data;
   },
   getWithdrawalFeeTiers: async () => {
@@ -70,22 +80,37 @@ const platformAdminService = {
     return data.data;
   },
   updateWithdrawalFeeTiers: async (payload) => {
-    const { data } = await api.patch("/admin/financials/withdrawal-fees", payload);
+    const { data } = await api.patch(
+      "/admin/financials/withdrawal-fees",
+      payload,
+    );
     return data.data;
   },
   resetWithdrawalFeeTiers: async (payload) => {
-    const { data } = await api.post("/admin/financials/withdrawal-fees/reset", payload);
+    const { data } = await api.post(
+      "/admin/financials/withdrawal-fees/reset",
+      payload,
+    );
     return data.data;
   },
   previewWithdrawalFee: async (params = {}) => {
-    const { data } = await api.get("/admin/financials/withdrawal-fees/preview", { params });
+    const { data } = await api.get(
+      "/admin/financials/withdrawal-fees/preview",
+      { params },
+    );
     return data.data;
   },
   // Add alongside the other methods
-getMerchantCustomers: async (merchantId, params = {}) => {
+  getMerchantCustomers: async (merchantId, params = {}) => {
+    const { data } = await api.get(
+      `/admin/merchants/${encodeURIComponent(merchantId)}/customers`,
+      { params },
+    );
+    return data;
+  },
+  getMerchantCustomer: async (merchantId, customerId) => {
   const { data } = await api.get(
-    `/admin/merchants/${encodeURIComponent(merchantId)}/customers`,
-    { params }
+    `/admin/merchants/${encodeURIComponent(merchantId)}/customers/${encodeURIComponent(customerId)}`
   );
   return data;
 },

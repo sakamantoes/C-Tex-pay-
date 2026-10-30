@@ -12,6 +12,7 @@ import {
 } from "../controller/adminMerchant.controller.js";
 import {
   adminAuditQuerySchema,
+  adminMerchantCustomerParamsSchema,
   adminMerchantListQuerySchema,
   adminMerchantParamsSchema,
   adminMerchantStatusSchema,
@@ -59,10 +60,12 @@ router.get(
   adminListMerchantCustomers
 );
 
+// Detail — declares BOTH merchantId and customerId so Zod
+// preserves customerId on req.params instead of stripping it.
 router.get(
   "/merchants/:merchantId/customers/:customerId",
   ...platformAdmin,
-  validate(adminMerchantParamsSchema, "params"),
+  validate(adminMerchantCustomerParamsSchema, "params"),
   adminGetMerchantCustomer
 );
 
